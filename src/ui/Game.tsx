@@ -1,6 +1,6 @@
 import { Component, useEffect, useState, type ReactNode } from 'react';
 import {
-  GAMEPLAY, officePointsFor, nextElection, munCycle, genCycle, monthIndex, advanceMonth, setPlayerVote, openDraft, adjustDraft, changeParty, setSocialFocus, currentPhaseLabel, eventById, monthLabel, performAction, resolveEvent, saveLocal, serialize,
+  GAMEPLAY, setFloorVote, officePointsFor, nextElection, munCycle, genCycle, monthIndex, advanceMonth, setPlayerVote, openDraft, adjustDraft, changeParty, setSocialFocus, currentPhaseLabel, eventById, monthLabel, performAction, resolveEvent, saveLocal, serialize,
   type GameState,
 } from '../engine';
 import { brl } from './format';
@@ -137,7 +137,7 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
         <div className="side-foot">Salvo automaticamente neste navegador.</div>
       </nav>
       <main className="main"><PageBoundary resetKey={`${page}-${s.month.year}-${s.month.month}`}>
-        {page === 'gabinete' && <Gabinete s={s} act={act} />}
+        {page === 'gabinete' && <Gabinete s={s} act={act} voteBill={(id, c) => setS(setPlayerVote(s, id, c))} voteFloor={(id, c) => setS(setFloorVote(s, id, c))} />}
         {page === 'personagem' && <Personagem s={s} />}
         {page === 'meupartido' && <MeuPartido s={s} />}
         {page === 'partidos' && <Partidos s={s} changeParty={(id) => { const n = changeParty(s, id); setS(n); setToast(n.log[n.log.length - 1]?.text ?? ''); }} />}
@@ -146,7 +146,7 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
         {page === 'eleicoes' && <Eleicoes s={s} />}
         {page === 'estado' && <EstadoUniao s={s} />}
         {page === 'gerais' && <EleicoesGerais s={s} />}
-        {page === 'mandato' && <MeuMandato s={s} act={act} />}
+        {page === 'mandato' && <MeuMandato s={s} act={act} voteFloor={(id, c) => setS(setFloorVote(s, id, c))} />}
         {page === 'imagem' && <Imagem s={s} act={act} />}
         {page === 'conquistas' && <Conquistas s={s} />}
         {page === 'campanha' && <Campanha s={s} act={act} />}

@@ -197,6 +197,7 @@ export function createGame(input: NewGameInput): GameState {
     crises: [],
     outlets: initOutlets(),
     communityPromises: [],
+    floorVotes: [],
     achievements: [],
     ending: null,
     pendingEvents: [],

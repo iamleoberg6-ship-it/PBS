@@ -3,11 +3,12 @@ import {
   ATTRIBUTE_LABELS, FEDERATIONS, GAMEPLAY, PARTIES, PROFESSIONS, REAL_FIGURES, RULEPACK_BR_2028_MUN as RP, SAO_PAULO, UPPER_LABEL, LAST_YEAR, munCycle, munRulepack, genRulepack,
   availableActions, formatIsoPt, listName, monthIndex, monthLabel, partyById, partyChangeBlock, previewEligibility,
   estimateVereadorVotes, playerElectoralScore, councillorFacts, fatigueMultiplier, usesFatigue, canAfford, isWorkAction, officePointsFor, EXPERT_SCALE, IDEOLOGY_SOURCE, AXES, categoryLabel, generalPosition,
-  REGIONS, type ActionDef, type AttributeKey, type ElectionRecord, type GameState, type Sourced,
+  REGIONS, type VoteChoice, type ActionDef, type AttributeKey, type ElectionRecord, type GameState, type Sourced,
 } from '../engine';
 import { brl, listColor, num, partyColor, pct } from './format';
 import { Headlines, compact } from './media';
 import { CausesModal } from './causes';
+import { Votacoes } from './votacoes';
 
 type Props = { s: GameState; act: (id: string, param?: string) => void };
 
@@ -59,7 +60,7 @@ export function ActionCard({ def, status, s, act }: { def: ActionDef; status: st
   );
 }
 
-export function Gabinete({ s, act }: Props) {
+export function Gabinete({ s, act, voteBill, voteFloor }: Props & { voteBill: (id: string, c: VoteChoice | null) => void; voteFloor: (id: string, c: VoteChoice | null) => void }) {
   const [why, setWhy] = useState<string | null>(null);
   const p = s.player;
   const m = p.mandate;
@@ -77,6 +78,7 @@ export function Gabinete({ s, act }: Props) {
             {p.candidacy ? ` · candidatura a ${OFFICE_PT[p.candidacy.office] ?? p.candidacy.office} (${p.candidacy.year ?? 2028}): ${p.candidacy.status.replace('_', ' ')}` : ''}</p>
         </div>
       </div>
+      <Votacoes s={s} voteBill={voteBill} voteFloor={voteFloor} compact />
       <div className="meters">
         <Meter label="Reconhecimento" value={p.recognition} note="cidade" onWhy={() => setWhy('recognition')} />
         <Meter label="Base social" value={p.base} color="gold" onWhy={() => setWhy('base')} />

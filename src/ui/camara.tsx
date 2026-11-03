@@ -1,3 +1,4 @@
+import { Votacoes } from './votacoes';
 import { useState } from 'react';
 import {
   ABSOLUTE_MAJORITY, BLOC_LABEL, THEME_LABEL, CPI_SIGNATURES, KIND_LABEL, LEG_RULES, STAGE_LABEL, authorLabel, blocCounts, forecast, isActive,
@@ -39,6 +40,7 @@ export function Camara({ s, vote }: { s: GameState; vote: (billId: string, c: Vo
             {isVer && ` · você: ${BLOC_LABEL[s.player.mandate!.stance]}${myComm ? `, Comissão de ${myComm.name}` : ''}`}</p>
         </div>
       </div>
+      {isVer && <Votacoes s={s} voteBill={vote} voteFloor={() => undefined} />}
 
       <div className="grid g-2">
         <div className="card">

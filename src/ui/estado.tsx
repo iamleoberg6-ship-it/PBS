@@ -2,10 +2,11 @@ import { useState } from 'react';
 import {
   ACHIEVEMENTS, FUNDING_KIND_LABEL, AMENDMENT_BUDGET, AMENDMENT_SOURCES, amendmentYearTotals, healthShareRequired, LAST_YEAR, availableActions, officePointsFor, REGIONS, RESPONSE_LABEL, STATE_AREAS, STATE_SOURCES, UPPER_LABEL, careerScore, cityAlignment, formatIsoPt, genCycle, genRulepack,
   monthIndex, monthLabel, outletById, partyById, previewEligibility, promiseCapacity, upperSummary,
-  type CrisisResponse, type GameState, type GeneralElectionRecord, type MajRoundResult, type ProportionalResult,
+  type CrisisResponse, type GameState, type VoteChoice, type GeneralElectionRecord, type MajRoundResult, type ProportionalResult,
 } from '../engine';
 import { num, partyColor, pct } from './format';
 import { ActionCard, Checks, Polls } from './pages';
+import { Votacoes } from './votacoes';
 
 type Act = (id: string, param?: string) => void;
 const acr = (id: string) => partyById(id)?.acronym ?? id;
@@ -232,7 +233,7 @@ const HOUSE_OF: Record<string, { title: string; key: 'alespSeats' | 'camaraSeats
 };
 
 /** Página do mandato estadual/federal: painel, casa legislativa, ações do cargo e registro. */
-export function MeuMandato({ s, act }: { s: GameState; act: Act }) {
+export function MeuMandato({ s, act, voteFloor }: { s: GameState; act: Act; voteFloor: (id: string, c: VoteChoice | null) => void }) {
   const m = s.player.mandate;
   if (!m?.upper) return <div className="card"><p>Você não exerce mandato estadual ou federal.</p></div>;
   const h = HOUSE_OF[m.office];
@@ -241,6 +242,7 @@ export function MeuMandato({ s, act }: { s: GameState; act: Act }) {
   return (
     <>
       <div className="page-head"><div><h2>{UPPER_LABEL[m.office]}</h2><p>Mandato {m.since.slice(0, 4)}–{m.until.slice(0, 4)} · agenda do cargo: {s.officePoints ?? 0} de {officePointsFor(s)} compromissos</p></div></div>
+      <Votacoes s={s} voteBill={() => undefined} voteFloor={voteFloor} />
       <UpperPanel s={s} />
       <div className="grid g-main">
         <div className="card">

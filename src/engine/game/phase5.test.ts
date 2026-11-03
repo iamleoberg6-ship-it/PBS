@@ -317,3 +317,37 @@ describe('Outras fontes de recursos', () => {
     expect(s.crises.some((c) => c.topic === 'esquema' && c.truth === 'verdadeira')).toBe(true);
   });
 });
+
+describe('Votações do mês', () => {
+  it('deputado recebe matérias todo mês, o voto tem consequência e quem não vota segue a bancada', async () => {
+    const { newUpper } = await import('./upper');
+    const { setFloorVote } = await import('./pauta');
+    let s = mk(500, 'party_real_pl');
+    s.month = { year: 2031, month: 4 };
+    s.player.mandate = { ...newMandate('deputado_estadual', '2031-03-15', '2035-03-14'), upper: newUpper('deputado_estadual') };
+    s = advanceMonth(s);
+    const open = s.floorVotes.filter((v) => !v.result);
+    expect(open.length).toBeGreaterThanOrEqual(1);
+    const v = open[0];
+    const contra: 'S' | 'N' = v.partyOrientation === 'S' ? 'N' : 'S';
+    s = setFloorVote(s, v.id, contra);
+    const loyal0 = s.player.partyRel.perceivedLoyalty;
+    s.pendingEvents = [];
+    s = advanceMonth(s);
+    const r = s.floorVotes.find((x) => x.id === v.id)!;
+    expect(r.result).not.toBeNull();
+    if (v.partyOrientation !== 'A') expect(s.player.partyRel.perceivedLoyalty).toBeLessThan(loyal0);
+    expect(s.floorVotes.filter((x) => !x.result).length).toBeGreaterThanOrEqual(1);
+  });
+  it('vereador tem ao menos uma votação de plenário pautada por mês', async () => {
+    let s = mk(501);
+    s.month = { year: 2029, month: 3 };
+    s.player.mandate = newMandate('vereador', '2029-01-01', '2032-12-31');
+    s.government.councillors[0] = { ...s.government.councillors[0], id: PLAYER, name: s.character.name, partyId: s.player.partyId!, real: false };
+    for (let i = 0; i < 4; i++) {
+      s.pendingEvents = [];
+      s = advanceMonth(s);
+      expect(s.legislature.bills.some((b) => b.stage === 'plenario' && b.scheduled)).toBe(true);
+    }
+  });
+});

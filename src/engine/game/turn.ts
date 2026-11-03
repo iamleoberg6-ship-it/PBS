@@ -10,7 +10,7 @@ import { runoff } from '../rules/majoritarian';
 import { rollEvent } from './events';
 import { seatsByParty } from './council';
 import { PROFESSIONS } from './create';
-import { blocCounts, electMesa, initLegislature, legislatureMonthlyStep, legislatureNews, mesaWindow, playerIsCouncillor } from './legislature';
+import { ensureMonthlyFloorVote, blocCounts, electMesa, initLegislature, legislatureMonthlyStep, legislatureNews, mesaWindow, playerIsCouncillor } from './legislature';
 import { createSecretariat, inviteAffinity, secretariatMonthlyStep } from './secretariat';
 import { campaignMonthlyStep, distributeVotes, electoralLawsuit, enrichMayorPoll, judgeAccounts, mayorRegionalShares } from './campaign';
 import { bossEndorsement, leaveStaff, staffMonthlyStep } from './assessor';
@@ -28,6 +28,7 @@ import { decayRelations } from './relations';
 import { LAST_YEAR, councilLegislatureNumber, genCycle, isGenYear, isMunYear, munCycle, munTerm, nextElection } from './cycle';
 import { applyGeneralResults, createStateRace, generalTermEnd, pickCouncillorCandidates, resolveGovernorRunoff, runGeneralElection, stateRaceShares, stateStrength, stateWorldMonthly } from './general';
 import { UPPER_LABEL, UPPER_SALARIES, schemeInvestigation, upperMonthlyStep } from './upper';
+import { generateFloorVotes, resolveFloorVotes } from './pauta';
 import { councillorWindowSwitches, crisisMonthlyStep, lapseCampaignPromises, promisesMonthlyStep } from './livingworld';
 import { checkAchievements, computeEnding } from './endings';
 import { endMandate, isMunicipalMandate, mandateExpired, newMandate, startUpperMandate, vacateCouncilSeat } from './careers';
@@ -60,6 +61,8 @@ export function advanceMonth(state: GameState): GameState {
   mark('Fechamento do mês: renda e despesas pessoais');
 
   const t0 = monthIndex(s.month);
+  // 1b) Votações de plenário do mês que termina (Alesp, Câmara dos Deputados, Senado).
+  for (const n of resolveFloorVotes(s, rng)) log(s, 'mandato', n);
   // 2) Câmara Municipal: tramitação, votações, vetos, CPIs (roda sempre — a Câmara funciona com ou sem o jogador).
   const legNotes = legislatureMonthlyStep(s, rng);
   for (const n of legNotes) log(s, 'camara', n);
@@ -175,6 +178,9 @@ export function advanceMonth(state: GameState): GameState {
     return s;
   }
 
+  // 6b) Pauta do novo mês: ao menos uma votação para quem tem mandato legislativo.
+  s.floorVotes.push(...generateFloorVotes(s, rng));
+  ensureMonthlyFloorVote(s, rng);
   // 7) Agenda do cargo (depois das posses do mês).
   s.officePoints = officePointsFor(s);
   // 7b) Salário de mandato / emprego.

@@ -300,8 +300,37 @@ Outras mudanças de navegação:
 - **No desfecho da carreira**: o esquema conta como corrupção e pode levar ao final "Escândalo".
 - **Tipificação real**: corrupção passiva e peculato.
 
-## 16. Pendências conhecidas
+## 16. Votações do mês (ajuste pós-fase)
 
-1. **Votação nominal na Alesp e no Congresso**: hoje o mandato estadual/federal é abstrato. Seria uma extensão futura usando o motor da Fase 2.
+Todo mês, quem tem mandato legislativo recebe matérias para votar. Votar é de graça: **não gasta agenda**. O card "Votações do mês" aparece no topo da Agenda e na página do mandato.
+
+**Vereador(a)**
+- Toda votação do mês usa o motor real da Câmara Municipal (Fase 2).
+- Se nenhuma matéria chegou ao plenário, a Presidência pauta uma em regime de urgência. Isso é SIMPLIFICAÇÃO.
+- O card mostra, para cada matéria:
+  - o autor;
+  - a posição da prefeitura;
+  - a opinião pública;
+  - a orientação da bancada;
+  - a previsão de placar (28 votos para aprovar).
+
+**Deputado(a) estadual, deputado(a) federal e senador(a)**
+- Recebem de 1 a 2 matérias fictícias por mês, no formato `game/pauta.ts`. São temas típicos de cada casa, como concessões, piso do magistério, ICMS, isenção de IR, regulação de plataformas, PECs e sabatinas.
+- Cada matéria tem autoria (Executivo ou parlamentares), posição do governo, apoio do público, repercussão e orientação do partido. A orientação é calculada pela relação governo × oposição e pela ideologia.
+- O placar é simulado bancada por bancada, com dissidências. Para aprovar:
+  - lei comum: maioria simples (CF art. 47, REGRA REAL);
+  - PEC: 3/5 (CF art. 60 §2º, REGRA REAL).
+- **Consequências do voto** (PROPOSTA):
+  - votar contra o partido: lealdade percebida e confiança da direção caem;
+  - votar contra o governo: a relação com o Executivo cai;
+  - votar contra a opinião pública: aprovação e popularidade caem;
+  - votar contra a própria linha ideológica: a base cai;
+  - abster-se em tema importante: crítica pública.
+- Quem não vota segue a orientação da bancada automaticamente.
+- Votações de grande repercussão viram notícia.
+
+## 17. Pendências conhecidas
+
+1. **Tramitação completa na Alesp e no Congresso**: já há votação mensal em plenário, mas sem comissões nem autoria de projetos pelo motor da Fase 2. Seria uma extensão futura.
 2. **Secretário estadual**: o mandato é abstrato. O orçamento estadual detalhado não está modelado.
 3. **Desincompatibilização de secretário municipal**: continua marcada como DERIVADA.

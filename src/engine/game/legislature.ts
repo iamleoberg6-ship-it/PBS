@@ -297,6 +297,30 @@ function aiBill(s: GameState, rng: RngState): Bill | null {
   });
 }
 
+/** Garante ao menos uma votação de plenário por mês para o(a) vereador(a) jogador(a) (ajuste pós-Fase 5).
+ *  Se nada chegou ao plenário, a Presidência inclui na Ordem do Dia uma matéria em regime de urgência (simplificação de jogo). */
+export function ensureMonthlyFloorVote(s: GameState, rng: RngState): Bill | null {
+  if (s.player.mandate?.office !== 'vereador') return null;
+  const L = s.legislature;
+  const pending = L.bills.filter((b) => b.stage === 'plenario' && isActive(b));
+  const already = pending.find((b) => b.scheduled);
+  if (already) return already;
+  let b: Bill | null | undefined = pending.filter((x) => x.author !== PLAYER).sort((x, y) => y.salience - x.salience)[0];
+  if (!b) {
+    for (let k = 0; k < 4 && (!b || b.kind === 'denominacao'); k++) {
+      if (b) L.bills = L.bills.filter((x) => x.id !== b!.id);
+      b = aiBill(s, rng);
+    }
+    if (!b) return null;
+    b.salience = Math.max(b.salience, 30 + next(rng) * 40);
+    b.stage = 'plenario';
+    b.urgent = true;
+    b.history.push({ month: { ...s.month }, text: 'Aprovada urgência: a matéria vai direto ao plenário (simplificação de jogo).' });
+  }
+  b.scheduled = true;
+  return b;
+}
+
 function stageCommittee(b: Bill): string {
   return b.stage === 'ccj' ? 'ccj' : b.stage === 'financas' ? 'financas' : committeeForTheme(b.theme);
 }

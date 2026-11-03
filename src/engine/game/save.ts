@@ -292,6 +292,7 @@ function upgradeWithinV8(s: Raw, report: LoadReport) {
     if (t < 2029 * 12) for (const d of real.filter((x) => x.posseMonth <= t)) if (s.government.councillors.some((c: Raw) => c.id === d.councillorId)) vacateCouncilSeat(s as GameState, d.councillorId, 'eleito(a) deputado(a) em 2026 — fato real');
     report.repairs.push('Vereadores reais eleitos deputados em 2026 deixam a Câmara; suplentes fictícios do mesmo partido assumem.');
   }
+  s.floorVotes ??= [];
   // Cotas de emendas com valores reais de 2026 (ajuste pós-Fase 5).
   const um = s.player?.mandate?.upper;
   if (um && !s.flags.cotaEmendas2026) {

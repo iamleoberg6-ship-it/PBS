@@ -687,6 +687,26 @@ export interface CommunityPromise {
   context: string; // ex.: 'campanha 2028 (vereador)'
 }
 
+/** Votação de plenário para mandatos estaduais/federais (ajuste pós-Fase 5). Matérias fictícias. */
+export interface FloorVote {
+  id: string;
+  month: GameMonth;
+  house: 'alesp' | 'camara' | 'senado';
+  title: string;
+  summary: string;
+  theme: string;
+  slant: number;
+  publicSupport: number;
+  salience: number;
+  author: 'governo' | 'parlamentares';
+  govPosition: 'favor' | 'contra' | 'neutro';
+  pec: boolean;
+  partyOrientation: VoteChoice;
+  playerVote: VoteChoice | null;
+  result: { yes: number; no: number; abst: number; outcome: 'aprovado' | 'rejeitado'; rule: string } | null;
+  effects: string | null;
+}
+
 export interface Achievement {
   id: string;
   month: GameMonth;
@@ -743,6 +763,7 @@ export interface GameState {
   crises: ImageCrisis[];
   outlets: OutletState[];
   communityPromises: CommunityPromise[];
+  floorVotes: FloorVote[];
   achievements: Achievement[];
   ending: Ending | null;
   pendingEvents: PendingEvent[];
