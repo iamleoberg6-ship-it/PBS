@@ -200,7 +200,7 @@ export function createGame(input: NewGameInput): GameState {
     ending: null,
     pendingEvents: [],
     log: [{ month: { year: 2027, month: 1 }, kind: 'sistema', text: `Partida iniciada em ${startDate}. Pacote de regras: ${RULEPACK_BR_2028_MUN.label} (ciclos seguintes até 2036 projetam a lei vigente). Dados reais congelados em 30/10/2026.` }],
-    flags: { seed },
+    flags: { seed, saidas2026: true },
     gameOver: false,
   };
   if (joinsParty) {

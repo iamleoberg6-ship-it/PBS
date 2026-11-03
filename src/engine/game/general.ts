@@ -26,7 +26,8 @@ const clamp = (v: number, a = 0, b = 100) => Math.max(a, Math.min(b, v));
 
 export const STATE_SOURCES = {
   alesp: 'Alesp — composição eleita em 04/10/2026 (PL 27, PT 16, PSOL 9, PSD 9, Podemos 6, Republicanos 6, MDB 5, PP 5, União 4, PSB 3, Missão 1, PSDB 1, Novo 1, PRD 1)',
-  camara: 'Bancada paulista eleita em 2026 (PL 19, Fed. PT-PCdoB-PV 11, Podemos 6, PSD 6, Republicanos 6, PSOL 6, MDB 4, PP 3, União 2, Novo 2, PSB 2, PRD 1, PSDB 1, Missão 1). A divisão interna da federação Fé Brasil é registrada no PT (simplificação).',
+  camara: 'Bancada paulista eleita em 2026 (PL 19, Fed. PT-PCdoB-PV 11, Podemos 6, PSD 6, Republicanos 6, PSOL 6, MDB 4, PP 3, União 2, Novo 2, PSB 2, PRD 1, PSDB 1, Missão 1). As 11 vagas da federação ficaram com o PT (Metrópoles, 05/10/2026; Orlando Silva, do PCdoB, não se reelegeu).',
+  vereadores2026: 'Câmara Municipal de SP (05/10/2026): Lucas Pavanato, Sargento Nantes, Ana Carolina Oliveira, Luna Zarattini, Sidney Cruz e Dra. Sandra Tadeu eleitos deputados federais; Thammy Miranda, Marina Bragante e Keit Lima, deputados estaduais. Carlos Bezerra Jr. (suplente em exercício) também foi eleito, mas não consta da composição de 2024 usada pelo jogo. Os suplentes que assumem no jogo são personagens fictícios do mesmo partido.',
   executivos: 'TSE 2026: Lula (PT) reeleito presidente; Tarcísio de Freitas (Republicanos) reeleito governador no 1º turno; Guilherme Derrite (PP) e André do Prado (PL) eleitos senadores; Marcos Pontes (PL) tem mandato até janeiro de 2031.',
 };
 
@@ -48,7 +49,11 @@ export function initStateWorld(): StateWorld {
     presidentApproval: 48,
     governorCoalition: [pid('REPUBLICANOS'), pid('PL'), pid('PSD'), pid('PP'), pid('UNIÃO'), pid('MDB'), pid('PODE')],
     presidentCoalition: [pid('PT'), pid('PCdoB'), pid('PV'), pid('PSB'), pid('PSOL'), pid('REDE'), pid('PDT')],
-    pendingDepartures: [],
+    // Vereadores de SP eleitos deputados em 04/10/2026 (fato público, Câmara Municipal de SP): saem na posse.
+    pendingDepartures: [
+      ...['lucas_pavanato', 'sargento_nantes', 'ana_carolina_oliveira', 'luna_zarattini', 'sidney_cruz', 'dra_sandra_tadeu'].map((id) => ({ councillorId: `real_ver_${id}`, office: 'deputado_federal' as const, posseMonth: mi(2027, 2), real2026: true })),
+      ...['thammy_miranda', 'marina_bragante', 'keit_lima'].map((id) => ({ councillorId: `real_ver_${id}`, office: 'deputado_estadual' as const, posseMonth: mi(2027, 3), real2026: true })),
+    ],
     governorRace: null,
     senateRace: null,
     councillorRuns: [],

@@ -170,7 +170,7 @@ export function EstadoUniao({ s }: { s: GameState }) {
           {w.senators.map((x) => <p key={x.id} className="small"><b>{x.isPlayer ? `${x.name} (você)` : x.name}</b> · {acr(x.partyId)} · até {x.until + 1} {x.real ? <span className="tag real">real</span> : <span className="tag proposta">fictício</span>}</p>)}
         </div>
       </div>
-      <p className="small muted" style={{ marginBottom: 12 }}>{STATE_SOURCES.executivos} A avaliação dos governos é um número do jogo, não pesquisa real. Alinhamento político pesa nos convênios da prefeitura (mecânica de jogo).</p>
+      <p className="small muted" style={{ marginBottom: 12 }}>{STATE_SOURCES.executivos} {STATE_SOURCES.vereadores2026} A avaliação dos governos é um número do jogo, não pesquisa real. Alinhamento político pesa nos convênios da prefeitura (mecânica de jogo).</p>
       <div className="grid g-2" style={{ marginBottom: 16 }}>
         <Seats title="Alesp" seats={w.alespSeats} total={94} source={s.generalElections.length ? 'Composição resultante da simulação.' : STATE_SOURCES.alesp} />
         <Seats title="Bancada paulista na Câmara" seats={w.camaraSeats} total={70} source={s.generalElections.length ? 'Composição resultante da simulação.' : STATE_SOURCES.camara} />

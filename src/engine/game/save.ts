@@ -5,6 +5,7 @@
 import { RULEPACK_BR_2028_MUN } from '../data/rulepack';
 import { initStateWorld } from './general';
 import { initOutlets } from './livingworld';
+import { vacateCouncilSeat } from './careers';
 import { PARTIES, partyById } from '../data/parties';
 import { neutralIdeology } from '../data/ideology';
 import { createRng } from '../rng';
@@ -150,7 +151,18 @@ export function migrate(raw: Raw, report: LoadReport): Raw {
       if (s.player.candidacy && !s.player.candidacy.year) s.player.candidacy.year = 2028;
     }
     if (s.flags && s.flags.expedienteDecidido) s.flags.expediente_2028 = true;
+    s.flags.saidas2026 = true;
+    // Saves já depois de fev/mar 2027: aplica agora as saídas reais de 2026 (suplentes fictícios assumem).
+    const tNow = (s.month?.year ?? 2027) * 12 + (s.month?.month ?? 1) - 1;
+    for (const d of s.stateWorld.pendingDepartures.filter((x: Raw) => x.posseMonth <= tNow)) vacateCouncilSeat(s as GameState, d.councillorId, 'eleito(a) deputado(a) em 2026 — fato real');
+    s.stateWorld.pendingDepartures = s.stateWorld.pendingDepartures.filter((x: Raw) => x.posseMonth > tNow);
     report.repairs.push('Fase 5: eleições gerais (Alesp, Câmara, Senado, governo), crises de imagem, promessas públicas e conquistas ativadas; a partida agora segue até 2036.');
+  }
+  // Vereadores reais eleitos deputados em 2026 (saves v8 criados antes desta correção).
+  if (s.stateWorld && !s.flags?.saidas2026) {
+    s.flags.saidas2026 = true;
+    const t = (s.month?.year ?? 2027) * 12 + (s.month?.month ?? 1) - 1;
+    if (t < 2027 * 12 + 2) s.stateWorld.pendingDepartures = [...initStateWorld().pendingDepartures, ...s.stateWorld.pendingDepartures.filter((d: Raw) => !d.real2026)];
   }
   s.saveVersion = SAVE_VERSION;
   return s;

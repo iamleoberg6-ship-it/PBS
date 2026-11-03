@@ -276,6 +276,7 @@ function generalCalendar(s: GameState, t: number): string[] {
   const c = s.player.candidacy;
   const mine = !!c && (c.year ?? 2028) === G;
   const w = s.stateWorld;
+  departures(s, t);
   if (t === mi(G - 1, 7)) out.push(`Já é possível pleitear candidatura para as eleições gerais de ${G}: deputado(a) estadual (Alesp, 94 vagas), deputado(a) federal (70 vagas por SP), senador(a) (${rp.seats.senadoSP.value} vaga${rp.seats.senadoSP.value > 1 ? 's' : ''}) e governador(a).`);
   if (t === mi(G, 3)) {
     w.councillorRuns = pickCouncillorCandidates(s, rng);
@@ -386,7 +387,7 @@ function compactOldRecords(s: GameState) {
 function departures(s: GameState, month: number) {
   const due = s.stateWorld.pendingDepartures.filter((d) => d.posseMonth === month);
   for (const d of due) {
-    const msg = vacateCouncilSeat(s, d.councillorId, d.office === 'deputado_federal' ? 'eleito(a) deputado(a) federal' : 'eleito(a) deputado(a) estadual');
+    const msg = vacateCouncilSeat(s, d.councillorId, `${d.office === 'deputado_federal' ? 'eleito(a) deputado(a) federal' : 'eleito(a) deputado(a) estadual'}${d.real2026 ? ' em 2026 — fato real' : ''}`);
     if (msg) log(s, 'camara', msg);
   }
   s.stateWorld.pendingDepartures = s.stateWorld.pendingDepartures.filter((d) => d.posseMonth !== month);
@@ -414,6 +415,7 @@ function handleConventionAndRegistration(s: GameState) {
     c.status = conv.approved ? 'aprovada_convencao' : 'rejeitada_convencao';
     log(s, 'eleicao', conv.text);
     if (!conv.approved) lapseCampaignPromises(s, c.year ?? 2028);
+    if (!conv.approved && c.office !== 'vereador' && c.account.crowdPending && s.player.partyRel.leadershipTrust < 20) { log(s, 'eleicao', `Sem candidatura, a vaquinha virtual (${brl(c.account.crowdPending)}) é devolvida aos doadores.`); c.account.crowdPending = 0; }
     const fallback = c.office === 'prefeito' ? 'vereador' : c.office === 'governador' || c.office === 'senador' ? 'deputado_federal' : c.office === 'deputado_federal' ? 'deputado_estadual' : null;
     if (!conv.approved && fallback && s.player.partyRel.leadershipTrust >= 20) {
       c.office = fallback;
@@ -430,10 +432,12 @@ function handleConventionAndRegistration(s: GameState) {
     const baseFund = ({ prefeito: 1_200_000, governador: 2_500_000, senador: 900_000, deputado_federal: 60_000, deputado_estadual: 35_000 } as Record<string, number>)[c.office] ?? 15_000;
     const fefc = Math.round(baseFund * (0.5 + strength / 4) * (0.4 + s.player.partyRel.leadershipTrust / 140 + s.player.partyRel.influence / 200));
     c.account.fefc = fefc;
+    if (c.account.crowdPending) { c.account.donations += c.account.crowdPending; log(s, 'eleicao', `Vaquinha virtual liberada com o registro: ${brl(c.account.crowdPending)} entram na conta de campanha.`); c.account.crowdPending = 0; }
     log(s, 'eleicao', `Registro de candidatura deferido. O ${party.acronym} repassou ${brl(fefc)} do FEFC para sua campanha (critério de distribuição interno do partido — valor de jogo). Campanha liberada a partir de 16/08.`);
   } else {
     c.status = 'indeferida';
     lapseCampaignPromises(s, c.year ?? 2028);
+    if (c.account.crowdPending) { log(s, 'eleicao', `Sem registro, a vaquinha virtual (${brl(c.account.crowdPending)}) é devolvida aos doadores (Lei 9.504/97 art. 22-A §3º).`); c.account.crowdPending = 0; }
     const failed = c.checks.filter((x) => !x.ok).map((x) => x.label).join('; ');
     log(s, 'eleicao', `Registro de candidatura indeferido: ${failed}.`);
   }

@@ -2,7 +2,7 @@
 
 Critério de conclusão do plano v0.4: **o mundo evolui sem o jogador e a carreira pode ir além de 2032**. A partida agora começa em janeiro de 2027 e termina em dezembro de 2036. Nesse período há três eleições municipais (2028, 2032 e 2036) e duas gerais (2030 e 2034). O jogo também termina quando o jogador encerra a carreira, e em ambos os casos mostra um desfecho.
 
-Save: versão 8, com migração automática a partir da v7. Testes: 110 passando, 16 deles novos em `phase5.test.ts`.
+Save: versão 8, com migração automática a partir da v7. Testes: 112 passando, 18 deles em `phase5.test.ts`.
 
 ---
 
@@ -35,7 +35,7 @@ Itens do pacote das eleições gerais:
 - **Posses**:
   - presidente em 5/1 e governador em 6/1 — **EC 111/2021, REGRA REAL**;
   - deputados federais e senadores em 1º/02 — CF art. 57 §4º;
-  - Alesp em 15/03 — DERIVADA, a confirmar no Regimento Interno.
+  - Alesp em 15/03 — REGRA REAL (prática confirmada nas legislaturas de 2019 e 2023).
 - **Idade mínima** (CF art. 14 §3º VI): senador 35 anos, governador 30, deputado 21.
 - **Cadeiras**:
   - Alesp com 94 (CF art. 27: 36 + 58);
@@ -54,7 +54,12 @@ Itens do pacote das eleições gerais:
 - Senadores por SP: Guilherme Derrite (PP) e André do Prado (PL), eleitos em 2026, e Marcos Pontes (PL), com mandato até jan/2031.
 - Alesp eleita em 2026: PL 27, PT 16, PSOL 9, PSD 9, Podemos 6, Republicanos 6, MDB 5, PP 5, União 4, PSB 3, Missão 1, PSDB 1, Novo 1, PRD 1.
 - Bancada federal de SP: PL 19, Fed. PT-PCdoB-PV 11, Podemos 6, PSD 6, Republicanos 6, PSOL 6, MDB 4, PP 3, União 2, Novo 2, PSB 2, PRD 1, PSDB 1, Missão 1.
-  - A divisão interna da federação Fé Brasil foi registrada toda no PT. É uma simplificação: a distribuição por partido não foi confirmada.
+  - As 11 vagas da federação Fé Brasil ficaram com o PT (Metrópoles, 05/10/2026). Orlando Silva, do PCdoB, não se reelegeu.
+- Vereadores de SP eleitos deputados em 2026 (Câmara Municipal de SP, 05/10/2026):
+  - federais: Lucas Pavanato, Sargento Nantes, Ana Carolina Oliveira, Luna Zarattini, Sidney Cruz e Dra. Sandra Tadeu;
+  - estaduais: Thammy Miranda, Marina Bragante e Keit Lima.
+  - No jogo, eles saem na posse (fevereiro ou março de 2027). Quem assume é um suplente **fictício do mesmo partido**; os suplentes reais não são modelados.
+  - Carlos Bezerra Jr. também foi eleito, mas estava como suplente em exercício e não faz parte da composição de 2024 usada pelo jogo.
 
 **Eleição geral simulada** (outubro de G):
 - **Alesp (94) e Câmara (70)**: mesmo motor proporcional real da Câmara Municipal (CE arts. 106–111, sobras 80/20 e decisão do STF de 2024), com auditoria passo a passo.
@@ -188,13 +193,28 @@ Itens do pacote das eleições gerais:
 | Elemento | Classificação |
 |---|---|
 | Datas, posses, idades, cadeiras, renovação do Senado, maioria absoluta e 2º turno, sistema proporcional, janela partidária, CF art. 14 §§5º–6º, direito de resposta, emendas impositivas, subsídio federal | REGRA REAL (com fonte na página Regras) |
-| Datas de 2030–2036, posse da Alesp, desincompatibilização de secretário municipal, limites de gastos de deputado | DERIVADA |
+| Datas de 2030–2036, desincompatibilização de secretário municipal, limites de gastos de deputado | DERIVADA |
 | Votos, candidatos fictícios, chances de projetos e emendas, crises e veículos, promessas e boa vontade, conquistas e nota | PROPOSTA |
 
-## 11. Pendências conhecidas
+## 11. Arrecadação de campanha (ajuste pós-fase)
 
-1. **Vereadores reais eleitos deputados em 2026.** Lucas Pavanato, por exemplo, foi eleito deputado federal. Na vida real, a Câmara Municipal muda em fevereiro de 2027, com a posse dos suplentes. O jogo mantém a composição de 2024.
-   - Resolver isso exige a lista oficial de vereadores eleitos em 2026 e de seus suplentes.
-2. **Distribuição interna da federação Fé Brasil** na bancada federal de SP, a confirmar.
-3. **Votação nominal na Alesp e no Congresso**: hoje o mandato estadual/federal é abstrato. Seria uma extensão futura usando o motor da Fase 2.
-4. **Secretário estadual**: o mandato é abstrato. O orçamento estadual detalhado não está modelado.
+| Regra | Classificação |
+|---|---|
+| Empresa (pessoa jurídica) não pode doar (STF, ADI 4.650/2015; Lei 13.165/2015) | REGRA REAL |
+| Pessoa física doa até 10% dos rendimentos brutos do ano anterior (Lei 9.504/97 art. 23 §1º) | REGRA REAL |
+| Financiamento coletivo em plataforma cadastrada (art. 23 §4º, IV), a partir de 15 de maio do ano eleitoral; o dinheiro só é liberado com a candidatura registrada e, sem registro, é devolvido (art. 22-A §3º) | REGRA REAL |
+| Valores arrecadados e chances | PROPOSTA |
+
+Ações novas:
+- **Vaquinha virtual**: rende mais para quem tem redes sociais grandes e base. O valor fica retido até o registro da candidatura.
+- **Jantar de arrecadação com empresários**:
+  - opção legal: só doações de pessoa física (CPF), dentro do limite;
+  - opção "por fora": dinheiro de empresa ou sem registro, ou seja, caixa dois. Rende mais, mas conta como irregularidade (contas desaprovadas, ação de cassação) e vira pauta verdadeira de crise de imagem.
+
+A arrecadação também foi escalada por cargo: a de governador e a de senador são próximas à de prefeito, e a de deputado é duas vezes a de vereador.
+
+## 12. Pendências conhecidas
+
+1. **Votação nominal na Alesp e no Congresso**: hoje o mandato estadual/federal é abstrato. Seria uma extensão futura usando o motor da Fase 2.
+2. **Secretário estadual**: o mandato é abstrato. O orçamento estadual detalhado não está modelado.
+3. **Desincompatibilização de secretário municipal**: continua marcada como DERIVADA.

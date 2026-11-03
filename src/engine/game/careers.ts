@@ -2,6 +2,8 @@
 // estaduais/federais e vagas abertas na Câmara Municipal.
 
 import { PROFESSIONS } from './create';
+import { ballotName, randomBirthDate } from './names';
+import { partyById } from '../data/parties';
 import { PLAYER } from './relations';
 import { initLegislature } from './legislature';
 import { newUpper, UPPER_LABEL, UPPER_SALARIES } from './upper';
@@ -32,10 +34,12 @@ export function vacateCouncilSeat(s: GameState, councillorId: string, reason: st
   const old = s.government.councillors[idx];
   // Suplente: personagem do jogo da mesma lista (simplificação — a ordem real de suplência não é guardada no save).
   const seated = new Set(s.government.councillors.map((c) => c.id));
+  // Suplente fictício do mesmo partido (mesma linha ideológica); a pessoa real que seria convocada não é modelada.
   const supId = `suplente_${old.id}_${s.month.year}`;
-  s.government.councillors[idx] = { ...old, id: seated.has(supId) ? `${supId}b` : supId, name: `Suplente do ${old.partyId.replace('party_real_', '').toUpperCase()} (personagem do jogo)`, real: false, votes: Math.round(old.votes * 0.5) };
+  const name = ballotName(s.rng);
+  s.government.councillors[idx] = { ...old, id: seated.has(supId) ? `${supId}b` : supId, name, real: false, votes: Math.round(old.votes * 0.35), birthDate: randomBirthDate(s.rng, 1960, 1998), birthPrecision: 'exata' };
   initLegislature(s, s.rng);
-  return `${old.name} deixou a Câmara Municipal (${reason}); assume o(a) suplente da lista.`;
+  return `${old.name} deixou a Câmara Municipal (${reason}). Assume ${name} (${partyById(old.partyId)?.acronym ?? old.partyId}), suplente — personagem do jogo.`;
 }
 
 /** Desincompatibilização: o jogador sai do cargo executivo para disputar outro (CF art. 14 §6º; LC 64/90). */

@@ -155,7 +155,7 @@ export function buildGeneralRulepack(year: number): GeneralRulePack {
       governador: real(`${year + 1}-01-06`, 'CF art. 28 (redação da EC 111/2021) — posse em 6 de janeiro'),
       senador: derived(`${year + 1}-02-01`, 'CF art. 57 §4º — sessões preparatórias a partir de 1º de fevereiro'),
       deputado_federal: derived(`${year + 1}-02-01`, 'CF art. 57 §4º — sessões preparatórias a partir de 1º de fevereiro'),
-      deputado_estadual: derived(`${year + 1}-03-15`, 'Constituição do Estado de SP — legislatura da Alesp inicia em 15 de março (confirmar no Regimento Interno)'),
+      deputado_estadual: real(`${year + 1}-03-15`, 'Alesp — deputados estaduais de SP tomam posse em 15 de março (prática confirmada nas legislaturas de 2019 e 2023)'),
     },
     minAge: {
       deputado_estadual: real({ age: 21, checkedAt: 'posse' }, 'CF art. 14 §3º VI "c"; Lei 9.504/97 art. 11 §2º'),

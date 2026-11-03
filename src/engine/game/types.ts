@@ -81,6 +81,10 @@ export interface CampaignAccount {
   ownFunds: number;
   spent: number;
   fundoPartidario?: number;
+  /** Vaquinha virtual arrecadada antes do registro: só é liberada com a candidatura registrada (Lei 9.504/97 art. 22-A §3º). */
+  crowdPending?: number;
+  /** Doadores pessoas físicas captados (para o jantar de arrecadação). */
+  donorsPF?: number;
   byCategory?: Record<string, number>; // despesas por categoria (prestação de contas)
 }
 
@@ -605,7 +609,7 @@ export interface StateWorld {
   governorCoalition: string[];
   presidentCoalition: string[];
   /** Vereadores que trocaram de mandato (eleitos deputados) e aguardam posse. */
-  pendingDepartures: { councillorId: string; office: 'deputado_estadual' | 'deputado_federal'; posseMonth: number }[];
+  pendingDepartures: { councillorId: string; office: 'deputado_estadual' | 'deputado_federal'; posseMonth: number; real2026?: boolean }[];
   governorRace: RaceCandidate[] | null;
   senateRace: RaceCandidate[] | null;
   /** Vereadores (IA) que anunciaram candidatura a deputado no ciclo corrente. */

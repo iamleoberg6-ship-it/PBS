@@ -226,3 +226,28 @@ describe('Fase 5.7 — conquistas, finais e save', () => {
     expect(report.repairs.some((r) => r.includes('Fase 5'))).toBe(true);
   });
 });
+
+describe('Correções pós-Fase 5', () => {
+  it('vereadores reais eleitos deputados em 2026 saem em fev/mar de 2027 e suplentes fictícios do mesmo partido assumem', () => {
+    let s = mk(20);
+    s = run(s, 2027, 4);
+    const ids = s.government.councillors.map((c) => c.id);
+    for (const id of ['real_ver_lucas_pavanato', 'real_ver_luna_zarattini', 'real_ver_keit_lima', 'real_ver_thammy_miranda']) expect(ids).not.toContain(id);
+    expect(s.government.councillors).toHaveLength(55);
+    expect(s.government.councillors.filter((c) => c.real)).toHaveLength(46);
+    expect(s.government.councilSeatsByParty.party_real_pl).toBe(mk(20).government.councilSeatsByParty.party_real_pl);
+  });
+  it('vaquinha antes do registro fica retida e é liberada no registro; caixa dois vira irregularidade', () => {
+    let s = mk(21);
+    s.month = { year: 2028, month: 5 };
+    s.player.candidacy = { office: 'vereador', year: 2028, status: 'pretendida', checks: [], coalitionPartyIds: [], campaignPoints: 0, account: { fefc: 0, donations: 0, ownFunds: 0, spent: 0 }, irregularities: 0 };
+    s = performAction(s, 'vaquinha');
+    expect(s.player.candidacy!.account.crowdPending).toBeGreaterThan(0);
+    expect(s.player.candidacy!.account.donations).toBe(0);
+    s.month = { year: 2028, month: 8 };
+    s.player.candidacy!.status = 'registrada';
+    s.character.attributes.negotiation = 60;
+    s = performAction(s, 'jantar_arrecadacao', 'por_fora');
+    expect(s.player.candidacy!.irregularities).toBe(1);
+  });
+});

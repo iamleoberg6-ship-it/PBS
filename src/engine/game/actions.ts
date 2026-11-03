@@ -88,6 +88,15 @@ const campaignBalance = (s: GameState) => {
   const a = s.player.candidacy?.account;
   return a ? a.fefc + a.donations + a.ownFunds + (a.fundoPartidario ?? 0) - a.spent : 0;
 };
+/** Escala de arrecadação por cargo (PROPOSTA): majoritárias grandes, deputados 2× vereador. */
+const fundBase = (s: GameState, major: number, minor: number) => {
+  const o = s.player.candidacy?.office;
+  if (o === 'governador') return major * 1.6;
+  if (o === 'senador') return major * 0.7;
+  if (o === 'prefeito') return major;
+  if (o === 'deputado_estadual' || o === 'deputado_federal') return minor * 2;
+  return minor;
+};
 const isMayorRace = (s: GameState) => ['prefeito', 'governador', 'senador'].includes(s.player.candidacy?.office ?? '');
 
 function spendCampaign(s: GameState, vereadorCost: number, mayorCost: number, category = 'outros'): number | string {
@@ -609,10 +618,10 @@ export const ACTIONS: ActionDef[] = [
   },
   {
     id: 'arrecadar', label: 'Arrecadar doações de pessoas físicas', category: 'Campanha', cost: 1,
-    description: 'Doações só de pessoas físicas, limitadas a 10% da renda do doador (Lei 9.504/97 art. 23). Pessoa jurídica não pode doar.',
+    description: 'Doações só de pessoas físicas, limitadas a 10% dos rendimentos brutos do doador no ano anterior (Lei 9.504/97 art. 23 §1º). Empresas não podem doar (STF, ADI 4.650/2015; Lei 13.165/2015).',
     availability: (s) => (campaignOn(s) ? null : 'hidden'),
     apply: (s, rng) => {
-      const base = isMayorRace(s) ? 400000 : 25000;
+      const base = fundBase(s, 400000, 25000);
       const v = Math.round(base * (0.4 + s.character.attributes.articulation / 100 + s.player.recognition / 120) * (0.7 + next(rng) * 0.6));
       s.player.candidacy!.account.donations += v;
       return `Você arrecadou ${brl(v)} em doações.`;
@@ -636,6 +645,50 @@ export const ACTIONS: ActionDef[] = [
       s.finances.cash -= v;
       acc.ownFunds += v;
       return `Você transferiu ${brl(v)} do seu caixa pessoal para a conta de campanha.`;
+    },
+  },
+
+  {
+    id: 'vaquinha', label: 'Vaquinha virtual (financiamento coletivo)', category: 'Pré-candidatura', cost: 1,
+    description: 'Financiamento coletivo por plataforma cadastrada no TSE (Lei 9.504/97 art. 23 §4º, IV). Pode começar em 15 de maio do ano eleitoral, mas o dinheiro só é liberado depois do registro da candidatura; se não houver registro, é devolvido aos doadores (art. 22-A §3º). Rende mais para quem tem redes grandes.',
+    availability: (s) => {
+      const c = s.player.candidacy;
+      if (!c || ['rejeitada_convencao', 'indeferida'].includes(c.status)) return 'hidden';
+      const y = c.year ?? 2028;
+      if (now(s) < mi(y, 5)) return `Liberada a partir de 15 de maio de ${y}.`;
+      if (now(s) > mi(y, 9) && !campaignOn(s)) return 'hidden';
+      return null;
+    },
+    apply: (s, rng) => {
+      const acc = s.player.candidacy!.account;
+      const reach = Object.values(s.player.social.networks).reduce((a, b) => a + b, 0);
+      const v = Math.round(fundBase(s, 120000, 8000) * (0.3 + Math.log10(1 + reach) / 6 + s.player.base / 150) * (0.7 + next(rng) * 0.6));
+      const registered = s.player.candidacy!.status === 'registrada';
+      if (registered) acc.donations += v; else acc.crowdPending = (acc.crowdPending ?? 0) + v;
+      s.player.recognition = grow(s.player.recognition, 0.5);
+      return registered ? `A vaquinha rendeu ${brl(v)}, já na conta de campanha.` : `A vaquinha rendeu ${brl(v)}. O valor fica retido na plataforma até o registro da candidatura (total retido: ${brl(acc.crowdPending ?? 0)}).`;
+    },
+  },
+  {
+    id: 'jantar_arrecadacao', label: 'Jantar de arrecadação com empresários', category: 'Campanha', cost: 1,
+    description: 'Empresário pode doar como pessoa física (CPF, até 10% dos próprios rendimentos), nunca pela empresa. A oferta de dinheiro "por fora" — da empresa ou sem registro — é caixa dois: ilícito eleitoral (Lei 9.504/97 arts. 30-A e 24), com risco de contas desaprovadas, cassação e crise de imagem.',
+    availability: (s) => (campaignOn(s) ? (s.character.attributes.negotiation + s.player.recognition < 40 ? 'Você ainda não tem relações para reunir empresários.' : null) : 'hidden'),
+    paramLabel: 'Como aceitar',
+    params: () => [
+      { value: 'legal', label: 'Só doações de pessoas físicas, com recibo e dentro do limite' },
+      { value: 'por_fora', label: 'Aceitar também dinheiro de empresa "por fora" (caixa dois)' },
+    ],
+    apply: (s, rng, param) => {
+      const c = s.player.candidacy!;
+      const legal = Math.round(fundBase(s, 600000, 35000) * (0.4 + s.character.attributes.negotiation / 120 + s.player.recognition / 150) * (0.7 + next(rng) * 0.6));
+      c.account.donations += legal;
+      c.account.donorsPF = (c.account.donorsPF ?? 0) + Math.round(legal / 3000);
+      if (param !== 'por_fora') return `Jantar rendeu ${brl(legal)} em doações de pessoas físicas, todas declaradas.`;
+      const extra = Math.round(legal * (0.8 + next(rng) * 0.7));
+      c.account.donations += extra;
+      c.irregularities += 1;
+      s.flags.irregCampanha = Number(s.flags.irregCampanha ?? 0) + 1;
+      return `Jantar rendeu ${brl(legal)} declarados e ${brl(extra)} por fora. Isso é caixa dois: fica registrado como irregularidade e pode virar processo e crise de imagem.`;
     },
   },
 
