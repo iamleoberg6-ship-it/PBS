@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
-  ATTRIBUTE_LABELS, BASE_ATTRIBUTES, FREE_POINTS, PARTIES, PROFESSIONS, START_STATUS, SAO_PAULO, TIER_PROFILES,
+  REGIONS,   ATTRIBUTE_LABELS, BASE_ATTRIBUTES, FREE_POINTS, PARTIES, PROFESSIONS, START_STATUS, SAO_PAULO, TIER_PROFILES,
   createGame, previewEligibility, AXES, PARTIES as ALL_PARTIES, EXPERT_SCALE, categoryLabel, generalPosition, ideologicalDistance, partyIdeology, type AttributeKey, type GameState, type ProfessionId, type StartStatus,
 } from '../engine';
 import { brl } from './format';
@@ -19,6 +19,7 @@ export function Creation({ onStart, onBack }: { onStart: (s: GameState) => void;
   const [bio, setBio] = useState('');
   const [bonus, setBonus] = useState<Partial<Record<AttributeKey, number>>>({});
   const [seed, setSeed] = useState('');
+  const [homeRegion, setHomeRegion] = useState('sul2');
   const [ideo, setIdeo] = useState<Record<string, number>>({ economia: 0, social: 0, seguranca: 0, ambiente: 0 });
   const ideology = { ...ideo, fiscal: ideo.economia, trabalho: ideo.economia, desenvolvimento: ideo.economia };
 
@@ -44,7 +45,7 @@ export function Creation({ onStart, onBack }: { onStart: (s: GameState) => void;
   const start = () => {
     const s = createGame({
       name, birthDate, gender, education, profession, startStatus,
-      startPartyId: startStatus === 'independente' ? null : partyId, bio, attributeBonus: bonus, ideology,
+      startPartyId: startStatus === 'independente' ? null : partyId, bio, attributeBonus: bonus, ideology, homeRegion,
       seed: seed.trim() ? Number(seed) || undefined : undefined,
     });
     onStart(s);
@@ -116,6 +117,11 @@ export function Creation({ onStart, onBack }: { onStart: (s: GameState) => void;
                   </select>
                 </div>
               )}
+              <div className="field"><label>Região onde você mora</label>
+                <select value={homeRegion} onChange={(e) => setHomeRegion(e.target.value)}>
+                  {REGIONS.map((r) => <option key={r.id} value={r.id}>{r.name} — {r.subprefeituras.map((x) => x.name).join(', ')}</option>)}
+                </select>
+                <span className="hint">Sua base começa nessa região; o resto da cidade precisa ser conquistado na campanha.</span></div>
             </div>
           </div>
 

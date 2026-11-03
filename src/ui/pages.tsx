@@ -3,7 +3,7 @@ import {
   ATTRIBUTE_LABELS, FEDERATIONS, GAMEPLAY, PARTIES, PROFESSIONS, REAL_FIGURES, RULEPACK_BR_2028_MUN as RP, SAO_PAULO,
   availableActions, formatIsoPt, listName, monthIndex, monthLabel, partyById, partyChangeBlock, previewEligibility,
   estimateVereadorVotes, playerElectoralScore, councillorFacts, fatigueMultiplier, EXPERT_SCALE, IDEOLOGY_SOURCE, AXES, categoryLabel, generalPosition,
-  type ActionDef, type AttributeKey, type ElectionRecord, type GameState, type Sourced,
+  REGIONS, type ActionDef, type AttributeKey, type ElectionRecord, type GameState, type Sourced,
 } from '../engine';
 import { brl, listColor, num, partyColor, pct } from './format';
 import { Headlines, compact } from './media';
@@ -62,7 +62,7 @@ export function Gabinete({ s, act }: Props) {
   const p = s.player;
   const m = p.mandate;
   const acts = availableActions(s);
-  const ORDER = ['Prefeitura', 'Secretaria', 'Mandato de vereador', 'Campanha', 'Pré-candidatura', 'Partido', 'Vida e carreira'];
+  const ORDER = ['Prefeitura', 'Secretaria', 'Mandato de vereador', 'Assessoria', 'Campanha', 'Pré-candidatura', 'Partido', 'Vida e carreira'];
   const groups = [...new Set(acts.map((a) => a.def.category))].sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b));
   const party = p.partyId ? partyById(p.partyId) : null;
   return (
@@ -319,6 +319,7 @@ export function Eleicoes({ s }: { s: GameState }) {
           {tab === 'pesquisas' && <Polls s={s} />}
           {tab === 'camara' && <CouncilResult rec={rec} />}
           {tab === 'prefeito' && <MayorResult rec={rec} />}
+          <RegionalResult rec={rec} />
           {tab === 'auditoria' && rec.proportional && (
             <div className="card">
               <h3>Passo a passo da distribuição das {rec.proportional.seats} cadeiras</h3>
@@ -350,6 +351,20 @@ function Polls({ s }: { s: GameState }) {
           </div>
         ))}
         <div className="small muted">Brancos, nulos e indecisos: {pct(last.undecided, 0)}</div>
+        {last.rejection && (
+          <div className="table-wrap" style={{ marginTop: 8 }}>
+            <table><thead><tr><th>Candidato(a)</th><th className="num">Conhece</th><th className="num">Rejeição</th></tr></thead>
+              <tbody>{last.results.map((r) => <tr key={r.id}><td className="small">{r.id === 'character_player' ? `${r.name} (você)` : r.name}</td><td className="num">{pct(last.knowledge?.[r.id] ?? 0, 0)}</td><td className="num">{pct(last.rejection?.[r.id] ?? 0, 0)}</td></tr>)}</tbody></table>
+          </div>
+        )}
+        {last.govEval && <div className="small" style={{ marginTop: 6 }}>Avaliação do governo municipal: ótimo/bom {pct(last.govEval.good, 0)} · regular {pct(last.govEval.regular, 0)} · ruim/péssimo {pct(last.govEval.bad, 0)}</div>}
+        {last.byRegion && (
+          <div className="table-wrap" style={{ marginTop: 8 }}>
+            <table><thead><tr><th>Região</th><th>1º</th><th>2º</th></tr></thead>
+              <tbody>{REGIONS.map((rg) => { const row = last.byRegion![rg.id] ?? []; const nm = (id: string) => last.results.find((x) => x.id === id)?.name.split(' ')[0] ?? id; return <tr key={rg.id}><td className="small">{rg.name}</td>{row.slice(0, 2).map((x) => <td key={x.id} className="small">{nm(x.id)} {pct(x.share, 0)}</td>)}</tr>; })}</tbody></table>
+            <div className="small muted">Cortes regionais têm margem de erro maior que a do total.</div>
+          </div>
+        )}
         <p className="small" style={{ marginTop: 10 }}>{last.institute} · {num(last.sample)} entrevistas · margem de erro ±{last.marginOfError.toLocaleString('pt-BR')} p.p. (95%) · registro {last.registration}</p>
         <p className="small muted">Pesquisa é retrato do momento com margem de erro, não resultado. Registro obrigatório na Justiça Eleitoral (Lei 9.504/97 art. 33). Institutos fictícios.</p>
       </div>
@@ -380,6 +395,24 @@ function Checks({ checks }: { checks: { id: string; ok: boolean; label: string; 
           <div><b>{c.label}</b><div className="small">{c.detail}</div><div className="src">{c.source}</div></div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function RegionalResult({ rec }: { rec: ElectionRecord }) {
+  if (!rec.playerVotesByRegion && !rec.mayorByRegion) return null;
+  return (
+    <div className="card" style={{ marginTop: 16 }}>
+      <h3>Apuração por região</h3>
+      <div className="table-wrap"><table>
+        <thead><tr><th>Região</th>{rec.playerVotesByRegion && <th className="num">Seus votos</th>}{rec.mayorByRegion && <th>Prefeito: 1º colocado</th>}{rec.mayorByRegion && <th>2º colocado</th>}</tr></thead>
+        <tbody>{REGIONS.map((r) => (
+          <tr key={r.id}><td>{r.name} <span className="small muted">({r.subprefeituras.map((x) => x.name).join(', ')})</span></td>
+            {rec.playerVotesByRegion && <td className="num">{num(rec.playerVotesByRegion[r.id] ?? 0)}</td>}
+            {rec.mayorByRegion && (rec.mayorByRegion[r.id] ?? []).slice(0, 2).map((x) => <td key={x.id} className="small">{x.name} {pct(x.share, 0)}</td>)}
+          </tr>))}</tbody>
+      </table></div>
+      <p className="small muted">Distribuição regional simulada a partir do trabalho de campanha e de parâmetros do jogo; a população das regiões vem do Censo 2022.</p>
     </div>
   );
 }

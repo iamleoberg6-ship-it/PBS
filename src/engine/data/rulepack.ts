@@ -101,6 +101,7 @@ export const GAMEPLAY = {
   assetMonthlyReturn: proposal(0.003, 'Valorização média mensal dos bens pessoais (parâmetro de jogo)'),
   debtMonthlyInterest: proposal(0.02, 'Juros mensais sobre dívida pessoal (parâmetro de jogo)'),
   cashReserveMonths: proposal(2, 'Meses de despesas mantidos em caixa antes de amortizar dívida'),
-  spendingLimitVereadorSP: proposal(3_500_000, 'PLACEHOLDER — o TSE fixa o limite por município; substituir pelo valor oficial 2028'),
-  spendingLimitPrefeitoSP: proposal(60_000_000, 'PLACEHOLDER — substituir pelo valor oficial 2028'),
+  spendingLimitVereadorSP: derived(2_423_000, 'Limite real de 2024 em SP (R$ 2.071.008,63, TSE Portaria 593/2024) corrigido pela inflação projetada do jogo (4% a.a.); o TSE divulga o de 2028 até 20/07/2028'),
+  spendingLimitPrefeitoSP: derived(78_713_000, 'Limite real de 2024 em SP para o 1º turno (R$ 67.276.114,60) corrigido pela inflação projetada do jogo'),
+  spendingLimitPrefeitoRunoffSP: derived(31_485_000, 'Limite real de 2024 em SP para o 2º turno (R$ 26.910.445,80) corrigido pela inflação projetada do jogo'),
 };

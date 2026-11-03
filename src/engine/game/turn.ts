@@ -12,6 +12,9 @@ import { seatsByParty } from './council';
 import { PROFESSIONS } from './create';
 import { blocCounts, electMesa, initLegislature, legislatureMonthlyStep, legislatureNews, mesaWindow, playerIsCouncillor } from './legislature';
 import { createSecretariat, inviteAffinity, secretariatMonthlyStep } from './secretariat';
+import { campaignMonthlyStep, distributeVotes, electoralLawsuit, enrichMayorPoll, judgeAccounts, mayorRegionalShares } from './campaign';
+import { bossEndorsement, leaveStaff, staffMonthlyStep } from './assessor';
+import { PLAYER } from './relations';
 import { aiFiscalPolicy, cityMonthlyStep, citySummaryForMayorApproval, closeFiscalYear, fiscalCalendar, isMayorPlayer, resetSecretariatForNewMayor, tcmStep } from './municipality';
 import { makeMayorPoll, makeRunoffPoll } from './polls';
 import { createMayorRace } from './elections';
@@ -57,6 +60,7 @@ export function advanceMonth(state: GameState): GameState {
   for (const note of closePersonalMonth(s)) log(s, 'financas', note);
   mark('Fechamento do mês: renda e despesas pessoais');
 
+  const t0 = monthIndex(s.month);
   // 2) Câmara Municipal: tramitação, votações, vetos, CPIs (roda sempre — a Câmara funciona com ou sem o jogador).
   const legNotes = legislatureMonthlyStep(s, rng);
   for (const n of legNotes) log(s, 'camara', n);
@@ -103,6 +107,18 @@ export function advanceMonth(state: GameState): GameState {
   }
 
   mark('Mandato: avaliação do público');
+
+  // 2d) Campanha territorial e gabinete parlamentar.
+  campaignMonthlyStep(s);
+  for (const n of staffMonthlyStep(s, rng)) log(s, 'acao', n);
+  if (t0 === mi(2028, 7)) { const e = bossEndorsement(s); if (e) log(s, 'eleicao', e); }
+  if (t0 === mi(2028, 12)) { const j = judgeAccounts(s, rng); if (j) log(s, 'eleicao', j); }
+  if (t0 === mi(2029, 3)) {
+    const j = electoralLawsuit(s, rng);
+    if (j) log(s, 'eleicao', j);
+    if (s.flags.cassado && s.player.mandate && (s.player.mandate.office === 'vereador' || s.player.mandate.office === 'prefeito')) cassate(s);
+  }
+  mark('Campanha e gabinete');
 
   // 3) Decaimentos naturais.
   s.player.recognition = clamp(s.player.recognition - (s.player.recognition > 15 ? 0.6 : 0.2));
@@ -159,6 +175,7 @@ export function advanceMonth(state: GameState): GameState {
     for (let k = 0; k < times; k++) {
       const poll = makeMayorPoll(s, rng);
       if (poll) {
+        enrichMayorPoll(s, rng, poll);
         s.polls.push(poll);
         newsFromPoll(s, poll, rng);
         const [a, b] = poll.results;
@@ -258,6 +275,10 @@ function handleElectionDay(s: GameState) {
     runoffPending: null,
   };
   for (const cand of mayor.field) record.candidatePartyById[cand.id] = cand.partyId;
+  // Apuração por região (Fase 4).
+  if (record.playerVotes && c?.status === 'registrada') record.playerVotesByRegion = distributeVotes(s, record.playerVotes);
+  const totalMayor = mayor.field.reduce((a, x) => a + x.votes, 0) || 1;
+  record.mayorByRegion = mayorRegionalShares(s, mayor.field.map((x) => ({ id: x.id, name: x.isPlayer ? s.character.name : x.name, share: x.votes / totalMayor, partyId: x.partyId })));
   if (playerInRunoff) {
     const [a, b] = mayor.r1.runoffIds!.map((id) => mayor.field.find((x) => x.id === id)!);
     const rest = mayor.field.filter((x) => x.id !== a.id && x.id !== b.id).reduce((sum, x) => sum + x.votes, 0);
@@ -316,6 +337,27 @@ function handleRunoffAndAftermath(s: GameState) {
       log(s, 'eleicao', `Sem convite para o governo eleito: ${aff.reason}`);
     }
   }
+}
+
+/** Cassação do diploma: o jogador perde o mandato; a vaga vai para a suplência (vereador) ou para o vice (prefeito). */
+function cassate(s: GameState) {
+  const m = s.player.mandate!;
+  if (m.office === 'vereador') {
+    const idx = s.government.councillors.findIndex((c) => c.id === PLAYER);
+    if (idx >= 0) {
+      const old = s.government.councillors[idx];
+      s.government.councillors[idx] = { ...old, id: `suplente_${s.month.year}`, name: 'Suplente da lista (personagem do jogo)', real: false };
+      initLegislature(s, s.rng);
+    }
+  } else {
+    s.government.mayor = { ...s.government.viceMayor };
+    s.log.push({ month: { ...s.month }, kind: 'mandato', text: 'O vice assume a prefeitura. (Regra real: se a cassação ocorre na primeira metade do mandato, a Justiça Eleitoral pode convocar nova eleição — CE art. 224 §3º; o jogo simplifica com a posse do vice.)' });
+  }
+  s.player.careerHistory.forEach((h) => { if (h.to === null) h.to = `${s.month.year}-${String(s.month.month).padStart(2, '0')}`; });
+  s.player.mandate = null;
+  s.player.job = 'profissao';
+  s.finances.monthlyIncome = PROFESSIONS[s.character.profession].income;
+  s.character.attributes.popularity = clamp(s.character.attributes.popularity - 10);
 }
 
 function handlePosse(s: GameState) {
@@ -383,6 +425,7 @@ function handlePosse(s: GameState) {
     s.player.careerHistory.push({ office: `Secretário(a) municipal de ${sec.name}`, from: '2029-01', to: null, note: 'Cargo de nomeação' });
     log(s, 'mandato', `Você assumiu a Secretaria Municipal de ${sec.name}. Orçamento (ordem de grandeza simulada): R$ ${sec.budget.toLocaleString('pt-BR')} mi/ano.`);
   }
+  if (s.player.mandate && s.player.staff) leaveStaff(s, 'Ao tomar posse, você deixou o cargo de assessor(a).');
   if (s.player.candidacy) s.player.candidacy = null;
   // Nova legislatura: blocos, comissões (proporcionais) e Mesa.
   initLegislature(s, s.rng);

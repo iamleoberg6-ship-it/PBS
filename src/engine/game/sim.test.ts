@@ -11,7 +11,7 @@ function bot(state: GameState, office: 'vereador' | 'prefeito'): GameState {
   let guard = 0;
   while (!s.gameOver && guard++ < 400) {
     while (s.pendingEvents.length) s = resolveEvent(s, 0);
-    const prefs = ['pleitear', 'corpo_a_corpo', 'propaganda', 'arrecadar', 'atividade_partidaria', 'pre_campanha', 'comunidade', 'projeto_lei', 'atender_base', 'zeladoria', 'programa_metas', 'nomear_secretario', 'lancar_programa', 'acompanhar_programa', 'articular_votos'];
+    const prefs = ['pleitear', 'corpo_a_corpo', 'comunicacao', 'arrecadar', 'atividade_partidaria', 'pre_campanha', 'comunidade', 'projeto_lei', 'atender_base', 'zeladoria', 'programa_metas', 'nomear_secretario', 'lancar_programa', 'acompanhar_programa', 'articular_votos'];
     for (const id of prefs) {
       const a = availableActions(s).find((x) => x.def.id === id && x.status === null);
       if (a && s.actionPoints >= a.def.cost) s = performAction(s, id, id === 'pleitear' ? office : a.def.params?.(s)[0]?.value);

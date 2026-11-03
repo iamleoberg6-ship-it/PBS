@@ -10,6 +10,7 @@ import { MeuPartido } from './party';
 import { Camara } from './camara';
 import { Secretaria } from './secretaria';
 import { Governo } from './governo';
+import { Campanha, GabineteParlamentar } from './campanha';
 
 const PAGES = [
   ['gabinete', 'Gabinete'],
@@ -18,7 +19,9 @@ const PAGES = [
   ['partidos', 'Partidos'],
   ['redes', 'Redes sociais'],
   ['noticias', 'Notícias'],
+  ['campanha', 'Campanha'],
   ['eleicoes', 'Eleições 2028'],
+  ['gabparl', 'Gabinete parlamentar'],
   ['governo', 'Prefeitura'],
   ['camara', 'Câmara Municipal'],
   ['secretaria', 'Minha secretaria'],
@@ -74,7 +77,7 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
         </button>
       </header>
       <nav className="sidebar">
-        {PAGES.filter(([id]) => id !== 'secretaria' || !!s.player.mandate?.secretariat).map(([id, label]) => (
+        {PAGES.filter(([id]) => (id !== 'secretaria' || !!s.player.mandate?.secretariat) && (id !== 'gabparl' || !!s.player.staff)).map(([id, label]) => (
           <button key={id} className={`nav-item ${page === id ? 'active' : ''}`} onClick={() => setPage(id)}>{label}</button>
         ))}
         <div className="nav-sep" />
@@ -90,6 +93,8 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
         {page === 'redes' && <Redes s={s} setFocus={(n) => setS(setSocialFocus(s, n))} />}
         {page === 'noticias' && <Noticias s={s} />}
         {page === 'eleicoes' && <Eleicoes s={s} />}
+        {page === 'campanha' && <Campanha s={s} act={act} />}
+        {page === 'gabparl' && <GabineteParlamentar s={s} act={act} />}
         {page === 'governo' && <Governo s={s} openDraft={() => setS(openDraft(s))} adjust={(k, p) => setS(adjustDraft(s, k, p))} />}
         {page === 'camara' && <Camara s={s} vote={(id, c) => setS(setPlayerVote(s, id, c))} />}
         {page === 'secretaria' && <Secretaria s={s} />}

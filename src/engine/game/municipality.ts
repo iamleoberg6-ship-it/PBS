@@ -11,7 +11,7 @@ import {
   CREDIT_LIMIT, DEBT_LIMIT, MIN_EDUCATION, MIN_HEALTH, PERSONNEL_MAX, PERSONNEL_PRUDENTIAL, TCM_OVERRIDE_VOTES,
   inArt42Window, inPersonnelFreeze, personnelStatus, taxEffectiveYear,
 } from '../rules/fiscal';
-import { applyEffects, createSecretariat, freeBudget, performance, portfolioById, stepSecretariatCore } from './secretariat';
+import { applyEffects, pressureOf, createSecretariat, freeBudget, performance, portfolioById, stepSecretariatCore } from './secretariat';
 import { fictionalName } from './names';
 import { pushNews } from './news';
 import { partyById } from '../data/parties';
@@ -159,8 +159,9 @@ function aiSecretariatStep(s: GameState, rng: RngState, k: AreaKey, sec: Secreta
   const comp = who?.competence ?? 50;
   sec.monthsInOffice++;
   const res = stepSecretariatCore(sec, rng, { funding: areaFunding(s, k) });
-  sec.approval = clamp((sec.approval ?? 50) + res.delivered * 3 - res.crisisSeverity * 0.6 - (res.crisisStarted ? 3 : 0));
-  const target = 45 + performance(sec) * 30 - (sec.crisis ? 6 : 0);
+  const pr = pressureOf(k);
+  sec.approval = clamp((sec.approval ?? 50) + (res.delivered * 3) / pr - res.crisisSeverity * 0.6 * pr - (res.crisisStarted ? 3 : 0));
+  const target = 45 + performance(sec) * 30 - (sec.crisis ? 6 : 0) - (pr - 1) * 18;
   sec.approval = clamp(sec.approval + (target - sec.approval) * 0.15 + normal(rng, 0, 0.8));
   // Gestão da IA: lança programas, faz a ação própria da pasta e responde a crises conforme a competência.
   const def = portfolioById(k)!;

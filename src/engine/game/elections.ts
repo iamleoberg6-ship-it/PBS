@@ -14,6 +14,7 @@ import type { ElectionRecord, GameState, RaceCandidate } from './types';
 import { digitalScore } from './social';
 import { apportion } from '../util/apportion';
 import { conventionVote } from './partyorg';
+import { campaignFactor } from './campaign';
 
 const clamp = (v: number, a = 0, b = 100) => Math.max(a, Math.min(b, v));
 
@@ -110,7 +111,7 @@ export function simulateCouncil(state: GameState, rng: RngState): { record: Pick
   const pIdx = playerList ? listIds.indexOf(playerList) : -1;
   let playerVotes = 0;
   if (playerRunning) {
-    const desired = Math.round(estimateVereadorVotes(playerElectoralScore(state)) * Math.max(0.5, 1 + normal(rng, 0, 0.15)));
+    const desired = Math.round(estimateVereadorVotes(playerElectoralScore(state)) * campaignFactor(state) * Math.max(0.5, 1 + normal(rng, 0, 0.15)));
     // Efeito "puxador" (PROPOSTA): parte dos votos do jogador é voto novo para a lista, retirado das demais listas.
     const pull = Math.round(desired * GAMEPLAY.candidatePullShare.value);
     const others = listVotes.map((v, i) => (i === pIdx ? 0 : v));
@@ -216,7 +217,7 @@ export function activeMayorField(state: GameState): (RaceCandidate & { strength:
       id: 'character_player', name: state.character.name,
       label: [...coalition].map((id) => partyById(id)!.acronym).join(' / '),
       partyId: state.player.partyId!, listId: playerList!, birthDate: state.character.birthDate, isPlayer: true, baseStrength: 0,
-      strength: Math.pow(coalitionStrength, 1.05) * (0.3 + 0.85 * Math.pow(score / 100, 1.5)),
+      strength: Math.pow(coalitionStrength, 1.05) * (0.3 + 0.85 * Math.pow(score / 100, 1.5)) * Math.max(0.8, Math.min(1.25, campaignFactor(state))),
     });
   }
   return out;

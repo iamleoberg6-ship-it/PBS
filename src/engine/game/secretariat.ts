@@ -29,6 +29,13 @@ export interface PortfolioDef {
   crises: CrisisDef[];
 }
 
+/**
+ * Pressão de demanda e de visibilidade de cada pasta (PARÂMETRO de balanceamento, Fase 4):
+ * pastas grandes e essenciais têm demanda crescente, mais crises e cobrança pública maior.
+ */
+export const PRESSURE: Record<string, number> = { saude: 1.7, educacao: 1.5, mobilidade: 1.5, subprefeituras: 1.3, seguranca: 1.3, assistencia: 1.2, habitacao: 1.2, cultura: 1, esportes: 1, meioambiente: 1 };
+export const pressureOf = (id: string) => PRESSURE[id] ?? 1;
+
 export const PORTFOLIOS: PortfolioDef[] = [
   {
     id: 'saude', name: 'Saúde', budget: AREA_BASE_2027.saude.total, fit: ['medico', 'servidor', 'economista'],
@@ -319,7 +326,7 @@ export function specialAction(s: GameState, rng: RngState): string {
   sec.extraSpent += sp.cost; // gasto pontual sai do orçamento livre
   const q = 0.7 + sec.capacity / 200 + normal(rng, 0, 0.15);
   applyEffects(sec, sp.effects, q);
-  s.player.mandate!.approval = clamp(s.player.mandate!.approval + sp.approval * q);
+  s.player.mandate!.approval = clamp(s.player.mandate!.approval + (sp.approval * q) / pressureOf(def.id));
   s.player.recognition = clamp(s.player.recognition + 1);
   let extra = '';
   if (sp.id === 'operacao_gcm' && next(rng) < 0.15) { s.player.mandate!.approval = clamp(s.player.mandate!.approval - 3); extra = ' Uma abordagem durante a operação gerou denúncia de excesso.'; }
@@ -364,7 +371,7 @@ export function pressConference(s: GameState, rng: RngState): string {
   const sec = m.secretariat!;
   const perf = performance(sec);
   const comm = s.character.attributes.communication;
-  const delta = perf * 4 + (comm - 50) / 30 + normal(rng, 0, 1) - (sec.crisis ? 2 : 0);
+  const delta = (perf * 4 + (comm - 50) / 30 + normal(rng, 0, 1) - (sec.crisis ? 2 : 0)) / Math.sqrt(pressureOf(sec.portfolio));
   m.approval = clamp(m.approval + delta);
   s.player.recognition = clamp(s.player.recognition + 1.5);
   return delta >= 0 ? `Coletiva de imprensa: você apresentou resultados da pasta. Aprovação ${delta >= 0 ? '+' : ''}${delta.toFixed(1)}.` : `Coletiva de imprensa difícil: jornalistas cobraram ${sec.crisis ? sec.crisis.label.toLowerCase() : 'indicadores que não melhoraram'}. Aprovação ${delta.toFixed(1)}.`;
@@ -399,7 +406,8 @@ export function stepSecretariatCore(sec: Secretariat, rng: RngState, opts: { fun
   const funding = opts.funding ?? 1;
   const fundingDrift = Math.max(0.4, Math.min(3, 1 + (1 - funding) * 2.5));
   // Pressão natural sobre os indicadores (demanda cresce, equipamentos envelhecem); cortes aceleram, reforço freia.
-  for (const d of def.indicators) if (d.drift) applyEffects(sec, { [d.key]: d.drift * (1.2 - sec.capacity / 100) * fundingDrift });
+  const pressure = pressureOf(def.id);
+  for (const d of def.indicators) if (d.drift) applyEffects(sec, { [d.key]: d.drift * (1.2 - sec.capacity / 100) * fundingDrift * pressure });
   for (const p of sec.programs) {
     if (!['planejamento', 'licitacao', 'execucao'].includes(p.phase)) continue;
     const pd = def.programs.find((x) => x.id === p.id)!;
@@ -431,7 +439,7 @@ export function stepSecretariatCore(sec: Secretariat, rng: RngState, opts: { fun
     sec.crisis.monthsLeft--;
     if (sec.crisis.monthsLeft <= 0) { res.notes.push(`A crise "${sec.crisis.label}" saiu do noticiário.`); sec.crisis = null; }
   } else {
-    let p = 0.07 * (funding < 0.9 ? 1.5 : 1);
+    let p = 0.06 * pressure * (funding < 0.9 ? 1.5 : 1);
     if (opts.crisisShield) p *= 0.4;
     if (next(rng) < p) {
       const c = pick(rng, def.crises);
@@ -459,11 +467,13 @@ export function secretariatMonthlyStep(s: GameState, rng: RngState): string[] {
   const shield = def.id === 'habitacao' && typeof s.flags.vistoriaRisco === 'number' && monthIndexOf(s) - (s.flags.vistoriaRisco as number) < 6;
   const r = stepSecretariatCore(sec, rng, { funding: s.city ? areaFunding(s, def.id as AreaKey) : 1, crisisShield: shield });
   const out = r.notes.map((n) => (n.startsWith('Crise na pasta') ? `${n} Use "Gabinete de crise".` : n));
-  m.approval = clamp(m.approval + r.delivered * 3 - r.crisisSeverity * 0.6 - (r.crisisStarted ? 3 : 0));
+  const pr = pressureOf(def.id);
+  m.approval = clamp(m.approval + (r.delivered * 3) / pr - r.crisisSeverity * 0.6 * pr - (r.crisisStarted ? 3 : 0));
   s.player.recognition = clamp(s.player.recognition + r.delivered * 2.5);
   if (r.crisisSeverity) m.relationExecutive = clamp(m.relationExecutive - 1);
   // Aprovação da pasta acompanha desempenho e relações.
-  const target = 45 + performance(sec) * 30 + (sec.relationCouncil - 50) / 10 - (sec.crisis ? 6 : 0);
+  // Pastas de alta cobrança (Saúde, Educação, Mobilidade) partem de expectativa maior do público.
+  const target = 45 + performance(sec) * 30 + (sec.relationCouncil - 50) / 10 - (sec.crisis ? 6 : 0) - (pr - 1) * 18;
   m.approval = clamp(m.approval + (target - m.approval) * 0.15 + normal(rng, 0, 0.8));
   m.relationExecutive = clamp(m.relationExecutive + (m.approval - 50) / 80 + (55 - m.relationExecutive) * 0.04);
   // Risco de exoneração (livre nomeação): relação ruim ou pasta mal avaliada por 3+ meses.

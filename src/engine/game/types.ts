@@ -4,7 +4,7 @@ import type { EligibilityCheck, MunicipalOffice } from '../rules/eligibility';
 import type { ProportionalResult } from '../rules/proportional';
 import type { MajRoundResult } from '../rules/majoritarian';
 
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 
 export type NetworkId = 'instagram' | 'x' | 'youtube' | 'tiktok';
 
@@ -80,6 +80,26 @@ export interface CampaignAccount {
   donations: number;
   ownFunds: number;
   spent: number;
+  fundoPartidario?: number;
+  byCategory?: Record<string, number>; // despesas por categoria (prestação de contas)
+}
+
+export interface RegionCampaign {
+  presence: number; // estrutura e visitas na região 0–100
+  knowledge: number; // conhecimento do nome na região 0–100
+  rejection: number; // rejeição na região 0–100
+  leaders: number; // lideranças locais que apoiam (0–5)
+}
+
+export interface CampaignPlan {
+  regions: Record<string, RegionCampaign>;
+  focus: string[]; // até 3 regiões prioritárias
+  themes: string[]; // até 3 temas
+  segments: string[]; // até 2 segmentos-alvo
+  tone: 'propositivo' | 'contraste' | 'ataque';
+  team: { coordenacao: boolean; marketing: boolean; juridico: boolean; contabilidade: boolean };
+  internalPolls: { month: GameMonth; byRegion: Record<string, number>; overall: number; rejection: number }[];
+  accountability: { status: 'pendente' | 'aprovadas' | 'aprovadas_ressalvas' | 'desaprovadas'; notes: string[] } | null;
 }
 
 export type CandidacyStatus = 'pretendida' | 'aprovada_convencao' | 'rejeitada_convencao' | 'registrada' | 'indeferida';
@@ -92,6 +112,35 @@ export interface Candidacy {
   campaignPoints: number;
   account: CampaignAccount;
   irregularities: number;
+  plan?: CampaignPlan;
+}
+
+export interface StaffDemand {
+  id: string;
+  kind: 'parecer' | 'minuta' | 'agenda_bairro' | 'atendimento' | 'articulacao' | 'redes' | 'imprensa';
+  label: string;
+  attr: AttributeKey;
+  difficulty: number; // 0–100
+  monthsLeft: number;
+  theme?: string;
+  region?: string;
+  billId?: string;
+}
+
+export interface StaffJob {
+  bossId: string;
+  bossName: string;
+  bossPartyId: string;
+  bossReal: boolean;
+  rank: 'assessor' | 'assessor_especial' | 'chefe_gabinete';
+  trust: number; // confiança do(a) vereador(a) 0–100 (simulada)
+  contacts: number; // rede de bastidores na Câmara 0–100
+  specialty: string | null; // tema em que o jogador se especializou
+  demands: StaffDemand[];
+  completed: number;
+  failed: number;
+  draftedBills: string[];
+  since: GameMonth;
 }
 
 export type OfficeHeld = 'vereador' | 'prefeito' | 'secretario' | 'assessor';
@@ -136,6 +185,8 @@ export interface PlayerState {
   consecutiveTermsPrefeito: number;
   careerHistory: { office: string; from: string; to: string | null; note: string }[];
   social: SocialState;
+  staff: StaffJob | null;
+  homeRegion: string;
 }
 
 export type Stance = 'base' | 'independente' | 'oposicao' | 'oposicao_radical';
@@ -462,6 +513,10 @@ export interface Poll {
   undecided: number; // 0..1 brancos/nulos/indecisos
   results: { id: string; name: string; label: string; share: number }[]; // share sobre o total de entrevistados
   scenario: '1º turno' | '2º turno';
+  rejection?: Record<string, number>; // id → fração que não votaria de jeito nenhum
+  knowledge?: Record<string, number>; // id → fração que conhece o candidato
+  govEval?: { good: number; regular: number; bad: number };
+  byRegion?: Record<string, { id: string; share: number }[]>;
 }
 
 export interface MunicipalGovernment {
@@ -490,6 +545,8 @@ export interface ElectionRecord {
     b: { id: string; name: string; label: string; partyId: string; votes: number; strength: number; birthDate: string; isPlayer: boolean };
     rest: number;
   } | null;
+  playerVotesByRegion?: Record<string, number>;
+  mayorByRegion?: Record<string, { id: string; name: string; share: number }[]>;
 }
 
 export interface LogEntry {

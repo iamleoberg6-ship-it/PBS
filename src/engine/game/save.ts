@@ -18,6 +18,8 @@ import { buildPartyOrgs, defaultPartyRel, seedPlayerPartyRelations } from './par
 import { emptyLegislature, fileBill, initLegislature } from './legislature';
 import { createSecretariat } from './secretariat';
 import { initCity } from './municipality';
+import { pickHomeRegion } from './campaign';
+import { hireAsStaff, staffBossOptions } from './assessor';
 import { NUNES_2024_COALITION } from './create';
 
 const KEY = 'pbs_save_slot_1';
@@ -117,6 +119,18 @@ export function migrate(raw: Raw, report: LoadReport): Raw {
     const m = s.player?.mandate;
     if (m?.office === 'secretario' && m.secretariat) m.secretariat.budget = s.city.loa.areas[m.secretariat.portfolio] ?? m.secretariat.budget;
     report.repairs.push('Prefeitura ganhou orçamento (base real de 2025–2027), limites fiscais e secretariado.');
+  }
+  // v6 → v7: região de moradia, campanha territorial e gabinete parlamentar jogável.
+  if (s.player && !s.player.homeRegion) {
+    const rng = createRng((s.rng?.seed ?? 1) + 43);
+    s.player.homeRegion = pickHomeRegion(rng);
+    s.player.staff ??= null;
+    if (s.player.job === 'assessor' && !s.player.staff && !s.player.mandate) {
+      const opts = staffBossOptions(s as GameState);
+      if (opts.length) hireAsStaff(s as GameState, opts[0].value);
+      else s.player.job = 'profissao';
+    }
+    report.repairs.push('Personagem ganhou região de moradia; gabinete parlamentar e campanha territorial ativados.');
   }
   s.saveVersion = SAVE_VERSION;
   return s;

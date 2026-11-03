@@ -1,7 +1,7 @@
 import { it } from 'vitest';
 import { createGame, advanceMonth, availableActions, performAction, resolveEvent, GAMEPLAY, fatigueMultiplier } from '../src/engine';
 // Robô "diligente": usa todos os compromissos, variando ações (sujeito ao desgaste).
-const PREF = ['pleitear','corpo_a_corpo','propaganda','arrecadar','comicio','pre_campanha','comunidade','redes','atividade_partidaria','aproximar_faccao','mobilizar_filiados','estudar','rede_contatos'];
+const PREF = ['pleitear','corpo_a_corpo','comunicacao','arrecadar','comicio','pre_campanha','comunidade','redes','atividade_partidaria','aproximar_faccao','mobilizar_filiados','estudar','rede_contatos'];
 function run(ap: number, seed: number, office: 'vereador'|'prefeito') {
   const pref = [...PREF];
   GAMEPLAY.actionPointsPerMonth.value = ap;

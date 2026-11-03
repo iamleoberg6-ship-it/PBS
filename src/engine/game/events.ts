@@ -225,6 +225,53 @@ export const EVENTS: EventTemplate[] = [
     ],
   },
   {
+    id: 'fornecedor_vantagem',
+    title: () => 'Proposta de um fornecedor',
+    body: () => 'Um empresário (personagem do jogo) que presta serviços à prefeitura procura você, no gabinete, oferecendo "uma ajuda" se você conseguir que o gabinete indique a obra dele numa emenda.',
+    weight: 0.06,
+    condition: (s) => !!s.player.staff && !s.player.mandate,
+    options: () => [
+      { label: 'Recusar e encerrar a conversa', apply: (st) => { st.player.staff!.trust = Math.min(100, st.player.staff!.trust + 2); return 'Você recusou. Nada mais aconteceu.'; } },
+      {
+        label: 'Aceitar a vantagem', hint: 'Corrupção é crime; o jogo registra o risco',
+        apply: (st, rng) => {
+          st.finances.cash += 30000;
+          st.flags.vantagemIndevida = Number(st.flags.vantagemIndevida ?? 0) + 1;
+          if (next(rng) < 0.35) {
+            st.character.attributes.popularity = clamp(st.character.attributes.popularity - 10);
+            st.player.recognition = grow(st.player.recognition, 4);
+            if (st.player.staff) st.player.staff.trust = 0;
+            return 'A conversa foi gravada e vazou. O gabinete afastou você imediatamente e o caso foi ao Ministério Público. Popularidade −10.';
+          }
+          return 'Você recebeu R$ 30 mil por fora. Ninguém soube — por enquanto.';
+        },
+      },
+      { label: 'Denunciar à Corregedoria da Câmara', apply: (st) => { st.player.recognition = grow(st.player.recognition, 4); if (st.player.staff) st.player.staff.contacts = Math.max(0, st.player.staff.contacts - 6); return 'Você denunciou. Ganhou respeito público, mas parte dos bastidores passou a desconfiar de você.'; } },
+    ],
+  },
+  {
+    id: 'vazamento_imprensa',
+    title: () => 'Jornalista pede informação de bastidor',
+    body: () => 'Uma repórter do Diário Paulistano (veículo fictício) pede detalhes de uma negociação reservada da pauta da Câmara. Em troca, promete "lembrar de você".',
+    weight: 0.06,
+    condition: (s) => !!s.player.staff && !s.player.mandate && s.player.staff.contacts >= 20,
+    options: () => [
+      { label: 'Recusar', apply: () => 'Você manteve a discrição.' },
+      { label: 'Passar informação em off', apply: (st, rng) => { st.player.recognition = grow(st.player.recognition, 2); if (next(rng) < 0.4 && st.player.staff) { st.player.staff.trust = clamp(st.player.staff.trust - 15); return 'O gabinete descobriu de onde veio o vazamento. Confiança −15.'; } return 'A reportagem saiu e a repórter passou a te procurar. Ninguém descobriu a fonte.'; } },
+    ],
+  },
+  {
+    id: 'campanha_expediente',
+    title: () => 'Campanha no horário de trabalho',
+    body: () => 'A coordenação de campanha do partido pede que você use o horário de expediente no gabinete para panfletar e organizar eventos. Servidor não pode fazer campanha durante o expediente (Lei 9.504/97, art. 73, III).',
+    weight: 0.25,
+    condition: (s) => !!s.player.staff && !!s.player.candidacy && s.month.year === 2028 && s.month.month >= 8 && s.month.month <= 9 && !s.flags.expedienteDecidido,
+    options: () => [
+      { label: 'Tirar licença para fazer campanha', apply: (st) => { st.flags.expedienteDecidido = true; st.finances.cash -= Math.round(st.finances.monthlyIncome * 0.5); return 'Você tirou licença não remunerada parcial e fez campanha fora do expediente.'; } },
+      { label: 'Fazer campanha no expediente', hint: 'Conduta vedada', apply: (st) => { st.flags.expedienteDecidido = true; if (st.player.candidacy) { st.player.candidacy.campaignPoints += 6; st.player.candidacy.irregularities += 1; } return 'Você ganhou tempo de campanha, mas cometeu conduta vedada. Se denunciada, pesa na prestação de contas e em ações eleitorais.'; } },
+    ],
+  },
+  {
     id: 'convite_secretaria',
     title: () => 'Convite para a prefeitura',
     body: (s) => `O(a) prefeito(a) eleito(a), ${s.government.mayor.name}, convida você para chefiar uma secretaria municipal a partir de janeiro. É cargo de livre nomeação e exoneração, não eletivo. Por que você: ${String(s.flags.conviteMotivo ?? '')}`,

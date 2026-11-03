@@ -6,6 +6,7 @@ import { fictionalName } from './names';
 import { initialCouncillors, seatsByParty } from './council';
 import { electMesa, emptyLegislature, initLegislature } from './legislature';
 import { initCity } from './municipality';
+import { pickHomeRegion } from './campaign';
 import { initialSocial } from './social';
 import { recomputeNetWorth } from './finance';
 import { councillorActors } from './actors';
@@ -77,6 +78,8 @@ export interface NewGameInput {
   attributeBonus: Partial<Attributes>;
   ideology?: Partial<Record<AxisId, number>>;
   seed?: number;
+  /** Região onde o personagem mora e tem base (Fase 4). */
+  homeRegion?: string;
 }
 
 export const BASE_ATTRIBUTES: Attributes = {
@@ -157,6 +160,8 @@ export function createGame(input: NewGameInput): GameState {
       consecutiveTermsPrefeito: 0,
       careerHistory: [],
       social: initialSocial(input.profession, rng),
+      staff: null,
+      homeRegion: input.homeRegion ?? pickHomeRegion(rng),
     },
     parties,
     government: {

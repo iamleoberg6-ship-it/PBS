@@ -14,12 +14,16 @@ import { PLAYER, adjustRel, standing } from './relations';
 import { contestBlock } from './partyorg';
 import { fatigueMultiplier, registerUse, dampenGains } from './fatigue';
 import { snapshot, recordDiff } from './ledger';
+import { REGIONS, SEGMENTS } from '../data/regions';
+import { TEAM_ROLES, addCategory, attackOpponent, ensurePlan, hireRole, internalPoll, mediaPush, recruitLeader, requestPartyFund, visitRegion, type TeamRole } from './campaign';
+import { askPromotion, demandChance, fulfillDemand, hireAsStaff, leaveStaff, staffBossOptions, staffInitiative, switchOffice } from './assessor';
+import { PROFESSIONS } from './create';
 import { recomputeNetWorth } from './finance';
 import { NETWORKS, produceContent } from './social';
 import { ideologicalDistance, partyIdeology } from '../data/ideology';
 import type { AttributeKey, Bill, GameState } from './types';
 
-export type ActionCategory = 'Vida e carreira' | 'Partido' | 'Pré-candidatura' | 'Campanha' | 'Mandato de vereador' | 'Prefeitura' | 'Secretaria';
+export type ActionCategory = 'Vida e carreira' | 'Assessoria' | 'Partido' | 'Pré-candidatura' | 'Campanha' | 'Mandato de vereador' | 'Prefeitura' | 'Secretaria';
 
 export interface ActionParamOption {
   value: string;
@@ -75,16 +79,34 @@ const campaignOn = (s: GameState) => {
 };
 const campaignBalance = (s: GameState) => {
   const a = s.player.candidacy?.account;
-  return a ? a.fefc + a.donations + a.ownFunds - a.spent : 0;
+  return a ? a.fefc + a.donations + a.ownFunds + (a.fundoPartidario ?? 0) - a.spent : 0;
 };
 const isMayorRace = (s: GameState) => s.player.candidacy?.office === 'prefeito';
 
-function spendCampaign(s: GameState, vereadorCost: number, mayorCost: number): number | string {
+function spendCampaign(s: GameState, vereadorCost: number, mayorCost: number, category = 'outros'): number | string {
   const cost = isMayorRace(s) ? mayorCost : vereadorCost;
   if (campaignBalance(s) < cost) return `Saldo de campanha insuficiente (precisa de ${brl(cost)}).`;
   s.player.candidacy!.account.spent += cost;
+  addCategory(s.player.candidacy!.account, category, cost);
+  ensurePlan(s);
   return cost;
 }
+function setPlanOption(s: GameState, param: string): string {
+  const plan = ensurePlan(s)!;
+  const [k, v] = param.split('|');
+  const toggle = (arr: string[], val: string, max: number) => { const i = arr.indexOf(val); if (i >= 0) { arr.splice(i, 1); return 'removido'; } if (arr.length >= max) arr.shift(); arr.push(val); return 'incluído'; };
+  if (k === 'foco') return `Região ${REGIONS.find((r) => r.id === v)?.name}: ${toggle(plan.focus, v, 3)} nas prioridades.`;
+  if (k === 'tema') return `Tema ${THEMES.find((t) => t.value === v)?.label}: ${toggle(plan.themes, v, 3)}.`;
+  if (k === 'seg') return `Segmento ${SEGMENTS.find((g) => g.id === v)?.name}: ${toggle(plan.segments, v, 2)}.`;
+  if (k === 'tom') { plan.tone = v as typeof plan.tone; return `Tom da campanha: ${v}.`; }
+  return 'Opção inválida.';
+}
+const regionOptions = () => REGIONS.map((r) => ({ value: r.id, label: r.name }));
+const preOrCampaign = (s: GameState) => {
+  const c = s.player.candidacy;
+  if (!c || ['rejeitada_convencao', 'indeferida'].includes(c.status)) return false;
+  return now(s) <= mi(2028, 9) || campaignOn(s);
+};
 
 export const ACTIONS: ActionDef[] = [
   // ---------------- Vida e carreira ----------------
@@ -153,34 +175,73 @@ export const ACTIONS: ActionDef[] = [
   },
   {
     id: 'cargo_assessor', fatigue: false, label: 'Buscar cargo de assessor(a) parlamentar', category: 'Vida e carreira', cost: 1,
-    description: 'Trabalhar no gabinete de um vereador do seu partido. É um cargo de confiança, não eletivo.',
+    description: 'Trabalhar no gabinete de um(a) vereador(a) do seu partido ou federação. Cargo em comissão, de livre nomeação e exoneração.',
     availability: (s) => {
-      if (s.player.job === 'assessor') return 'hidden';
-      if (s.player.mandate) return 'hidden';
+      if (s.player.staff || s.player.mandate) return 'hidden';
       if (!isFiliado(s)) return 'Exige filiação partidária (indicação política).';
-      if ((s.government.councilSeatsByParty[s.player.partyId!] ?? 0) === 0) return 'Seu partido não tem vereadores na Câmara.';
+      if (!staffBossOptions(s).length) return 'Seu partido não tem vereadores na Câmara.';
       if (s.player.partyRel.leadershipTrust < 30) return 'Confiança da direção precisa ser ≥ 30.';
       return null;
     },
-    apply: (s, rng) => {
-      if (next(rng) < 0.25 + s.player.partyRel.leadershipTrust / 150) {
-        s.player.job = 'assessor';
-        s.finances.monthlyIncome = 9500;
-        s.player.careerHistory.push({ office: 'Assessor(a) parlamentar — Câmara Municipal de São Paulo', from: `${s.month.year}-${String(s.month.month).padStart(2, '0')}`, to: null, note: 'Cargo de confiança' });
-        return 'Você foi nomeado(a) assessor(a) parlamentar. Salário de R$ 9.500 (valor de jogo).';
+    paramLabel: 'Gabinete',
+    params: (s) => staffBossOptions(s),
+    apply: (s, rng, param) => {
+      if (next(rng) < 0.25 + s.player.partyRel.leadershipTrust / 150 + s.character.attributes.articulation / 400) {
+        const job = hireAsStaff(s, param ?? staffBossOptions(s)[0].value)!;
+        s.player.careerHistory.push({ office: `Assessor(a) parlamentar — gabinete de ${job.bossName}`, from: `${s.month.year}-${String(s.month.month).padStart(2, '0')}`, to: null, note: 'Cargo em comissão' });
+        return `Você foi nomeado(a) assessor(a) no gabinete de ${job.bossName}. Veja as demandas na página Gabinete parlamentar.`;
       }
       return 'Não havia vaga no gabinete este mês. Tente de novo.';
     },
   },
   {
-    id: 'gabinete', label: 'Trabalho de gabinete', category: 'Vida e carreira', cost: 1,
-    description: 'Como assessor(a): pareceres, agenda do vereador, atendimento a lideranças.',
-    availability: (s) => (s.player.job === 'assessor' && !s.player.mandate ? null : 'hidden'),
+    id: 'cumprir_demanda', label: 'Cumprir demanda do gabinete', category: 'Assessoria', cost: 1,
+    description: 'Tarefas pedidas pelo gabinete: pareceres, minutas de projeto, agenda nos bairros, articulação, imprensa. Entregar aumenta a confiança; deixar vencer derruba.',
+    availability: (s) => (s.player.staff && !s.player.mandate ? (s.player.staff.demands.length ? null : 'Nenhuma demanda aberta neste mês.') : 'hidden'),
+    paramLabel: 'Demanda',
+    params: (s) => (s.player.staff?.demands ?? []).map((d) => ({ value: d.id, label: `${d.label} — chance ${Math.round(demandChance(s, d) * 100)}%${d.monthsLeft > 1 ? ` (prazo ${d.monthsLeft} meses)` : ''}` })),
+    apply: (s, rng, param) => fulfillDemand(s, rng, param!),
+  },
+  {
+    id: 'iniciativa_gabinete', label: 'Iniciativa própria no gabinete', category: 'Assessoria', cost: 1,
+    description: 'Estudar a pauta, construir rede de bastidores, trabalhar a própria base (o gabinete pode não gostar) ou, como chefe de gabinete, representar o mandato.',
+    availability: (s) => (s.player.staff && !s.player.mandate ? null : 'hidden'),
+    paramLabel: 'Iniciativa',
+    params: (s) => [
+      { value: 'estudar_pauta', label: 'Estudar a pauta da Câmara' },
+      { value: 'bastidores', label: 'Rede de bastidores com outros gabinetes' },
+      { value: 'base_propria', label: 'Trabalhar a própria base' },
+      ...(s.player.staff?.rank === 'chefe_gabinete' ? [{ value: 'representar', label: 'Representar o mandato em reuniões' }] : []),
+    ],
+    apply: (s, rng, param) => staffInitiative(s, rng, param ?? 'estudar_pauta'),
+  },
+  {
+    id: 'pedir_promocao', fatigue: false, label: 'Pedir promoção', category: 'Assessoria', cost: 1,
+    description: 'Assessor(a) → assessor(a) especial (confiança ≥ 65 e 6 entregas) → chefe de gabinete (confiança ≥ 80 e 14 entregas).',
+    availability: (s) => {
+      const j = s.player.staff;
+      if (!j || s.player.mandate || j.rank === 'chefe_gabinete') return 'hidden';
+      const need = j.rank === 'assessor' ? { trust: 65, done: 6 } : { trust: 80, done: 14 };
+      return j.trust >= need.trust && j.completed >= need.done ? null : `Pede confiança ≥ ${need.trust} e ${need.done} entregas (hoje: ${Math.round(j.trust)} e ${j.completed}).`;
+    },
+    apply: (s, rng) => askPromotion(s, rng),
+  },
+  {
+    id: 'trocar_gabinete', fatigue: false, label: 'Trocar de gabinete', category: 'Assessoria', cost: 1,
+    description: 'Ir para o gabinete de outro(a) vereador(a) do partido ou da federação. Você leva a rede de contatos, mas recomeça como assessor(a).',
+    availability: (s) => (s.player.staff && !s.player.mandate ? (staffBossOptions(s).filter((o) => o.value !== s.player.staff!.bossId).length ? null : 'Não há outro gabinete do seu campo.') : 'hidden'),
+    paramLabel: 'Gabinete',
+    params: (s) => staffBossOptions(s).filter((o) => o.value !== s.player.staff?.bossId),
+    apply: (s, rng, param) => switchOffice(s, rng, param!),
+  },
+  {
+    id: 'deixar_gabinete', fatigue: false, label: 'Deixar o gabinete', category: 'Assessoria', cost: 0,
+    description: 'Pedir exoneração e voltar à profissão.',
+    availability: (s) => (s.player.staff && !s.player.mandate ? null : 'hidden'),
     apply: (s) => {
-      raise(s, 'politicalKnowledge', 1.5);
-      raise(s, 'articulation', 1.5);
-      s.player.partyRel.leadershipTrust = grow(s.player.partyRel.leadershipTrust, 2);
-      return 'Gabinete: conhecimento +1,5, articulação +1,5, confiança da direção +2.';
+      leaveStaff(s, 'Você pediu exoneração do gabinete.');
+      s.finances.monthlyIncome = PROFESSIONS[s.character.profession].income;
+      return 'Você voltou à profissão.';
     },
   },
 
@@ -408,30 +469,88 @@ export const ACTIONS: ActionDef[] = [
 
   // ---------------- Campanha ----------------
   {
-    id: 'corpo_a_corpo', label: 'Corpo a corpo nas ruas', category: 'Campanha', cost: 1,
-    description: 'Caminhadas, feiras, estações. Custa R$ 5 mil (vereador) ou R$ 50 mil (prefeito) da conta de campanha.',
+    id: 'corpo_a_corpo', label: 'Agenda de rua numa região', category: 'Campanha', cost: 1,
+    description: 'Caminhadas, feiras e estações numa região. Aumenta presença e conhecimento do seu nome ali. R$ 5 mil (vereador) / R$ 50 mil (prefeito).',
     availability: (s) => (campaignOn(s) ? null : 'hidden'),
-    apply: (s, rng) => {
-      const r = spendCampaign(s, 5000, 50000);
+    paramLabel: 'Região', params: regionOptions,
+    apply: (s, rng, param) => {
+      const r = spendCampaign(s, 5000, 50000, 'eventos');
       if (typeof r === 'string') return r;
-      const pts = 3 + s.character.attributes.charisma / 25 + next(rng) * 2;
-      s.player.candidacy!.campaignPoints += pts;
-      s.player.base = grow(s.player.base, 1.5);
-      return `Corpo a corpo: campanha +${pts.toFixed(1)} (gasto ${brl(r)}).`;
+      s.player.base = grow(s.player.base, 1);
+      return `${visitRegion(s, rng, param ?? s.player.homeRegion)} (gasto ${brl(r)}).`;
     },
   },
   {
-    id: 'propaganda', label: 'Propaganda e impulsionamento', category: 'Campanha', cost: 1,
-    description: 'Material, vídeos e impulsionamento de conteúdo (permitido quando contratado pela campanha). R$ 15 mil / R$ 300 mil.',
+    id: 'comunicacao', label: 'Comunicação de campanha', category: 'Campanha', cost: 1,
+    description: 'Escolha o canal: redes/impulsionamento (jovens, estudantes), material impresso (informais, baixa renda), rádio e TV (aposentados). O alcance depende dos segmentos-alvo do plano.',
+    availability: (s) => (campaignOn(s) ? null : 'hidden'),
+    paramLabel: 'Canal',
+    params: () => [{ value: 'digital', label: 'Redes e impulsionamento (R$ 15 mil / R$ 300 mil)' }, { value: 'impresso', label: 'Material impresso e carro de som (R$ 12 mil / R$ 200 mil)' }, { value: 'tv', label: 'Produção para o horário eleitoral (R$ 20 mil / R$ 600 mil)' }],
+    apply: (s, rng, param) => {
+      const ch = (param ?? 'digital') as 'digital' | 'impresso' | 'tv';
+      const cost = ch === 'digital' ? [15000, 300000] : ch === 'impresso' ? [12000, 200000] : [20000, 600000];
+      const r = spendCampaign(s, cost[0], cost[1], ch === 'digital' ? 'impulsionamento' : ch === 'tv' ? 'producao_audiovisual' : 'material_impresso');
+      if (typeof r === 'string') return r;
+      s.player.candidacy!.campaignPoints += 2 + s.character.attributes.communication / 30;
+      s.player.recognition = grow(s.player.recognition, 2);
+      return `${mediaPush(s, rng, ch)} (gasto ${brl(r)}).`;
+    },
+  },
+  {
+    id: 'lideranca_local', label: 'Buscar apoio de lideranças locais', category: 'Pré-candidatura', cost: 1,
+    description: 'Lideranças comunitárias (personagens do jogo) dão capilaridade numa região. Vale na pré-campanha e na campanha.',
+    availability: (s) => (preOrCampaign(s) ? null : 'hidden'),
+    paramLabel: 'Região', params: regionOptions,
+    apply: (s, rng, param) => { ensurePlan(s); return recruitLeader(s, rng, param ?? s.player.homeRegion); },
+  },
+  {
+    id: 'plano_campanha', fatigue: false, label: 'Ajustar o plano de campanha', category: 'Pré-candidatura', cost: 0,
+    description: 'Regiões prioritárias (até 3), temas (até 3), segmentos-alvo (até 2) e tom. Também na página Campanha.',
+    availability: (s) => (preOrCampaign(s) ? null : 'hidden'),
+    paramLabel: 'Escolha',
+    params: (s) => {
+      const plan = s.player.candidacy?.plan;
+      return [
+        ...REGIONS.map((r) => ({ value: `foco|${r.id}`, label: `${plan?.focus.includes(r.id) ? 'Tirar' : 'Priorizar'} região: ${r.name}` })),
+        ...THEMES.map((t) => ({ value: `tema|${t.value}`, label: `${plan?.themes.includes(t.value) ? 'Tirar' : 'Incluir'} tema: ${t.label}` })),
+        ...SEGMENTS.map((g) => ({ value: `seg|${g.id}`, label: `${plan?.segments.includes(g.id) ? 'Tirar' : 'Mirar'} segmento: ${g.name}` })),
+        ...(['propositivo', 'contraste', 'ataque'] as const).map((t) => ({ value: `tom|${t}`, label: `Tom: ${t}` })),
+      ];
+    },
+    apply: (s, _rng, param) => setPlanOption(s, param ?? ''),
+  },
+  {
+    id: 'montar_equipe', fatigue: false, label: 'Contratar equipe de campanha', category: 'Campanha', cost: 1,
+    description: 'Coordenação, marketing, jurídico e contabilidade. Pago com recursos da campanha (a partir do registro).',
+    availability: (s) => (campaignOn(s) ? ((Object.keys(TEAM_ROLES) as TeamRole[]).every((k) => s.player.candidacy?.plan?.team[k]) ? 'Equipe completa.' : null) : 'hidden'),
+    paramLabel: 'Função',
+    params: (s) => (Object.keys(TEAM_ROLES) as TeamRole[]).filter((k) => !s.player.candidacy?.plan?.team[k]).map((k) => ({ value: k, label: `${TEAM_ROLES[k].label} — ${brl(isMayorRace(s) ? TEAM_ROLES[k].costP : TEAM_ROLES[k].costV)}` })),
+    apply: (s, _rng, param) => {
+      const r = hireRole(s, (param ?? 'coordenacao') as TeamRole);
+      return typeof r === 'string' ? r : `${TEAM_ROLES[param as TeamRole].label} contratada (${brl(r)}). ${TEAM_ROLES[param as TeamRole].note}`;
+    },
+  },
+  {
+    id: 'contraste', label: 'Campanha de contraste com adversários', category: 'Campanha', cost: 1,
+    description: 'Pode tirar votos do adversário, mas aumenta a sua rejeição; mal feita, vira "baixaria".',
+    availability: (s) => (campaignOn(s) ? null : 'hidden'),
+    apply: (s, rng) => attackOpponent(s, rng),
+  },
+  {
+    id: 'pesquisa_interna', label: 'Encomendar pesquisa interna', category: 'Campanha', cost: 1,
+    description: 'Intenção por região e rejeição. Pesquisa interna não divulgada não precisa de registro (Lei 9.504/97, art. 33). R$ 20 mil / R$ 250 mil.',
     availability: (s) => (campaignOn(s) ? null : 'hidden'),
     apply: (s, rng) => {
-      const r = spendCampaign(s, 15000, 300000);
+      const r = spendCampaign(s, 20000, 250000, 'pesquisas');
       if (typeof r === 'string') return r;
-      const pts = 3 + s.character.attributes.communication / 22 + next(rng) * 2;
-      s.player.candidacy!.campaignPoints += pts;
-      s.player.recognition = grow(s.player.recognition, 3);
-      return `Propaganda: campanha +${pts.toFixed(1)}, reconhecimento +3 (gasto ${brl(r)}).`;
+      return internalPoll(s, rng);
     },
+  },
+  {
+    id: 'fundo_partidario', fatigue: false, label: 'Pedir repasse do Fundo Partidário', category: 'Campanha', cost: 1,
+    description: 'Recurso do partido, distribuído por critério interno da direção (além do FEFC).',
+    availability: (s) => (campaignOn(s) ? ((s.player.candidacy!.account.fundoPartidario ?? 0) > 0 ? 'Repasse já feito.' : null) : 'hidden'),
+    apply: (s, rng) => requestPartyFund(s, rng),
   },
   {
     id: 'comicio', label: 'Evento de campanha', category: 'Campanha', cost: 1,

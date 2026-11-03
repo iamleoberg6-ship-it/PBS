@@ -30,3 +30,6 @@ export * from './game/secretariat';
 export * from './game/municipality';
 export * from './data/spfinance';
 export * from './rules/fiscal';
+export * from './data/regions';
+export * from './game/campaign';
+export * from './game/assessor';
