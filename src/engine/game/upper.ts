@@ -25,8 +25,19 @@ export const UPPER_SALARIES = {
   secretario_estadual: { value: 30000, source: 'Valor de jogo', status: 'PROPOSTA' },
 } as const;
 
-/** Saldo anual de emendas individuais (R$ mi) — PARÂMETRO de jogo inspirado nas emendas impositivas. */
-export const AMENDMENT_BUDGET: Record<string, number> = { deputado_estadual: 8, deputado_federal: 37, senador: 37 };
+/** Cota ANUAL de emendas individuais impositivas por parlamentar (R$ milhões), valores de 2026 mantidos constantes. */
+export const AMENDMENT_BUDGET: Record<string, number> = { deputado_estadual: 13, deputado_federal: 40, senador: 73 };
+export const AMENDMENT_SOURCES: Record<string, { text: string; status: 'REGRA_REAL' | 'DERIVADA' }> = {
+  deputado_estadual: { text: 'Alesp: os 94 deputados dividem 0,45% da receita corrente líquida do estado a cada ano — cerca de R$ 13 milhões por deputado em 2026 (InfoMoney/O Globo). O Executivo estadual paga devagar: só uma fração costuma ser liberada no ano.', status: 'DERIVADA' },
+  deputado_federal: { text: 'LOA 2026: R$ 39,9 milhões por deputado federal em emendas individuais (CF art. 166 §§9º–11). Metade tem de ir para a saúde.', status: 'REGRA_REAL' },
+  senador: { text: 'LOA 2026: R$ 72,8 milhões por senador em emendas individuais (CF art. 166 §§9º–11). Metade tem de ir para a saúde.', status: 'REGRA_REAL' },
+};
+/** Federal: metade das emendas individuais vai para ações e serviços de saúde (CF art. 166 §9º). */
+export const healthShareRequired = (office: string) => office === 'deputado_federal' || office === 'senador';
+export function amendmentYearTotals(u: UpperMandate, year: number) {
+  const ys = u.amendments.filter((a) => a.month.year === year);
+  return { total: ys.reduce((x, a) => x + a.value, 0), health: ys.filter((a) => a.theme === 'saúde').reduce((x, a) => x + a.value, 0) };
+}
 
 export const UPPER_LABEL: Record<string, string> = {
   deputado_estadual: 'Deputado(a) estadual (Alesp)',
@@ -92,9 +103,15 @@ export function upperBill(s: GameState, rng: RngState, theme: string): string {
 
 export function upperAmendment(s: GameState, rng: RngState, param: string): string {
   const u = s.player.mandate!.upper!;
-  const [region, theme] = param.split('|');
-  const value = Math.min(u.amendmentBudget, Math.max(1, Math.round(u.amendmentBudget / 4)));
+  const [region, theme, v] = param.split('|');
+  const value = Math.min(u.amendmentBudget, Number(v) || 1);
   if (value <= 0 || u.amendmentBudget <= 0) return 'Seu saldo de emendas do ano acabou.';
+  const office = s.player.mandate!.office;
+  if (healthShareRequired(office) && theme !== 'saúde') {
+    const cap = AMENDMENT_BUDGET[office] / 2;
+    const t = amendmentYearTotals(u, s.month.year);
+    if (t.total - t.health + value > cap + 1e-9) return `Metade da cota anual precisa ir para a saúde (CF art. 166 §9º): você só pode indicar mais R$ ${Math.max(0, cap - (t.total - t.health))} mi fora da saúde este ano.`;
+  }
   u.amendmentBudget -= value;
   u.amendments.push({ region, theme, value, month: { ...s.month }, paid: false });
   void rng;

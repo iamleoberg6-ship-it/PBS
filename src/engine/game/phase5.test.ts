@@ -260,3 +260,22 @@ describe('Trabalho de cargo sem desgaste', () => {
     for (const id of ['comunidade', 'redes', 'corpo_a_corpo', 'pre_campanha']) expect(usesFatigue(byId(id)), id).toBe(true);
   });
 });
+
+describe('Emendas com valores reais', () => {
+  it('cota anual real e regra de metade para a saúde no Congresso', async () => {
+    const { AMENDMENT_BUDGET, newUpper } = await import('./upper');
+    expect(AMENDMENT_BUDGET.deputado_estadual).toBe(13);
+    expect(AMENDMENT_BUDGET.deputado_federal).toBe(40);
+    expect(AMENDMENT_BUDGET.senador).toBe(73);
+    let s = mk(30);
+    s.month = { year: 2031, month: 2 };
+    s.player.mandate = { ...newMandate('deputado_federal', '2031-02-01', '2035-01-31'), upper: newUpper('deputado_federal') };
+    s = performAction(s, 'up_emenda', 'leste1|educação|20');
+    expect(s.player.mandate!.upper!.amendmentBudget).toBe(20);
+    const before = s.player.mandate!.upper!.amendmentBudget;
+    s = performAction(s, 'up_emenda', 'leste1|educação|1'); // passaria da metade fora da saúde: opção nem é oferecida
+    expect(s.player.mandate!.upper!.amendmentBudget).toBe(before);
+    s = performAction(s, 'up_emenda', 'leste1|saúde|20');
+    expect(s.player.mandate!.upper!.amendmentBudget).toBe(0);
+  });
+});

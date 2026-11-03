@@ -292,6 +292,16 @@ function upgradeWithinV8(s: Raw, report: LoadReport) {
     if (t < 2029 * 12) for (const d of real.filter((x) => x.posseMonth <= t)) if (s.government.councillors.some((c: Raw) => c.id === d.councillorId)) vacateCouncilSeat(s as GameState, d.councillorId, 'eleito(a) deputado(a) em 2026 — fato real');
     report.repairs.push('Vereadores reais eleitos deputados em 2026 deixam a Câmara; suplentes fictícios do mesmo partido assumem.');
   }
+  // Cotas de emendas com valores reais de 2026 (ajuste pós-Fase 5).
+  const um = s.player?.mandate?.upper;
+  if (um && !s.flags.cotaEmendas2026) {
+    s.flags.cotaEmendas2026 = true;
+    const cota = ({ deputado_estadual: 13, deputado_federal: 40, senador: 73 } as Record<string, number>)[s.player.mandate.office];
+    if (cota) {
+      const used = (um.amendments ?? []).filter((a: Raw) => a.month?.year === s.month?.year).reduce((x: number, a: Raw) => x + (a.value ?? 0), 0);
+      um.amendmentBudget = Math.max(0, cota - used);
+    }
+  }
   // Agenda do cargo (ajuste pós-Fase 5): saves antigos começam o mês com a agenda cheia.
   if (s.officePoints === undefined) {
     const o = s.player?.mandate?.office ?? (s.player?.staff ? 'assessor' : null);

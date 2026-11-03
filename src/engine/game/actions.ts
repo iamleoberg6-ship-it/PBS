@@ -23,7 +23,7 @@ import { NETWORKS, produceContent } from './social';
 import { ideologicalDistance, partyIdeology } from '../data/ideology';
 import { isMunYear, nextElection } from './cycle';
 import { cityAlignment } from './general';
-import { STATE_AREAS, UPPER_THEMES, articulateGov, isLegislatorUpper, oversight, seekCommittee, startStateProgram, transferToCity, upperAmendment, upperBill, visitBase } from './upper';
+import { AMENDMENT_BUDGET, STATE_AREAS, UPPER_THEMES, amendmentYearTotals, healthShareRequired, articulateGov, isLegislatorUpper, oversight, seekCommittee, startStateProgram, transferToCity, upperAmendment, upperBill, visitBase } from './upper';
 import { RESPONSE_LABEL, lapseCampaignPromises, makePromise, promiseCapacity, respondCrisis, workOnPromise } from './livingworld';
 import { computeEnding } from './endings';
 import { resignForCandidacy } from './careers';
@@ -962,10 +962,17 @@ export const ACTIONS: ActionDef[] = [
   },
   {
     id: 'up_emenda', label: 'Indicar emenda individual', category: 'Mandato estadual/federal', cost: 1,
-    description: 'Emendas individuais ao orçamento são impositivas (CF art. 166 §§9º–11), mas o ritmo de pagamento depende do Executivo. Valores de jogo.',
-    availability: (s) => (isLegislatorUpper(s.player.mandate?.office) ? ((s.player.mandate!.upper?.amendmentBudget ?? 0) > 0 ? null : 'Saldo de emendas do ano esgotado.') : 'hidden'),
-    paramLabel: 'Região e área',
-    params: () => REGIONS.flatMap((r) => ['saúde', 'educação', 'infraestrutura'].map((t) => ({ value: `${r.id}|${t}`, label: `${r.name} — ${t}` }))),
+    description: 'Cota anual do parlamentar, renovada em janeiro: deputado estadual ~R$ 13 mi, deputado federal R$ 39,9 mi, senador R$ 72,8 mi (valores de 2026). São impositivas (o governo é obrigado a executar), mas o ritmo de pagamento depende do Executivo. No Congresso, metade vai obrigatoriamente para a saúde.',
+    availability: (s) => (isLegislatorUpper(s.player.mandate?.office) ? ((s.player.mandate!.upper?.amendmentBudget ?? 0) > 0 ? null : 'Cota de emendas do ano esgotada: renova em janeiro.') : 'hidden'),
+    paramLabel: 'Região, área e valor',
+    params: (s) => {
+      const left = s.player.mandate?.upper?.amendmentBudget ?? 0;
+      const office = s.player.mandate?.office ?? '';
+      const t = s.player.mandate?.upper ? amendmentYearTotals(s.player.mandate.upper, s.month.year) : { total: 0, health: 0 };
+      const nonHealthLeft = healthShareRequired(office) ? AMENDMENT_BUDGET[office] / 2 - (t.total - t.health) : Infinity;
+      const vals = [...new Set([1, 2, 5, 10, 20, left].filter((v) => v > 0 && v <= left))].sort((a, b) => a - b);
+      return REGIONS.flatMap((r) => ['saúde', 'educação', 'infraestrutura', 'assistência social'].flatMap((a) => vals.filter((v) => a === 'saúde' || v <= nonHealthLeft).map((v) => ({ value: `${r.id}|${a}|${v}`, label: `${r.name} — ${a} — R$ ${v} mi` }))));
+    },
     apply: (s, rng, param) => upperAmendment(s, rng, param!),
   },
   {

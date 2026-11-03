@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  ACHIEVEMENTS, LAST_YEAR, availableActions, officePointsFor, REGIONS, RESPONSE_LABEL, STATE_AREAS, STATE_SOURCES, UPPER_LABEL, careerScore, cityAlignment, formatIsoPt, genCycle, genRulepack,
+  ACHIEVEMENTS, AMENDMENT_BUDGET, AMENDMENT_SOURCES, amendmentYearTotals, healthShareRequired, LAST_YEAR, availableActions, officePointsFor, REGIONS, RESPONSE_LABEL, STATE_AREAS, STATE_SOURCES, UPPER_LABEL, careerScore, cityAlignment, formatIsoPt, genCycle, genRulepack,
   monthIndex, monthLabel, outletById, partyById, previewEligibility, promiseCapacity, upperSummary,
   type CrisisResponse, type GameState, type GeneralElectionRecord, type MajRoundResult, type ProportionalResult,
 } from '../engine';
@@ -107,7 +107,7 @@ function UpperPanel({ s }: { s: GameState }) {
         <div className="meter"><div className="meter-label"><span>Aprovação</span></div><div className="meter-value">{Math.round(m.approval)}</div><div className="bar"><i style={{ width: `${m.approval}%` }} /></div></div>
         <div className="meter"><div className="meter-label"><span>Relação com o Executivo</span></div><div className="meter-value">{Math.round(u.relationGov)}</div><div className="bar"><i style={{ width: `${u.relationGov}%` }} /></div></div>
         {m.office === 'governador' && <div className="meter"><div className="meter-label"><span>Base na Alesp</span></div><div className="meter-value">{u.assemblyBase ?? 0}/94</div><div className={`bar ${(u.assemblyBase ?? 0) < 48 ? 'red' : ''}`}><i style={{ width: `${((u.assemblyBase ?? 0) / 94) * 100}%` }} /></div></div>}
-        {u.amendmentBudget > 0 && <div className="meter"><div className="meter-label"><span>Saldo de emendas</span></div><div className="meter-value">R$ {u.amendmentBudget} mi</div></div>}
+        {AMENDMENT_BUDGET[m.office] && <div className="meter"><div className="meter-label"><span>Emendas: saldo da cota de {s.month.year}</span></div><div className="meter-value">R$ {u.amendmentBudget} mi <span className="small muted">de R$ {AMENDMENT_BUDGET[m.office]} mi</span></div><div className="bar gold"><i style={{ width: `${(u.amendmentBudget / AMENDMENT_BUDGET[m.office]) * 100}%` }} /></div></div>}
       </div>
       {u.committeeRole && <p className="small">Cargo: <b>{u.committeeRole}</b></p>}
       {u.stateIndicators && (
@@ -118,7 +118,14 @@ function UpperPanel({ s }: { s: GameState }) {
         <div className="table-wrap" style={{ marginTop: 8 }}><table><thead><tr><th>Projeto</th><th>Situação</th></tr></thead>
           <tbody>{[...u.bills].reverse().slice(0, 8).map((b) => <tr key={b.id}><td className="small">{b.title}</td><td>{b.status === 'tramitando' ? `tramitando (${b.monthsLeft} meses)` : b.status}</td></tr>)}</tbody></table></div>
       )}
-      {u.amendments.length > 0 && <p className="small">Emendas: {u.amendments.filter((a) => a.paid).length} pagas de {u.amendments.length} indicadas.</p>}
+      {AMENDMENT_SOURCES[m.office] && (
+        <p className="small">
+          <b>Emendas individuais:</b> {AMENDMENT_SOURCES[m.office].text} <span className={`tag ${AMENDMENT_SOURCES[m.office].status === 'REGRA_REAL' ? 'real' : 'derivada'}`}>{AMENDMENT_SOURCES[m.office].status === 'REGRA_REAL' ? 'valor real' : 'derivado'}</span>
+          {' '}A cota renova todo janeiro; o que não for indicado no ano se perde (simplificação).
+          {healthShareRequired(m.office) && (() => { const t = amendmentYearTotals(u, s.month.year); return ` Saúde em ${s.month.year}: R$ ${t.health} mi de no mínimo R$ ${AMENDMENT_BUDGET[m.office] / 2} mi.`; })()}
+        </p>
+      )}
+      {u.amendments.length > 0 && <p className="small">Emendas: {u.amendments.filter((a) => a.paid).length} pagas de {u.amendments.length} indicadas (R$ {u.amendments.filter((a) => a.paid).reduce((x, a) => x + a.value, 0)} mi pagos de R$ {u.amendments.reduce((x, a) => x + a.value, 0)} mi).</p>}
       <p className="small muted">Simplificação declarada: Alesp, Câmara dos Deputados e Senado não têm votação nominal simulada como a Câmara Municipal; projetos e emendas têm prazos e chances de jogo.</p>
     </div>
   );

@@ -192,7 +192,7 @@ Itens do pacote das eleições gerais:
 
 | Elemento | Classificação |
 |---|---|
-| Datas, posses, idades, cadeiras, renovação do Senado, maioria absoluta e 2º turno, sistema proporcional, janela partidária, CF art. 14 §§5º–6º, direito de resposta, emendas impositivas, subsídio federal | REGRA REAL (com fonte na página Regras) |
+| Datas, posses, idades, cadeiras, renovação do Senado, maioria absoluta e 2º turno, sistema proporcional, janela partidária, CF art. 14 §§5º–6º, direito de resposta, emendas impositivas e cotas federais de 2026, subsídio federal | REGRA REAL (com fonte na página Regras) |
 | Datas de 2030–2036, desincompatibilização de secretário municipal, limites de gastos de deputado | DERIVADA |
 | Votos, candidatos fictícios, chances de projetos e emendas, crises e veículos, promessas e boa vontade, conquistas e nota | PROPOSTA |
 
@@ -254,7 +254,21 @@ Outras mudanças de navegação:
 - As ações do cargo (◆) gastam primeiro a agenda do cargo e, quando ela acaba, a pessoal.
 - Balanço conferido: com 9 ações de pasta por mês, o secretário da Saúde termina com aprovação entre 70 e 76.
 
-## 14. Pendências conhecidas
+## 14. Emendas com valores reais (ajuste pós-fase)
+
+| Cargo | Cota anual por parlamentar (valores de 2026) | Fonte | Status |
+|---|---|---|---|
+| Deputado estadual | ~R$ 13 milhões | os 94 deputados dividem 0,45% da receita corrente líquida (RCL) do estado (InfoMoney/O Globo) | DERIVADA |
+| Deputado federal | R$ 39,9 milhões | LOA 2026 | REGRA REAL |
+| Senador | R$ 72,8 milhões | LOA 2026 | REGRA REAL |
+
+- **Quem paga**: o Executivo (governo do estado ou União). As emendas individuais são impositivas, mas o ritmo de pagamento varia.
+- **Quando renova**: a cota é anual e renova em janeiro. O que não for indicado no ano se perde (SIMPLIFICAÇÃO).
+- **Saúde**: no Congresso, metade da cota vai para a saúde (CF art. 166 §9º), e o jogo aplica essa regra.
+- **Valor de cada emenda**: o jogador escolhe (R$ 1, 2, 5, 10 ou 20 mi, ou o saldo restante), além da região e da área.
+- **Saves em andamento** recebem a nova cota, descontado o que já foi indicado no ano.
+
+## 15. Pendências conhecidas
 
 1. **Votação nominal na Alesp e no Congresso**: hoje o mandato estadual/federal é abstrato. Seria uma extensão futura usando o motor da Fase 2.
 2. **Secretário estadual**: o mandato é abstrato. O orçamento estadual detalhado não está modelado.
