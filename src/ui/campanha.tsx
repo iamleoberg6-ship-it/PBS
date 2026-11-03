@@ -26,7 +26,7 @@ export function Campanha({ s, act }: { s: GameState; act: Act }) {
   const w = regionWeights();
   return (
     <>
-      <div className="page-head"><div><h2>Campanha — {c.office === 'prefeito' ? 'Prefeitura' : 'Câmara Municipal'}</h2><p>Situação: {c.status.replace('_', ' ')} · você mora em {home?.name} · fator territorial {plan ? campaignFactor(s).toFixed(2) : '—'} (1,00 = campanha sem trabalho regional)</p></div></div>
+      <div className="page-head"><div><h2>Campanha {c.year ?? 2028} — {({ prefeito: 'Prefeitura', vereador: 'Câmara Municipal', deputado_estadual: 'Assembleia Legislativa', deputado_federal: 'Câmara dos Deputados', senador: 'Senado', governador: 'Governo do Estado' } as Record<string, string>)[c.office]}</h2><p>Situação: {c.status.replace('_', ' ')} · você mora em {home?.name} · fator territorial {plan ? campaignFactor(s).toFixed(2) : '—'} (1,00 = campanha sem trabalho regional)</p></div></div>
       {!plan && <div className="callout">O plano é criado na primeira ação de pré-campanha ou campanha (ou ajuste-o abaixo).</div>}
       {plan && (
         <div className="grid g-2">

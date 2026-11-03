@@ -1,6 +1,8 @@
 import { createRng } from '../rng';
 import { PARTIES } from '../data/parties';
 import { GAMEPLAY, RULEPACK_BR_2028_MUN } from '../data/rulepack';
+import { initStateWorld } from './general';
+import { initOutlets } from './livingworld';
 import { REAL_FIGURES, SAO_PAULO } from '../data/world';
 import { fictionalName } from './names';
 import { initialCouncillors, seatsByParty } from './council';
@@ -161,6 +163,9 @@ export function createGame(input: NewGameInput): GameState {
       careerHistory: [],
       social: initialSocial(input.profession, rng),
       staff: null,
+      credibility: 60,
+      consecutiveTermsGovernador: 0,
+      regionalGoodwill: {},
       homeRegion: input.homeRegion ?? pickHomeRegion(rng),
     },
     parties,
@@ -186,8 +191,15 @@ export function createGame(input: NewGameInput): GameState {
     ledger: [],
     legislature: emptyLegislature(),
     city: null as unknown as GameState['city'],
+    stateWorld: initStateWorld(),
+    generalElections: [],
+    crises: [],
+    outlets: initOutlets(),
+    communityPromises: [],
+    achievements: [],
+    ending: null,
     pendingEvents: [],
-    log: [{ month: { year: 2027, month: 1 }, kind: 'sistema', text: `Partida iniciada em ${startDate}. Pacote de regras: ${RULEPACK_BR_2028_MUN.label}. Dados reais congelados em 30/10/2026.` }],
+    log: [{ month: { year: 2027, month: 1 }, kind: 'sistema', text: `Partida iniciada em ${startDate}. Pacote de regras: ${RULEPACK_BR_2028_MUN.label} (ciclos seguintes até 2036 projetam a lei vigente). Dados reais congelados em 30/10/2026.` }],
     flags: { seed },
     gameOver: false,
   };

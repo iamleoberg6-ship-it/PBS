@@ -16,17 +16,26 @@ export interface Outlet {
   /** Linha editorial fictícia na escala 0–10 (null = sem linha marcada). */
   lean: number | null;
   reach: number;
+  /** Credibilidade inicial (0–100, simulada) — muda com o histórico de erros (Fase 5.2). */
+  credibility: number;
 }
 
 export const OUTLETS: Outlet[] = [
-  { id: 'tvmetropole', name: 'TV Metrópole', kind: 'TV aberta', lean: null, reach: 2.5 },
-  { id: 'canal24', name: 'Canal 24 Brasil', kind: 'Canal de notícias 24h', lean: null, reach: 1.6 },
-  { id: 'radiocapital', name: 'Rádio Capital Notícias', kind: 'Rádio all news', lean: null, reach: 1.1 },
-  { id: 'diariopaulistano', name: 'Diário Paulistano', kind: 'Jornal local', lean: null, reach: 1.0 },
-  { id: 'pauta', name: 'Revista Pauta', kind: 'Revista semanal (linha progressista)', lean: 3, reach: 0.8 },
-  { id: 'contraponto', name: 'O Contraponto', kind: 'Site de notícias (linha conservadora)', lean: 7.5, reach: 0.8 },
-  { id: 'papoplenario', name: 'Papo de Plenário', kind: 'Videocast de entrevistas', lean: null, reach: 1.2 },
+  { id: 'tvmetropole', name: 'TV Metrópole', kind: 'TV aberta', lean: null, reach: 2.5, credibility: 72 },
+  { id: 'canal24', name: 'Canal 24 Brasil', kind: 'Canal de notícias 24h', lean: null, reach: 1.6, credibility: 68 },
+  { id: 'radiocapital', name: 'Rádio Capital Notícias', kind: 'Rádio all news', lean: null, reach: 1.1, credibility: 70 },
+  { id: 'diariopaulistano', name: 'Diário Paulistano', kind: 'Jornal local', lean: null, reach: 1.0, credibility: 78 },
+  { id: 'pauta', name: 'Revista Pauta', kind: 'Revista semanal (linha progressista)', lean: 3, reach: 0.8, credibility: 60 },
+  { id: 'contraponto', name: 'O Contraponto', kind: 'Site de notícias (linha conservadora)', lean: 7.5, reach: 0.8, credibility: 58 },
+  { id: 'papoplenario', name: 'Papo de Plenário', kind: 'Videocast de entrevistas', lean: null, reach: 1.2, credibility: 50 },
+  { id: 'urgentezap', name: 'Urgente SP (perfil anônimo)', kind: 'Perfil de redes sem autoria', lean: null, reach: 1.4, credibility: 18 },
+  { id: 'blogdobastidor', name: 'Blog do Bastidor', kind: 'Blog político', lean: null, reach: 0.6, credibility: 35 },
 ];
+
+/** Credibilidade atual (estado do jogo) ou a inicial do catálogo. */
+export function outletCredibility(s: GameState, id: string): number {
+  return s.outlets?.find((o) => o.id === id)?.credibility ?? outletById(id).credibility;
+}
 
 export function outletById(id: string): Outlet {
   return OUTLETS.find((o) => o.id === id) ?? OUTLETS[0];
@@ -35,7 +44,7 @@ export function outletById(id: string): Outlet {
 type Draft = Omit<NewsItem, 'id' | 'month' | 'outletId'> & { outlets?: string[] };
 
 export function pushNews(s: GameState, rng: RngState, d: Draft) {
-  const outletId = d.outlets ? pick(rng, d.outlets) : pick(rng, OUTLETS.filter((o) => o.id !== 'papoplenario')).id;
+  const outletId = d.outlets ? pick(rng, d.outlets) : pick(rng, OUTLETS.filter((o) => o.id !== 'papoplenario' && o.credibility >= 50)).id;
   const item: NewsItem = { id: `n_${monthIndex(s.month)}_${s.news.length}`, month: { ...s.month }, outletId, section: d.section, headline: d.headline, lead: d.lead, aboutPlayer: d.aboutPlayer, tone: d.tone };
   // Linha editorial: veículo de linha oposta à do jogador tende a enquadrar de forma crítica.
   const o = outletById(outletId);
@@ -66,7 +75,7 @@ export function newsFromLog(s: GameState, entries: LogEntry[], rng: RngState) {
       pushNews(s, rng, { section: 'Eleições', headline: `${me(s)} fica fora da Câmara apesar de votação expressiva`, lead: 'O resultado reflete o sistema proporcional: a cadeira depende da votação do partido ou federação.', aboutPlayer: true, tone: 'neutro', outlets: ['diariopaulistano', 'radiocapital'] });
     } else if (t.startsWith('Prefeitura:')) {
       const playerWon = t.includes('VOCÊ FOI ELEITO');
-      pushNews(s, rng, { section: 'Eleições', headline: playerWon ? `${me(s)} vence no 1º turno e será prefeito(a) de São Paulo` : `${t.replace('Prefeitura: ', '').replace(' foi eleito(a) prefeito(a).', '')} é eleito(a) prefeito(a) de São Paulo (simulação)`, lead: 'Resultado da eleição municipal de 2028.', aboutPlayer: playerWon, tone: playerWon ? 'positivo' : 'neutro', outlets: ['tvmetropole', 'canal24'] });
+      pushNews(s, rng, { section: 'Eleições', headline: playerWon ? `${me(s)} vence no 1º turno e será prefeito(a) de São Paulo` : `${t.replace('Prefeitura: ', '').replace(' foi eleito(a) prefeito(a).', '')} é eleito(a) prefeito(a) de São Paulo (simulação)`, lead: `Resultado da eleição municipal de ${s.month.year}.`, aboutPlayer: playerWon, tone: playerWon ? 'positivo' : 'neutro', outlets: ['tvmetropole', 'canal24'] });
     } else if (t.includes('você está no 2º turno')) {
       pushNews(s, rng, { section: 'Eleições', headline: `${me(s)} vai ao 2º turno pela Prefeitura de São Paulo`, lead: 'A disputa final acontece no último domingo de outubro.', aboutPlayer: true, tone: 'positivo', outlets: ['tvmetropole', 'canal24', 'radiocapital'] });
     } else if (t.includes('VOCÊ VENCEU O 2º TURNO')) {
@@ -97,7 +106,7 @@ export function newsFromLog(s: GameState, entries: LogEntry[], rng: RngState) {
     } else if (t.includes('Você foi muito bem no debate')) {
       pushNews(s, rng, { section: 'Eleições', headline: `${me(s)} se destaca no debate entre candidatos`, lead: 'Analistas apontam bom desempenho.', aboutPlayer: true, tone: 'positivo', outlets: ['tvmetropole', 'canal24'] });
     } else if (t.includes('Você se filiou ao') && s.player.recognition >= 15) {
-      pushNews(s, rng, { section: 'Partidos', headline: t.split('.')[0].replace('Você se filiou ao', `${me(s)} se filia ao`), lead: 'Movimento é lido como preparação para 2028.', aboutPlayer: true, tone: 'neutro', outlets: ['diariopaulistano', 'radiocapital', 'contraponto', 'pauta'] });
+      pushNews(s, rng, { section: 'Partidos', headline: t.split('.')[0].replace('Você se filiou ao', `${me(s)} se filia ao`), lead: 'Movimento é lido como preparação para a próxima eleição.', aboutPlayer: true, tone: 'neutro', outlets: ['diariopaulistano', 'radiocapital', 'contraponto', 'pauta'] });
     } else if (t.includes('Você tomou posse como')) {
       pushNews(s, rng, { section: 'Prefeitura', headline: `${me(s)} toma posse`, lead: t, aboutPlayer: true, tone: 'neutro', outlets: ['diariopaulistano'] });
     } else if (t.includes('Você assumiu a Secretaria')) {

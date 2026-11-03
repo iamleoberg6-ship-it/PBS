@@ -11,6 +11,7 @@ import { Camara } from './camara';
 import { Secretaria } from './secretaria';
 import { Governo } from './governo';
 import { Campanha, GabineteParlamentar } from './campanha';
+import { Conquistas, EstadoUniao, Imagem } from './estado';
 
 const PAGES = [
   ['gabinete', 'Gabinete'],
@@ -20,12 +21,15 @@ const PAGES = [
   ['redes', 'Redes sociais'],
   ['noticias', 'Notícias'],
   ['campanha', 'Campanha'],
-  ['eleicoes', 'Eleições 2028'],
+  ['eleicoes', 'Eleições municipais'],
+  ['estado', 'Estado e União'],
+  ['imagem', 'Imagem e promessas'],
   ['gabparl', 'Gabinete parlamentar'],
   ['governo', 'Prefeitura'],
   ['camara', 'Câmara Municipal'],
   ['secretaria', 'Minha secretaria'],
   ['cidade', 'Vereadores e cidade'],
+  ['conquistas', 'Conquistas'],
   ['historico', 'Histórico'],
   ['regras', 'Regras'],
 ] as const;
@@ -53,7 +57,11 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
     setS(next);
     const fresh = next.log.slice(before).filter((l) => l.kind === 'eleicao' || l.kind === 'mandato');
     if (fresh.some((l) => l.kind === 'eleicao') && next.elections.length > s.elections.length) setPage('eleicoes');
+    if (next.generalElections.length > s.generalElections.length) setPage('estado');
+    if (next.gameOver) setPage('conquistas');
     setToast(fresh[fresh.length - 1]?.text ?? `Avançou para ${monthLabel(next.month)}.`);
+    if (next.crises.some((c) => c.status === 'ativa' && c.targetId === 'character_player') && !s.crises.some((c) => c.status === 'ativa' && c.targetId === 'character_player')) setToast('Crise de imagem: veja a aba Imagem e promessas.');
+
   };
 
   const ev = s.pendingEvents[0];
@@ -73,7 +81,7 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
         </div>
         <div className="top-stat"><b>{brl(s.finances.cash)}</b><small>caixa pessoal</small></div>
         <button className="btn btn-gold" onClick={advance} disabled={s.gameOver || !!ev}>
-          {s.gameOver ? 'Fim do protótipo' : ev ? 'Responda o evento' : 'Avançar mês →'}
+          {s.gameOver ? 'Fim da partida' : ev ? 'Responda o evento' : 'Avançar mês →'}
         </button>
       </header>
       <nav className="sidebar">
@@ -93,6 +101,9 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
         {page === 'redes' && <Redes s={s} setFocus={(n) => setS(setSocialFocus(s, n))} />}
         {page === 'noticias' && <Noticias s={s} />}
         {page === 'eleicoes' && <Eleicoes s={s} />}
+        {page === 'estado' && <EstadoUniao s={s} />}
+        {page === 'imagem' && <Imagem s={s} act={act} />}
+        {page === 'conquistas' && <Conquistas s={s} />}
         {page === 'campanha' && <Campanha s={s} act={act} />}
         {page === 'gabparl' && <GabineteParlamentar s={s} act={act} />}
         {page === 'governo' && <Governo s={s} openDraft={() => setS(openDraft(s))} adjust={(k, p) => setS(adjustDraft(s, k, p))} />}

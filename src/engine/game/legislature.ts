@@ -208,9 +208,15 @@ export function initLegislature(s: GameState, rng: RngState): void {
   s.legislature.blocs = computeBlocs(s, rng);
   s.legislature.committees = composeCommittees(s, rng);
   // Projetos em tramitação são arquivados ao fim da legislatura (regra usual de arquivamento — a confirmar no RI da CMSP).
-  for (const b of s.legislature.bills) if (isActive(b) && b.stage !== 'sancao' && b.stage !== 'veto' && s.month.year === 2029 && s.month.month === 1 && b.history.length && b.history[0].month.year < 2029) {
+  for (const b of s.legislature.bills) if (isActive(b) && b.stage !== 'sancao' && b.stage !== 'veto' && (s.month.year - 2029) % 4 === 0 && s.month.month === 1 && b.history.length && b.history[0].month.year < s.month.year) {
     b.stage = 'arquivado';
     b.history.push({ month: { ...s.month }, text: 'Arquivado no fim da legislatura.' });
+  }
+  // Fase 5 (saves até 2036): projetos encerrados de legislaturas anteriores saem do save, exceto os do jogador
+  // (que contam para o histórico e as conquistas); destes, guarda-se só o resultado, sem o voto nominal.
+  if ((s.month.year - 2029) % 4 === 0 && s.month.month === 1) {
+    s.legislature.bills = s.legislature.bills.filter((b) => isActive(b) || b.author === PLAYER || b.history[0]?.month.year >= s.month.year - 1);
+    for (const b of s.legislature.bills) if (!isActive(b)) { if (b.vote) b.vote.byMember = {}; if (b.vetoVote) b.vetoVote.byMember = {}; b.history = b.history.slice(-3); }
   }
 }
 
@@ -683,8 +689,9 @@ export const MESA_ROLES = ['Presidente', '1º Vice-presidente', '2º Vice-presid
 /** Mês em que se elege a Mesa e o ano do mandato (prática observada na CMSP: 1º/01 no início da legislatura e dezembro para o ano seguinte). */
 export function mesaWindow(s: GameState): number | null {
   const { year, month } = s.month;
-  if (year === 2029 && month === 1) return 2029;
-  if (month === 12 && year !== 2028 && year <= 2031) return year + 1;
+  // Início de cada legislatura (2029, 2033…) em 1º de janeiro; nos demais anos, eleição em dezembro para o ano seguinte.
+  if ((year - 2029) % 4 === 0 && year >= 2029 && month === 1) return year;
+  if (month === 12 && (year - 2028) % 4 !== 0 && year >= 2027) return year + 1;
   return null;
 }
 

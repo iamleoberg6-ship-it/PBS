@@ -1,7 +1,9 @@
 // Simulação das eleições municipais. O cálculo de cadeiras/turnos usa as regras reais (rules/*);
 // a geração dos votos é um modelo de gameplay (PROPOSTA), agregado e fictício.
 
-import { GAMEPLAY, RULEPACK_BR_2028_MUN as RP } from '../data/rulepack';
+import { GAMEPLAY, RULEPACK_BR_2028_MUN as RP, genRulepack, munRulepack } from '../data/rulepack';
+import { isGenYear, nextElection } from './cycle';
+import type { ElectiveOffice } from '../rules/eligibility';
 import { PARTIES, allListIds, listIdForParty, listMembers, listName, partyById } from '../data/parties';
 import { SAO_PAULO } from '../data/world';
 import { allocateProportional, type PropList } from '../rules/proportional';
@@ -14,6 +16,7 @@ import type { ElectionRecord, GameState, RaceCandidate } from './types';
 import { digitalScore } from './social';
 import { apportion } from '../util/apportion';
 import { conventionVote } from './partyorg';
+import { ideologicalDistance, partyIdeology } from '../data/ideology';
 import { campaignFactor } from './campaign';
 
 const clamp = (v: number, a = 0, b = 100) => Math.max(a, Math.min(b, v));
@@ -67,8 +70,12 @@ export function resolveConvention(state: GameState, rng: RngState): { approved: 
 
 export function runEligibility(state: GameState) {
   const c = state.player.candidacy!;
+  const y = c.year ?? 2028;
+  const general = isGenYear(y);
+  const held = String(state.flags[`cargoAbril_${y}`] ?? '');
   return checkEligibility({
     office: c.office,
+    desincompatibilizacao: general && held ? { ok: false, detail: `Você ainda exercia o cargo de ${held} seis meses antes da eleição: era preciso renunciar/afastar-se até o início de abril.`, source: 'CF art. 14 §6º; LC 64/90 art. 1º' } : null,
     birthDate: state.character.birthDate,
     brazilian: true,
     politicalRightsOk: true,
@@ -76,12 +83,13 @@ export function runEligibility(state: GameState) {
     domicileSince: state.character.domicileSince,
     targetMunicipalityId: SAO_PAULO.id,
     filiationDate: state.player.filiationDate,
-    consecutiveTermsSameOffice: c.office === 'prefeito' ? state.player.consecutiveTermsPrefeito : 0,
+    consecutiveTermsSameOffice: c.office === 'prefeito' ? state.player.consecutiveTermsPrefeito : c.office === 'governador' && state.player.mandate?.office === 'governador' ? (state.player.consecutiveTermsGovernador ?? 1) : 0,
     chosenInConvention: c.status === 'aprovada_convencao' || c.status === 'registrada',
-  }, RP);
+  }, general ? genRulepack(y) : munRulepack(y));
 }
 
-export function previewEligibility(state: GameState, office: 'vereador' | 'prefeito') {
+export function previewEligibility(state: GameState, office: ElectiveOffice) {
+  const ne = nextElection(state.month.year * 12 + state.month.month - 1);
   return checkEligibility({
     office,
     birthDate: state.character.birthDate,
@@ -93,7 +101,7 @@ export function previewEligibility(state: GameState, office: 'vereador' | 'prefe
     filiationDate: state.player.filiationDate,
     consecutiveTermsSameOffice: office === 'prefeito' ? state.player.consecutiveTermsPrefeito : 0,
     chosenInConvention: true,
-  }, RP).filter((c) => c.id !== 'convencao');
+  }, ne.kind === 'geral' ? genRulepack(ne.year) : munRulepack(ne.year)).filter((c) => c.id !== 'convencao');
 }
 
 export { isEligible };
@@ -172,12 +180,16 @@ export function simulateCouncil(state: GameState, rng: RngState): { record: Pick
 
 // ---------- Eleição majoritária ----------
 
-/** Cria a disputa de prefeito (pré-candidatos), persistente para as pesquisas. A IA lança nomes das 5 maiores agremiações e de 2 pequenas. */
+/** Cria a disputa de prefeito (pré-candidatos), persistente para as pesquisas. A IA lança nomes das 5 maiores agremiações e de 2 pequenas.
+ *  Fase 5 (ambições da IA — ficção de gameplay, só personagens fictícios):
+ *  · o(a) prefeito(a) fictício(a) em 1º mandato disputa a reeleição, com peso pela avaliação da gestão;
+ *  · vereadores fictícios bem votados podem ser o nome do partido;
+ *  · uma agremiação pequena pode desistir e apoiar um nome próximo (aliança majoritária). */
 export function createMayorRace(state: GameState, rng: RngState): RaceCandidate[] {
   const ranked = allListIds().map((id) => ({ id, s: listStrength(state, id) })).sort((a, b) => b.s - a.s);
   const runners = [...ranked.slice(0, 5), ...ranked.slice(8, 10)];
-  return runners.map((r) => ({
-    id: `mayor_${r.id}`,
+  const race: RaceCandidate[] = runners.map((r) => ({
+    id: `mayor_${r.id}_${state.month.year}`,
     name: fictionalName(rng),
     label: listName(r.id),
     partyId: listMembers(r.id)[0],
@@ -187,6 +199,39 @@ export function createMayorRace(state: GameState, rng: RngState): RaceCandidate[
     isPlayer: false,
     followers: Math.round(Math.pow(10, 4 + next(rng) * 2.3)),
   }));
+  const inc = state.government.mayor;
+  const terms = Number(state.flags.mayorTerms ?? 2);
+  if (!inc.real && inc.personId !== 'character_player' && terms < 2) {
+    const list = listIdForParty(inc.partyId);
+    let own = race.find((r) => r.listId === list);
+    if (!own) { own = { ...race[0], listId: list, label: listName(list), partyId: inc.partyId, baseStrength: Math.pow(listStrength(state, list), 1.1) }; race.push(own); }
+    own.id = inc.personId;
+    own.name = inc.name;
+    const perf = citySummaryProxy(state) - Number(state.flags.mayorScandals ?? 0) * 0.08;
+    own.baseStrength *= Math.max(0.6, 1.25 + perf);
+    own.label += ' (reeleição)';
+  }
+  for (const r of race) {
+    if (r.id === inc.personId) continue;
+    const star = state.government.councillors.filter((c) => !c.real && c.id !== 'character_player' && listMembers(r.listId).includes(c.partyId)).sort((a, b) => b.votes - a.votes)[0];
+    if (star && star.votes > 60000 && next(rng) < 0.35) { r.name = star.name; r.id = `mayor_ver_${star.id}`; r.label += ' — vereador(a)'; r.baseStrength *= 1.08; }
+  }
+  // Aliança: a menor desiste e apoia o nome mais próximo ideologicamente (PROPOSTA).
+  if (race.length > 5 && next(rng) < 0.6) {
+    const small = race[race.length - 1];
+    const ally = race.slice(0, 5).map((r) => ({ r, d: ideologicalDistance(partyIdeology(r.partyId), partyIdeology(small.partyId)) ?? 1 })).sort((a, b) => a.d - b.d)[0];
+    if (ally && ally.d < 0.25) { ally.r.baseStrength += small.baseStrength * 0.7; ally.r.label += ` + ${listName(small.listId).replace('Federação ', 'Fed. ')}`; race.pop(); }
+  }
+  return race;
+}
+
+/** Proxy (−0,3..+0,3) da avaliação da gestão municipal para a reeleição de um prefeito fictício. */
+function citySummaryProxy(state: GameState): number {
+  const c = state.city;
+  if (!c) return 0;
+  const vals = Object.values(c.secretariats ?? {}).map((x) => (x.approval ?? 50));
+  const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 50;
+  return Math.max(-0.3, Math.min(0.3, (avg - 50) / 80 + (c.cash < 0 ? -0.1 : 0)));
 }
 
 function playerInMayorRace(state: GameState): boolean {
@@ -235,7 +280,7 @@ export function simulateMayor(state: GameState, rng: RngState) {
   const valid = Math.round(SAO_PAULO.electorate * GAMEPLAY.validVoteRateMajoritarian.value);
   const mv = apportion(valid, field.map((c) => c.strength));
   const cands = field.map((c, i) => ({ ...c, votes: mv[i] }));
-  const r1 = firstRound(cands, SAO_PAULO.electorate, RP.runoffElectorateThreshold.value);
+  const r1 = firstRound(cands, SAO_PAULO.electorate, RP.runoffElectorateThreshold.value); // regra igual em todos os ciclos
   let r2 = null;
   if (r1.needsRunoff && r1.runoffIds) {
     const [a, b] = r1.runoffIds.map((id) => cands.find((c) => c.id === id)!);
@@ -251,8 +296,8 @@ export function simulateMayor(state: GameState, rng: RngState) {
   return { r1, r2, winner, field: cands };
 }
 
-export function electionDateIso(): string {
-  return RP.electionDate.value;
+export function electionDateIso(year = 2028): string {
+  return (isGenYear(year) ? genRulepack(year) : munRulepack(year)).electionDate.value;
 }
 
 export function dateOfMonth(state: GameState): string {

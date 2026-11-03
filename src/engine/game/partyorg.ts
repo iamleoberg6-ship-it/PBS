@@ -299,39 +299,50 @@ export interface ConventionResult {
   byFaction?: { factionId: string; candidateId: string; delegates: number }[];
 }
 
-export function conventionVote(s: GameState, rng: RngState, office: 'vereador' | 'prefeito'): ConventionResult {
+const OFFICE_PT: Record<string, string> = { vereador: 'vereador(a)', prefeito: 'prefeito(a)', deputado_estadual: 'deputado(a) estadual', deputado_federal: 'deputado(a) federal', senador: 'senador(a)', governador: 'governador(a)' };
+
+export function conventionVote(s: GameState, rng: RngState, office: string): ConventionResult {
   const pid = s.player.partyId!;
   const party = partyById(pid)!;
   const org = s.partyOrgs[pid];
   const pr = s.player.partyRel;
-  if (office === 'vereador') {
+  const label = OFFICE_PT[office] ?? office;
+  if (office === 'vereador' || office === 'deputado_estadual' || office === 'deputado_federal') {
     // Lista de até vagas+1 nomes: a direção decide; facção aliada pode garantir a vaga.
+    // Para deputado (PROPOSTA): a lista estadual é mais disputada; quem já tem mandato leva vantagem.
     const backing = Math.max(0, ...org.factions.map((f) => (standing(s, f.leaderId, PLAYER) > 20 ? f.share * 100 : 0)));
-    const score = pr.leadershipTrust * 0.8 + backing * 0.6 + s.player.recognition * 0.3 + pr.mobilization * 0.2 - pr.disciplinary * 20;
-    const approved = score + normal(rng, 0, 8) >= 28;
+    const mandateBonus = s.player.mandate ? 10 : 0;
+    const bar = office === 'vereador' ? 28 : office === 'deputado_estadual' ? 34 : 38;
+    const score = pr.leadershipTrust * 0.8 + backing * 0.6 + s.player.recognition * 0.3 + pr.mobilization * 0.2 - pr.disciplinary * 20 + (office === 'vereador' ? 0 : mandateBonus);
+    const approved = score + normal(rng, 0, 8) >= bar;
     return {
       approved,
       text: approved
-        ? `Convenção do ${party.acronym} aprovou sua candidatura a vereador(a).`
-        : `Convenção do ${party.acronym} não incluiu seu nome na lista de vereadores: faltou confiança da direção ou apoio de alguma facção.`,
+        ? `Convenção do ${party.acronym} aprovou sua candidatura a ${label}.`
+        : `Convenção do ${party.acronym} não incluiu seu nome na lista de ${label}: faltou confiança da direção ou apoio de alguma facção.`,
     };
   }
-  if (org.directorate.presidentId === PLAYER) return { approved: true, text: `Como presidente do diretório, você garantiu a candidatura a prefeito(a) na convenção do ${party.acronym}.` };
-  // Prefeito: disputa de delegados contra o nome preferido da direção.
-  const rival = s.mayorRace?.find((r) => r.listId === listIdForParty(pid))?.name ?? 'nome indicado pela direção';
-  const pseudo: InternalContest = { id: `conv_${pid}_2028`, partyId: pid, kind: 'presidencia_diretorio', decidesAt: { ...s.month }, candidates: [PLAYER, org.directorate.presidentId], status: 'aberta' };
+  if (org.directorate.presidentId === PLAYER && office === 'prefeito') return { approved: true, text: `Como presidente do diretório, você garantiu a candidatura a ${label} na convenção do ${party.acronym}.` };
+  // Majoritária: disputa de delegados contra o nome preferido da direção.
+  const rival = (office === 'prefeito' ? s.mayorRace?.find((r) => r.listId === listIdForParty(pid))?.name : null) ?? 'nome indicado pela direção';
+  const pseudo: InternalContest = { id: `conv_${pid}_${s.month.year}`, partyId: pid, kind: 'presidencia_diretorio', decidesAt: { ...s.month }, candidates: [PLAYER, org.directorate.presidentId], status: 'aberta' };
   const r = projectContest(s, pseudo, rng);
   // O jogador pré-candidato ganha peso extra se aparece bem nas pesquisas.
   const lastPoll = s.polls[s.polls.length - 1];
   const myPoll = lastPoll?.results.find((x) => x.id === PLAYER)?.share ?? 0;
   r.votes[PLAYER] += Math.round(org.directorate.delegates * myPoll * 0.8);
+  // Cargos estaduais (PROPOSTA): a direção estadual exige nome conhecido; mandato e reconhecimento pesam.
+  if (office === 'governador' || office === 'senador') {
+    const weight = (s.player.recognition - 45) / 100 + (s.player.mandate ? 0.12 : -0.15);
+    r.votes[PLAYER] = Math.max(0, Math.round(r.votes[PLAYER] * (1 + weight)));
+  }
   const approved = r.votes[PLAYER] > r.votes[org.directorate.presidentId];
   return {
     approved,
     votes: r.votes,
     byFaction: r.byFaction,
     text: approved
-      ? `Convenção do ${party.acronym} escolheu você para prefeito(a): ${r.votes[PLAYER]} delegados contra ${r.votes[org.directorate.presidentId]} do grupo que apoiava ${rival}.`
+      ? `Convenção do ${party.acronym} escolheu você para ${label}: ${r.votes[PLAYER]} delegados contra ${r.votes[org.directorate.presidentId]} do grupo que apoiava ${rival}.`
       : `Convenção do ${party.acronym} preferiu ${rival}: ${r.votes[org.directorate.presidentId]} delegados contra ${r.votes[PLAYER]} seus.`,
   };
 }

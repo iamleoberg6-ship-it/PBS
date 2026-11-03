@@ -6,10 +6,10 @@ import { resolveEvent } from './events';
 import { estimateVereadorVotes } from './elections';
 import type { GameState } from './types';
 
-function bot(state: GameState, office: 'vereador' | 'prefeito'): GameState {
+function bot(state: GameState, office: 'vereador' | 'prefeito', untilYear = 9999): GameState {
   let s = state;
   let guard = 0;
-  while (!s.gameOver && guard++ < 400) {
+  while (!s.gameOver && guard++ < 400 && s.month.year * 12 + s.month.month < untilYear * 12 + 2) {
     while (s.pendingEvents.length) s = resolveEvent(s, 0);
     const prefs = ['pleitear', 'corpo_a_corpo', 'comunicacao', 'arrecadar', 'atividade_partidaria', 'pre_campanha', 'comunidade', 'projeto_lei', 'atender_base', 'zeladoria', 'programa_metas', 'nomear_secretario', 'lancar_programa', 'acompanhar_programa', 'articular_votos'];
     for (const id of prefs) {
@@ -24,7 +24,7 @@ function bot(state: GameState, office: 'vereador' | 'prefeito'): GameState {
 const input = { name: 'Teste', birthDate: '1990-03-03', gender: 'x', education: 'superior', profession: 'jornalista' as const, startStatus: 'filiado' as const, startPartyId: 'party_real_psd', bio: '', attributeBonus: { communication: 20, articulation: 20 } };
 
 describe('simulação ponta a ponta', () => {
-  it('chega ao fim sem erros e é determinística', () => {
+  it('chega ao fim sem erros e é determinística', { timeout: 60_000 }, () => {
     const a = bot(createGame({ ...input, seed: 42 }), 'vereador');
     const b = bot(createGame({ ...input, seed: 42 }), 'vereador');
     expect(a.gameOver).toBe(true);
@@ -43,9 +43,10 @@ describe('simulação ponta a ponta', () => {
       for (const office of ['vereador', 'prefeito'] as const) {
         const s = bot(createGame({ ...input, seed }), office);
         expect(s.gameOver).toBe(true);
+        expect(s.ending).not.toBeNull();
       }
     }
-  }, 60_000);
+  }, 300_000);
 });
 
 describe('vereadores reais, Mesa e pesquisas', () => {
@@ -58,7 +59,7 @@ describe('vereadores reais, Mesa e pesquisas', () => {
     expect(s.government.councilPresident?.simulated).toBe(true);
   });
   it('gera pesquisas com margem de erro e mantém vereadores reais na Câmara de 2029', () => {
-    const s = bot(createGame({ ...input, seed: 9 }), 'prefeito');
+    const s = bot(createGame({ ...input, seed: 9 }), 'prefeito', 2029);
     const polls = s.polls.filter((p) => p.scenario === '1º turno');
     expect(polls.length).toBeGreaterThanOrEqual(9);
     expect(polls[0].marginOfError).toBeGreaterThan(1.5);
@@ -68,8 +69,8 @@ describe('vereadores reais, Mesa e pesquisas', () => {
   });
   it('mesa é anual', () => {
     const s = bot(createGame({ ...input, seed: 4 }), 'vereador');
-    for (const y of [2027, 2028, 2029, 2030, 2031, 2032]) expect(s.flags[`mesa_${y}`]).toBe(true);
-  }, 20_000);
+    for (const y of [2027, 2028, 2029, 2030, 2031, 2032, 2033, 2034, 2035, 2036]) expect(s.flags[`mesa_${y}`]).toBe(true);
+  }, 60_000);
 });
 
 describe('ideologia, redes e notícias', () => {
@@ -88,7 +89,7 @@ describe('ideologia, redes e notícias', () => {
     expect(tot(inf)).toBeGreaterThan(1_000_000);
     expect(tot(prof)).toBeLessThan(20_000);
   });
-  it('gera notícias ao longo da partida, inclusive sobre o jogador', () => {
+  it('gera notícias ao longo da partida, inclusive sobre o jogador', { timeout: 60_000 }, () => {
     const s = bot(createGame({ ...input, seed: 21 }), 'vereador');
     expect(s.news.length).toBeGreaterThan(60);
     expect(s.news.some((n) => n.aboutPlayer)).toBe(true);

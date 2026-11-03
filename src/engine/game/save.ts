@@ -3,6 +3,8 @@
 // Erros fatais (sem personagem, sem calendário, pacote de regras desconhecido) recusam o save com mensagem clara.
 
 import { RULEPACK_BR_2028_MUN } from '../data/rulepack';
+import { initStateWorld } from './general';
+import { initOutlets } from './livingworld';
 import { PARTIES, partyById } from '../data/parties';
 import { neutralIdeology } from '../data/ideology';
 import { createRng } from '../rng';
@@ -132,6 +134,24 @@ export function migrate(raw: Raw, report: LoadReport): Raw {
     }
     report.repairs.push('Personagem ganhou região de moradia; gabinete parlamentar e campanha territorial ativados.');
   }
+  // v7 → v8 (Fase 5): mundo estadual/federal, crises de imagem, promessas, conquistas e ciclos após 2028.
+  if (!s.stateWorld) {
+    s.stateWorld = initStateWorld();
+    s.generalElections ??= [];
+    s.crises ??= [];
+    s.outlets ??= initOutlets();
+    s.communityPromises ??= [];
+    s.achievements ??= [];
+    s.ending ??= null;
+    if (s.player) {
+      s.player.credibility ??= 60;
+      s.player.consecutiveTermsGovernador ??= 0;
+      s.player.regionalGoodwill ??= {};
+      if (s.player.candidacy && !s.player.candidacy.year) s.player.candidacy.year = 2028;
+    }
+    if (s.flags && s.flags.expedienteDecidido) s.flags.expediente_2028 = true;
+    report.repairs.push('Fase 5: eleições gerais (Alesp, Câmara, Senado, governo), crises de imagem, promessas públicas e conquistas ativadas; a partida agora segue até 2036.');
+  }
   s.saveVersion = SAVE_VERSION;
   return s;
 }
@@ -147,7 +167,7 @@ export function validateState(s: GameState, report: LoadReport = { migratedFrom:
   if (!s.character?.name || !s.character.birthDate) report.fatal.push('Personagem ausente ou incompleto.');
   if (!s.month || !Number.isInteger(s.month.year) || s.month.month < 1 || s.month.month > 12) report.fatal.push('Data da partida inválida.');
   if (!s.rng || !Number.isFinite(s.rng.state)) report.fatal.push('Estado do gerador aleatório ausente (reprodutibilidade comprometida).');
-  if (s.rulepackId !== RULEPACK_BR_2028_MUN.id) report.fatal.push(`Pacote de regras ${s.rulepackId} não está disponível nesta versão.`);
+  if (s.rulepackId !== RULEPACK_BR_2028_MUN.id && !/^BR-20\d\d-(MUN|GER)-proj$/.test(s.rulepackId)) report.fatal.push(`Pacote de regras ${s.rulepackId} não está disponível nesta versão.`);
   if (report.fatal.length) return report;
 
   // Atributos e indicadores dentro de 0..100

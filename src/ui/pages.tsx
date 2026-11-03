@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  ATTRIBUTE_LABELS, FEDERATIONS, GAMEPLAY, PARTIES, PROFESSIONS, REAL_FIGURES, RULEPACK_BR_2028_MUN as RP, SAO_PAULO,
+  ATTRIBUTE_LABELS, FEDERATIONS, GAMEPLAY, PARTIES, PROFESSIONS, REAL_FIGURES, RULEPACK_BR_2028_MUN as RP, SAO_PAULO, UPPER_LABEL, LAST_YEAR, munCycle, munRulepack, genRulepack,
   availableActions, formatIsoPt, listName, monthIndex, monthLabel, partyById, partyChangeBlock, previewEligibility,
   estimateVereadorVotes, playerElectoralScore, councillorFacts, fatigueMultiplier, EXPERT_SCALE, IDEOLOGY_SOURCE, AXES, categoryLabel, generalPosition,
   REGIONS, type ActionDef, type AttributeKey, type ElectionRecord, type GameState, type Sourced,
@@ -10,6 +10,8 @@ import { Headlines, compact } from './media';
 import { CausesModal } from './causes';
 
 type Props = { s: GameState; act: (id: string, param?: string) => void };
+
+export const OFFICE_PT: Record<string, string> = { vereador: 'vereador(a)', prefeito: 'prefeito(a)', deputado_estadual: 'deputado(a) estadual', deputado_federal: 'deputado(a) federal', senador: 'senador(a)', governador: 'governador(a)' };
 
 const Meter = ({ label, value, color = '', note, onWhy }: { label: string; value: number; color?: string; note?: string; onWhy?: () => void }) => (
   <div className="meter" onClick={onWhy} style={onWhy ? { cursor: 'pointer' } : undefined} title={onWhy ? 'Clique para ver por que mudou' : undefined}>
@@ -62,7 +64,7 @@ export function Gabinete({ s, act }: Props) {
   const p = s.player;
   const m = p.mandate;
   const acts = availableActions(s);
-  const ORDER = ['Prefeitura', 'Secretaria', 'Mandato de vereador', 'Assessoria', 'Campanha', 'Pré-candidatura', 'Partido', 'Vida e carreira'];
+  const ORDER = ['Governo do Estado', 'Mandato estadual/federal', 'Prefeitura', 'Secretaria', 'Mandato de vereador', 'Assessoria', 'Imagem e compromissos', 'Campanha', 'Pré-candidatura', 'Partido', 'Vida e carreira'];
   const groups = [...new Set(acts.map((a) => a.def.category))].sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b));
   const party = p.partyId ? partyById(p.partyId) : null;
   return (
@@ -70,9 +72,9 @@ export function Gabinete({ s, act }: Props) {
       <div className="page-head">
         <div>
           <h2>Gabinete</h2>
-          <p>{m ? `${m.office === 'vereador' ? 'Vereador(a)' : m.office === 'prefeito' ? 'Prefeito(a)' : `Secretário(a) de ${m.portfolio}`} de São Paulo` : p.job === 'assessor' ? 'Assessor(a) parlamentar' : PROFESSIONS[s.character.profession].label}
+          <p>{m ? (UPPER_LABEL[m.office] ? UPPER_LABEL[m.office] : `${m.office === 'vereador' ? 'Vereador(a)' : m.office === 'prefeito' ? 'Prefeito(a)' : `Secretário(a) de ${m.portfolio}`} de São Paulo`) : p.job === 'assessor' ? 'Assessor(a) parlamentar' : PROFESSIONS[s.character.profession].label}
             {party ? ` · ${party.acronym}` : ' · sem partido'}
-            {p.candidacy ? ` · candidatura a ${p.candidacy.office === 'prefeito' ? 'prefeito(a)' : 'vereador(a)'}: ${p.candidacy.status.replace('_', ' ')}` : ''}</p>
+            {p.candidacy ? ` · candidatura a ${OFFICE_PT[p.candidacy.office] ?? p.candidacy.office} (${p.candidacy.year ?? 2028}): ${p.candidacy.status.replace('_', ' ')}` : ''}</p>
         </div>
       </div>
       <div className="meters">
@@ -84,6 +86,9 @@ export function Gabinete({ s, act }: Props) {
         {m && <Meter label={m.office === 'prefeito' ? 'Aprovação do governo' : 'Aprovação do mandato'} value={m.approval} onWhy={() => setWhy('approval')} />}
         {m && m.office !== 'prefeito' && <Meter label="Relação com a prefeitura" value={m.relationExecutive} color="blue" />}
         {m?.secretariat && <Meter label="Relação com a Câmara" value={m.secretariat.relationCouncil} color="gold" />}
+        {m?.office === 'governador' && <Meter label="Base na Alesp" value={((m.upper?.assemblyBase ?? 0) / 94) * 100} note={`${m.upper?.assemblyBase ?? 0}/94`} color={(m.upper?.assemblyBase ?? 0) >= 48 ? '' : 'red'} />}
+        {m?.upper && m.office !== 'governador' && <Meter label="Relação com o governo" value={m.upper.relationGov} />}
+        <Meter label="Credibilidade pessoal" value={p.credibility ?? 60} color={(p.credibility ?? 60) < 40 ? 'red' : ''} />
         {m?.office === 'prefeito' && <Meter label="Base na Câmara" value={(m.councilBase / 55) * 100} note={`${m.councilBase}/55`} color={m.councilBase >= 28 ? '' : 'red'} />}
         {p.candidacy?.status === 'registrada' && <Meter label="Força de campanha" value={playerElectoralScore(s)} color="gold" note={p.candidacy.office === 'vereador' ? `~${num(estimateVereadorVotes(playerElectoralScore(s)))} votos` : ''} />}
       </div>
@@ -251,7 +256,9 @@ export function Partidos({ s, changeParty }: { s: GameState; changeParty: (id: s
   );
 }
 
-const CAL: [string, string][] = [
+function calFor(year: number): [string, string][] {
+  const RP = munRulepack(year);
+  return [
   [RP.filiationDeadline.value, 'Prazo de filiação partidária e domicílio eleitoral'],
   [RP.conventionsStart.value, 'Início das convenções partidárias'],
   [RP.conventionsEnd.value, 'Fim das convenções'],
@@ -261,10 +268,17 @@ const CAL: [string, string][] = [
   [RP.runoffDate.value, '2º turno — prefeito(a), se necessário'],
   [RP.diplomaDeadline.value, 'Diplomação dos eleitos'],
   [RP.posseDate.value, 'Posse'],
-];
+  ];
+}
 
 export function Eleicoes({ s }: { s: GameState }) {
-  const rec = s.elections.find((e) => e.year === 2028);
+  const Y0 = munCycle(monthIndex(s.month));
+  const years = [...new Set([...s.elections.map((e) => e.year), ...(s.month.year <= LAST_YEAR ? [Y0] : [])])].sort();
+  const [year, setYear] = useState(Y0);
+  const rec = s.elections.find((e) => e.year === year);
+  const RP = munRulepack(year);
+  const CAL = calFor(year);
+  const yearPolls = s.polls.filter((p) => (p.race ?? 'prefeito') === 'prefeito' && p.month.year === year);
   const [tab, setTab] = useState<'camara' | 'prefeito' | 'auditoria' | 'pesquisas'>('camara');
   const nowIso = `${s.month.year}-${String(s.month.month).padStart(2, '0')}-15`;
   const c = s.player.candidacy;
@@ -272,7 +286,8 @@ export function Eleicoes({ s }: { s: GameState }) {
   const checksP = previewEligibility(s, 'prefeito');
   return (
     <>
-      <div className="page-head"><div><h2>Eleições municipais de 2028</h2><p>São Paulo · {num(SAO_PAULO.electorate)} eleitores · {SAO_PAULO.councilSeats} vagas na Câmara · segundo turno possível (mais de 200 mil eleitores)</p></div></div>
+      <div className="page-head"><div><h2>Eleições municipais de {year}</h2><p>São Paulo · {num(SAO_PAULO.electorate)} eleitores · {SAO_PAULO.councilSeats} vagas na Câmara · segundo turno possível (mais de 200 mil eleitores){year !== 2028 ? ' · pacote de regras projetado da lei vigente em 2026' : ''}</p></div></div>
+      {years.length > 1 && <div className="tabs">{years.map((y) => <button key={y} className={`tab ${y === year ? 'active' : ''}`} onClick={() => setYear(y)}>{y}</button>)}</div>}
       {!rec && c?.status === 'registrada' && c.office === 'vereador' && (
         <div className="card" style={{ marginBottom: 16 }}>
           <div className="small mono muted">ESTIMATIVA INTERNA DA SUA CAMPANHA</div>
@@ -280,7 +295,7 @@ export function Eleicoes({ s }: { s: GameState }) {
           <div className="small muted">Institutos não costumam medir vereador; esta é uma estimativa da sua equipe (mecânica de jogo). Referência: 20% do quociente eleitoral ≈ 21 mil votos.</div>
         </div>
       )}
-      {!rec && s.polls.length > 0 && <div style={{ marginBottom: 16 }}><Polls s={s} /></div>}
+      {!rec && yearPolls.length > 0 && <div style={{ marginBottom: 16 }}><Polls s={s} polls={yearPolls} title="prefeitura" /></div>}
       {!rec && (
         <div className="grid g-3">
           <div className="card">
@@ -288,7 +303,7 @@ export function Eleicoes({ s }: { s: GameState }) {
             <div className="timeline">
               {CAL.map(([d, t]) => <div key={d + t} className={`tl ${d < nowIso ? 'past' : ''}`}><span className="d">{formatIsoPt(d)}</span><span className="dot" /><span className="t">{t}</span></div>)}
             </div>
-            <p className="small muted">Datas derivadas da lei; confirmar quando o TSE publicar o calendário oficial de 2028.</p>
+            <p className="small muted">Datas derivadas da lei; confirmar quando o TSE publicar o calendário oficial de {year}. Pacote: {RP.label}.</p>
           </div>
           <div className="card">
             <h3>Elegibilidade: vereador(a)</h3>
@@ -314,9 +329,9 @@ export function Eleicoes({ s }: { s: GameState }) {
             <button className={`tab ${tab === 'camara' ? 'active' : ''}`} onClick={() => setTab('camara')}>Câmara Municipal</button>
             <button className={`tab ${tab === 'prefeito' ? 'active' : ''}`} onClick={() => setTab('prefeito')}>Prefeitura</button>
             <button className={`tab ${tab === 'auditoria' ? 'active' : ''}`} onClick={() => setTab('auditoria')}>Auditoria do cálculo</button>
-            {s.polls.length > 0 && <button className={`tab ${tab === 'pesquisas' ? 'active' : ''}`} onClick={() => setTab('pesquisas')}>Pesquisas</button>}
+            {yearPolls.length > 0 && <button className={`tab ${tab === 'pesquisas' ? 'active' : ''}`} onClick={() => setTab('pesquisas')}>Pesquisas</button>}
           </div>
-          {tab === 'pesquisas' && <Polls s={s} />}
+          {tab === 'pesquisas' && <Polls s={s} polls={yearPolls} title="prefeitura" />}
           {tab === 'camara' && <CouncilResult rec={rec} />}
           {tab === 'prefeito' && <MayorResult rec={rec} />}
           <RegionalResult rec={rec} />
@@ -333,9 +348,9 @@ export function Eleicoes({ s }: { s: GameState }) {
   );
 }
 
-function Polls({ s }: { s: GameState }) {
-  const polls = s.polls;
+export function Polls({ s, polls, title }: { s: GameState; polls: GameState['polls']; title: string }) {
   const last = polls[polls.length - 1];
+  if (!last) return null;
   const ids = [...new Set(polls.flatMap((p) => p.results.map((r) => r.id)))];
   const nameOf = (id: string) => polls.flatMap((p) => p.results).find((r) => r.id === id)!;
   const firstRound = polls.filter((p) => p.scenario === '1º turno');
@@ -343,7 +358,7 @@ function Polls({ s }: { s: GameState }) {
   return (
     <div className="grid g-main">
       <div className="card">
-        <div className="card-title"><h3>Última pesquisa · prefeitura ({last.scenario})</h3><span className="small muted">{monthLabel(last.month)}</span></div>
+        <div className="card-title"><h3>Última pesquisa · {title} ({last.scenario})</h3><span className="small muted">{monthLabel(last.month)}</span></div>
         {last.results.map((r) => (
           <div key={r.id} style={{ marginBottom: 9 }}>
             <div className="meter-label"><span style={{ color: 'var(--ink)' }}><b>{r.id === 'character_player' ? `${r.name} (você)` : r.name}</b> · {r.label}{(() => { const f = r.id === 'character_player' ? Object.values(s.player.social.networks).reduce((a, b) => a + b, 0) : s.mayorRace?.find((m) => m.id === r.id)?.followers; return f ? ` · ${compact(f)} seguidores` : ''; })()}</span><span className="mono">{pct(r.share, 0)}</span></div>
@@ -386,7 +401,7 @@ function Polls({ s }: { s: GameState }) {
   );
 }
 
-function Checks({ checks }: { checks: { id: string; ok: boolean; label: string; detail: string; source: string }[] }) {
+export function Checks({ checks }: { checks: { id: string; ok: boolean; label: string; detail: string; source: string }[] }) {
   return (
     <div className="checks">
       {checks.map((c) => (
@@ -467,7 +482,7 @@ function CouncilResult({ rec }: { rec: ElectionRecord }) {
   );
 }
 
-function MayorResult({ rec }: { rec: ElectionRecord }) {
+export function MayorResult({ rec }: { rec: ElectionRecord }) {
   const rounds = [rec.mayorFirst, rec.mayorRunoff].filter(Boolean);
   return (
     <div className="grid g-2">
@@ -484,7 +499,7 @@ function MayorResult({ rec }: { rec: ElectionRecord }) {
           <p className="small">{r!.explanation}</p>
         </div>
       ))}
-      {rec.runoffPending && <div className="callout">2º turno em 29/10/2028. Faça campanha em outubro e avance o mês para ver o resultado.</div>}
+      {rec.runoffPending && <div className="callout">2º turno no último domingo de outubro de {rec.year}. Faça campanha em outubro e avance o mês para ver o resultado.</div>}
     </div>
   );
 }
@@ -568,6 +583,7 @@ export function Historico({ s }: { s: GameState }) {
 }
 
 export function Regras({ s }: { s: GameState }) {
+  const G = genRulepack(2030);
   const statusTag = (x: Sourced<unknown>) => <span className={`tag ${x.status === 'REGRA_REAL' ? 'real' : x.status === 'DERIVADA' ? 'derivada' : 'proposta'}`}>{x.status === 'REGRA_REAL' ? 'regra real' : x.status === 'DERIVADA' ? 'derivada da lei' : 'mecânica de jogo'}</span>;
   const show = (v: unknown) => (typeof v === 'object' && v !== null ? Object.values(v as object).join(' · ') : typeof v === 'boolean' ? (v ? 'sim' : 'não') : typeof v === 'number' && v < 1 ? pct(v, 0) : typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? formatIsoPt(v) : String(v));
   const rows: [string, Sourced<unknown>][] = [
@@ -579,6 +595,11 @@ export function Regras({ s }: { s: GameState }) {
     ['Segundo turno acima de', RP.runoffElectorateThreshold], ['Registro de pesquisas', RP.pollRegistration], ['Mandato da Mesa da Câmara (anos)', RP.councilMesaTermYears], ['Mandatos consecutivos no Executivo', RP.maxConsecutiveTermsExecutive], ['Coligação em eleição proporcional', RP.coalitionsAllowedProportional],
     ['Compromissos por mês', GAMEPLAY.actionPointsPerMonth], ['Votos válidos / eleitorado (proporcional)', GAMEPLAY.validVoteRateProportional], ['Teto de autofinanciamento', GAMEPLAY.ownFundsCapShareOfLimit],
     ['Limite de gastos — vereador SP', GAMEPLAY.spendingLimitVereadorSP], ['Limite de gastos — prefeito SP', GAMEPLAY.spendingLimitPrefeitoSP],
+    ['Eleições gerais 2030 — 1º turno', G.electionDate], ['Posse do presidente', G.posse.presidente], ['Posse do governador', G.posse.governador], ['Posse da Alesp', G.posse.deputado_estadual],
+    ['Vagas na Alesp', G.seats.alesp], ['Vagas de SP na Câmara', G.seats.camaraSP], ['Vagas de SP no Senado em 2030', G.seats.senadoSP],
+    ['Idade mínima — senador', G.minAge.senador], ['Idade mínima — governador', G.minAge.governador], ['Idade mínima — deputado', G.minAge.deputado_estadual],
+    ['Desincompatibilização do Executivo', G.desincompatibilizacao], ['Eleitorado do estado', G.stateElectorate],
+    ['Limite de gastos — deputado estadual', GAMEPLAY.spendingLimitDepEstadual], ['Limite de gastos — deputado federal', GAMEPLAY.spendingLimitDepFederal], ['Limite de gastos — senador SP', GAMEPLAY.spendingLimitSenadorSP], ['Limite de gastos — governador SP', GAMEPLAY.spendingLimitGovernadorSP],
   ];
   return (
     <>
@@ -587,12 +608,12 @@ export function Regras({ s }: { s: GameState }) {
         <div className="table-wrap" style={{ maxHeight: 'none' }}>
           <table>
             <thead><tr><th>Parâmetro</th><th>Valor</th><th>Tipo</th><th>Fonte</th></tr></thead>
-            <tbody>{rows.map(([l, x]) => <tr key={l}><td>{l}</td><td className="mono">{l.includes('Limite de gastos') || l.includes('acima') ? (l.includes('acima') ? `${num(x.value as number)} eleitores` : brl(x.value as number)) : show(x.value)}</td><td>{statusTag(x)}</td><td className="small">{x.source}</td></tr>)}</tbody>
+            <tbody>{rows.map(([l, x]) => <tr key={l}><td>{l}</td><td className="mono">{l.includes('Limite de gastos') || l.includes('acima') ? (l.includes('acima') ? `${num(x.value as number)} eleitores` : brl(x.value as number)) : typeof x.value === 'number' && x.value > 1000 ? num(x.value) : show(x.value)}</td><td>{statusTag(x)}</td><td className="small">{x.source}</td></tr>)}</tbody>
           </table>
         </div>
       </div>
       <div className="callout" style={{ marginTop: 16 }}>
-        O jogo separa três coisas: <b>regra real</b> (legislação, com fonte), <b>derivada da lei</b> (datas calculadas que ainda precisam ser confirmadas no calendário oficial do TSE) e <b>mecânica de jogo</b> (simulação fictícia e balanceável, como o modelo de votos). Votos, candidatos adversários e eventos são gerados pela simulação e não representam pesquisas nem previsões reais.
+        O jogo separa três coisas: <b>regra real</b> (legislação, com fonte), <b>derivada da lei</b> (datas calculadas que ainda precisam ser confirmadas no calendário oficial do TSE) e <b>mecânica de jogo</b> (simulação fictícia e balanceável, como o modelo de votos). Votos, candidatos adversários e eventos são gerados pela simulação e não representam pesquisas nem previsões reais. Os ciclos de 2030 a 2036 aplicam a legislação vigente em 30/10/2026 (projeção): reformas posteriores não são modeladas, e todos os candidatos majoritários a partir de 2030 são personagens fictícios.
       </div>
     </>
   );

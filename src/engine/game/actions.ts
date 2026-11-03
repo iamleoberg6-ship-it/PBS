@@ -15,15 +15,21 @@ import { contestBlock } from './partyorg';
 import { fatigueMultiplier, registerUse, dampenGains } from './fatigue';
 import { snapshot, recordDiff } from './ledger';
 import { REGIONS, SEGMENTS } from '../data/regions';
-import { TEAM_ROLES, addCategory, attackOpponent, ensurePlan, hireRole, internalPoll, mediaPush, recruitLeader, requestPartyFund, visitRegion, type TeamRole } from './campaign';
+import { TEAM_ROLES, spendingLimit, addCategory, attackOpponent, ensurePlan, hireRole, internalPoll, mediaPush, recruitLeader, requestPartyFund, visitRegion, type TeamRole } from './campaign';
 import { askPromotion, demandChance, fulfillDemand, hireAsStaff, leaveStaff, staffBossOptions, staffInitiative, switchOffice } from './assessor';
 import { PROFESSIONS } from './create';
 import { recomputeNetWorth } from './finance';
 import { NETWORKS, produceContent } from './social';
 import { ideologicalDistance, partyIdeology } from '../data/ideology';
-import type { AttributeKey, Bill, GameState } from './types';
+import { isMunYear, nextElection } from './cycle';
+import { cityAlignment } from './general';
+import { STATE_AREAS, UPPER_THEMES, articulateGov, isLegislatorUpper, oversight, seekCommittee, startStateProgram, transferToCity, upperAmendment, upperBill, visitBase } from './upper';
+import { RESPONSE_LABEL, lapseCampaignPromises, makePromise, promiseCapacity, respondCrisis, workOnPromise } from './livingworld';
+import { computeEnding } from './endings';
+import { resignForCandidacy } from './careers';
+import type { AttributeKey, Bill, CrisisResponse, GameState } from './types';
 
-export type ActionCategory = 'Vida e carreira' | 'Assessoria' | 'Partido' | 'Pré-candidatura' | 'Campanha' | 'Mandato de vereador' | 'Prefeitura' | 'Secretaria';
+export type ActionCategory = 'Vida e carreira' | 'Assessoria' | 'Partido' | 'Pré-candidatura' | 'Campanha' | 'Mandato de vereador' | 'Prefeitura' | 'Secretaria' | 'Mandato estadual/federal' | 'Governo do Estado' | 'Imagem e compromissos';
 
 export interface ActionParamOption {
   value: string;
@@ -73,18 +79,21 @@ const campaignOn = (s: GameState) => {
   const c = s.player.candidacy;
   if (!c || c.status !== 'registrada') return false;
   const t = now(s);
-  if (t === mi(2028, 8) || t === mi(2028, 9)) return true;
-  const runoffPlayer = s.elections.find((e) => e.year === 2028)?.runoffPending;
-  return t === mi(2028, 10) && !!runoffPlayer;
+  const y = c.year ?? 2028;
+  if (t === mi(y, 8) || t === mi(y, 9)) return true;
+  const runoffPlayer = (isMunYear(y) ? s.elections.find((e) => e.year === y) : s.generalElections.find((e) => e.year === y))?.runoffPending;
+  return t === mi(y, 10) && !!runoffPlayer;
 };
 const campaignBalance = (s: GameState) => {
   const a = s.player.candidacy?.account;
   return a ? a.fefc + a.donations + a.ownFunds + (a.fundoPartidario ?? 0) - a.spent : 0;
 };
-const isMayorRace = (s: GameState) => s.player.candidacy?.office === 'prefeito';
+const isMayorRace = (s: GameState) => ['prefeito', 'governador', 'senador'].includes(s.player.candidacy?.office ?? '');
 
 function spendCampaign(s: GameState, vereadorCost: number, mayorCost: number, category = 'outros'): number | string {
-  const cost = isMayorRace(s) ? mayorCost : vereadorCost;
+  // Deputado: campanha estadual custa mais que a de vereador (PROPOSTA: 1,6×).
+  const office = s.player.candidacy?.office;
+  const cost = isMayorRace(s) ? mayorCost : Math.round(vereadorCost * (office === 'deputado_estadual' || office === 'deputado_federal' ? 1.6 : 1));
   if (campaignBalance(s) < cost) return `Saldo de campanha insuficiente (precisa de ${brl(cost)}).`;
   s.player.candidacy!.account.spent += cost;
   addCategory(s.player.candidacy!.account, category, cost);
@@ -105,7 +114,7 @@ const regionOptions = () => REGIONS.map((r) => ({ value: r.id, label: r.name }))
 const preOrCampaign = (s: GameState) => {
   const c = s.player.candidacy;
   if (!c || ['rejeitada_convencao', 'indeferida'].includes(c.status)) return false;
-  return now(s) <= mi(2028, 9) || campaignOn(s);
+  return now(s) <= mi(c.year ?? 2028, 9) || campaignOn(s);
 };
 
 export const ACTIONS: ActionDef[] = [
@@ -387,24 +396,35 @@ export const ACTIONS: ActionDef[] = [
 
   // ---------------- Pré-candidatura ----------------
   {
-    id: 'pleitear', fatigue: false, label: 'Pleitear candidatura em 2028', category: 'Pré-candidatura', cost: 1,
-    description: 'Avisa a direção que você quer disputar. A decisão sai na convenção (20/07 a 05/08/2028).',
+    id: 'pleitear', fatigue: false, label: 'Pleitear candidatura na próxima eleição', category: 'Pré-candidatura', cost: 1,
+    description: 'Avisa a direção que você quer disputar. Eleições municipais (vereador, prefeito) em 2028, 2032…; gerais (deputado estadual e federal, senador, governador) em 2030, 2034… A decisão sai na convenção (20/07 a 05/08).',
     availability: (s) => {
       if (s.player.candidacy) return 'hidden';
       if (!isFiliado(s)) return 'Exige filiação partidária.';
-      if (now(s) < mi(2027, 7)) return 'Disponível a partir de julho de 2027.';
-      if (now(s) > mi(2028, 7)) return 'O prazo das convenções passou.';
+      const ne = nextElection(now(s));
+      if (now(s) < mi(ne.year - 1, 7)) return `Próxima eleição: ${ne.year} (${ne.kind}). Disponível a partir de julho de ${ne.year - 1}.`;
       return null;
     },
     paramLabel: 'Cargo',
-    params: () => [{ value: 'vereador', label: 'Vereador(a)' }, { value: 'prefeito', label: 'Prefeito(a)' }],
+    params: (s) => {
+      const ne = nextElection(now(s));
+      if (ne.kind === 'municipal') return [{ value: 'vereador', label: `Vereador(a) — ${ne.year}` }, { value: 'prefeito', label: `Prefeito(a) — ${ne.year}` }];
+      const opts = [{ value: 'deputado_estadual', label: `Deputado(a) estadual — ${ne.year}` }, { value: 'deputado_federal', label: `Deputado(a) federal — ${ne.year}` }, { value: 'senador', label: `Senador(a) — ${ne.year}` }, { value: 'governador', label: `Governador(a) — ${ne.year}` }];
+      void s;
+      return opts;
+    },
     apply: (s, _rng, param) => {
-      const office = param === 'prefeito' ? 'prefeito' : 'vereador';
+      const ne = nextElection(now(s));
+      const allowed = ne.kind === 'municipal' ? ['vereador', 'prefeito'] : ['deputado_estadual', 'deputado_federal', 'senador', 'governador'];
+      const office = (allowed.includes(param ?? '') ? param : allowed[0]) as 'vereador';
       s.player.candidacy = {
-        office, status: 'pretendida', checks: [], coalitionPartyIds: [], campaignPoints: 0,
+        office, year: ne.year, status: 'pretendida', checks: [], coalitionPartyIds: [], campaignPoints: 0,
         account: { fefc: 0, donations: 0, ownFunds: 0, spent: 0 }, irregularities: 0,
       };
-      return `Você colocou seu nome como pré-candidato(a) a ${office === 'prefeito' ? 'prefeito(a)' : 'vereador(a)'}.`;
+      const label = ({ vereador: 'vereador(a)', prefeito: 'prefeito(a)', deputado_estadual: 'deputado(a) estadual', deputado_federal: 'deputado(a) federal', senador: 'senador(a)', governador: 'governador(a)' } as Record<string, string>)[office];
+      const desinc = ne.kind === 'geral' && ['prefeito', 'secretario', 'secretario_estadual', 'governador'].includes(s.player.mandate?.office ?? '')
+        ? ` ATENÇÃO: no seu cargo atual é preciso se desincompatibilizar até seis meses antes da eleição (início de abril de ${ne.year}) — use "Renunciar para concorrer" até março.` : '';
+      return `Você colocou seu nome como pré-candidato(a) a ${label} em ${ne.year}.${desinc}`;
     },
   },
   {
@@ -412,8 +432,9 @@ export const ACTIONS: ActionDef[] = [
     description: 'Desiste antes da convenção.',
     availability: (s) => (s.player.candidacy?.status === 'pretendida' ? null : 'hidden'),
     apply: (s) => {
+      lapseCampaignPromises(s, s.player.candidacy!.year ?? 2028);
       s.player.candidacy = null;
-      return 'Pré-candidatura retirada.';
+      return 'Pré-candidatura retirada. Promessas feitas para esta campanha deixam de valer.';
     },
   },
   {
@@ -421,7 +442,7 @@ export const ACTIONS: ActionDef[] = [
     description: 'Encontros, entrevistas e divulgação de ideias sem pedido explícito de voto (Lei 9.504/97 art. 36-A). Custa R$ 2.000 do caixa pessoal.',
     availability: (s) => {
       if (!s.player.candidacy || s.player.candidacy.status === 'rejeitada_convencao') return 'hidden';
-      if (now(s) >= mi(2028, 8)) return 'hidden';
+      if (now(s) >= mi(s.player.candidacy.year ?? 2028, 8)) return 'hidden';
       if (s.finances.cash < 2000) return 'Sem caixa pessoal.';
       return null;
     },
@@ -438,9 +459,10 @@ export const ACTIONS: ActionDef[] = [
     description: 'Coligação só vale para prefeito (majoritária). Na eleição de vereador é proibida (CF art. 17 §1º). Federações não se desfazem para coligar: entram por inteiro.',
     availability: (s) => {
       const c = s.player.candidacy;
-      if (!c || c.office !== 'prefeito') return 'hidden';
+      if (!c || !['prefeito', 'governador', 'senador'].includes(c.office)) return 'hidden';
       if (c.status === 'rejeitada_convencao' || c.status === 'indeferida') return 'hidden';
-      if (now(s) < mi(2028, 3) || now(s) > mi(2028, 7)) return 'Negociações de coligação: março a julho de 2028.';
+      const y = c.year ?? 2028;
+      if (now(s) < mi(y, 3) || now(s) > mi(y, 7)) return `Negociações de coligação: março a julho de ${y}.`;
       return null;
     },
     paramLabel: 'Partido',
@@ -607,7 +629,7 @@ export const ACTIONS: ActionDef[] = [
     paramLabel: 'Valor',
     params: () => [5000, 20000, 50000, 200000].map((v) => ({ value: String(v), label: brl(v) })),
     apply: (s, _rng, param) => {
-      const limit = (isMayorRace(s) ? GAMEPLAY.spendingLimitPrefeitoSP.value : GAMEPLAY.spendingLimitVereadorSP.value) * GAMEPLAY.ownFundsCapShareOfLimit.value;
+      const limit = spendingLimit(s.player.candidacy!.office) * GAMEPLAY.ownFundsCapShareOfLimit.value;
       const acc = s.player.candidacy!.account;
       const v = Math.min(Number(param), s.finances.cash, limit - acc.ownFunds);
       if (v <= 0) return `Você já atingiu o teto de autofinanciamento (${brl(limit)}).`;
@@ -768,7 +790,7 @@ export const ACTIONS: ActionDef[] = [
     availability: (s) => {
       if (!inMandate(s, 'vereador')) return 'hidden';
       const term = mesaWindow(s);
-      if (term === null) return 'Eleição da Mesa: janeiro de 2029 e dezembro de 2029, 2030 e 2031.';
+      if (term === null) return 'Eleição da Mesa: janeiro do 1º ano da legislatura e dezembro dos anos seguintes (exceto o último).';
       if (s.flags[`mesa_${term}`]) return 'A Mesa deste período já foi eleita.';
       return s.legislature.mesaCandidates.includes(PLAYER) ? 'Candidatura já lançada.' : null;
     },
@@ -793,6 +815,123 @@ export const ACTIONS: ActionDef[] = [
     paramLabel: 'Projeto',
     params: (s) => plenaryQueue(s).map((b) => ({ value: b.id, label: `${b.number} — ${b.title}` })),
     apply: (s, _rng, param) => schedule(s, param!),
+  },
+
+
+  // ---------------- Fase 5: desincompatibilização, promessas, crises, fim de carreira ----------------
+  {
+    id: 'renunciar_concorrer', fatigue: false, label: 'Renunciar/afastar-se para concorrer', category: 'Pré-candidatura', cost: 0,
+    description: 'Desincompatibilização: prefeito(a) e governador(a) renunciam seis meses antes para disputar outro cargo (CF art. 14 §6º); secretário(a) se afasta no mesmo prazo (LC 64/90 art. 1º). Vereador(a) e deputado(a) não precisam sair.',
+    availability: (s) => {
+      const c = s.player.candidacy;
+      const off = s.player.mandate?.office ?? '';
+      if (!c || !['prefeito', 'secretario', 'secretario_estadual', 'governador'].includes(off)) return 'hidden';
+      if (isMunYear(c.year ?? 2028) && off !== 'secretario_estadual' && !(off === 'governador')) return 'hidden';
+      if (off === 'governador' && c.office === 'governador') return 'hidden';
+      if (now(s) > mi(c.year ?? 2028, 3)) return 'O prazo de desincompatibilização (seis meses antes da eleição) já passou.';
+      return null;
+    },
+    apply: (s) => resignForCandidacy(s),
+  },
+  {
+    id: 'promessa_comunidade', label: 'Fazer promessa pública a uma comunidade', category: 'Imagem e compromissos', cost: 1,
+    description: 'Compromisso público com uma região e um tema. Rende boa vontade imediata; vence no fim do mandato em disputa (ou do atual). Cumprida, fortalece; quebrada, a região cobra na próxima eleição.',
+    availability: (s) => {
+      const open = s.communityPromises.filter((p) => p.status === 'aberta' || p.status === 'em_andamento').length;
+      if (!s.player.candidacy && !s.player.mandate) return 'hidden';
+      return open >= 6 ? 'Você já tem seis promessas em aberto.' : null;
+    },
+    paramLabel: 'Região e tema',
+    params: (s) => REGIONS.flatMap((r) => THEMES.slice(0, 4).map((t) => ({ value: `${r.id}|${t.value}`, label: `${r.name} — ${t.label}` }))).filter((o) => !s.communityPromises.some((p) => `${p.region}|${p.theme}` === o.value && (p.status === 'aberta' || p.status === 'em_andamento'))),
+    apply: (s, rng, param) => makePromise(s, rng, param!),
+  },
+  {
+    id: 'cumprir_promessa', label: 'Trabalhar para cumprir uma promessa', category: 'Imagem e compromissos', cost: 1,
+    description: 'O que dá para fazer depende do cargo: prefeito usa o caixa; secretário, o orçamento livre da pasta; vereador, indicações e emendas; deputado e senador, emendas individuais; governador, convênios.',
+    availability: (s) => (s.communityPromises.some((p) => p.status === 'aberta' || p.status === 'em_andamento') ? (s.player.mandate ? null : 'Sem cargo, não há como entregar.') : 'hidden'),
+    paramLabel: 'Promessa',
+    params: (s) => s.communityPromises.filter((p) => p.status === 'aberta' || p.status === 'em_andamento').map((p) => { const c = promiseCapacity(s, p); return { value: p.id, label: `${p.text} — ${p.progress}%${c.block ? ` (${c.block})` : ` (+~${c.gain}%: ${c.cost})`}` }; }),
+    apply: (s, rng, param) => workOnPromise(s, rng, param!),
+  },
+  {
+    id: 'responder_crise', fatigue: false, label: 'Responder a uma crise de imagem', category: 'Imagem e compromissos', cost: 1,
+    description: 'Você sabe se a acusação é verdadeira, falsa ou distorcida; o público não. Negar algo verdadeiro pode virar a história principal. Direito de resposta: Lei 13.188/2015.',
+    availability: (s) => (s.crises.some((c) => c.status === 'ativa' && c.targetId === PLAYER) ? null : 'hidden'),
+    paramLabel: 'Resposta',
+    params: (s) => s.crises.filter((c) => c.status === 'ativa' && c.targetId === PLAYER).flatMap((c) => (Object.keys(RESPONSE_LABEL) as CrisisResponse[]).filter((r) => r !== 'ignorar').map((r) => ({ value: `${c.id}|${r}`, label: `"${c.headline.slice(0, 50)}…" — ${RESPONSE_LABEL[r]}` }))),
+    apply: (s, rng, param) => respondCrisis(s, rng, param!),
+  },
+  {
+    id: 'encerrar_carreira', fatigue: false, label: 'Encerrar a carreira política', category: 'Vida e carreira', cost: 0,
+    description: 'Termina a partida agora e mostra o desfecho da sua trajetória.',
+    availability: (s) => (s.player.candidacy?.status === 'registrada' ? 'Não é possível durante uma candidatura registrada.' : null),
+    apply: (s) => {
+      s.ending = computeEnding(s, 'aposentadoria');
+      s.gameOver = true;
+      return `Fim de carreira: ${s.ending.title}.`;
+    },
+  },
+
+  // ---------------- Fase 5: mandatos estaduais e federais ----------------
+  {
+    id: 'up_projeto', label: 'Apresentar projeto (Alesp/Congresso)', category: 'Mandato estadual/federal', cost: 1,
+    description: 'Tramitação abstrata (simplificação): prazo de 6 a 14 meses e chance de aprovação pela relação com o governo, articulação e cargos em comissão.',
+    availability: (s) => (isLegislatorUpper(s.player.mandate?.office) ? null : 'hidden'),
+    paramLabel: 'Tema', params: () => UPPER_THEMES,
+    apply: (s, rng, param) => upperBill(s, rng, param!),
+  },
+  {
+    id: 'up_emenda', label: 'Indicar emenda individual', category: 'Mandato estadual/federal', cost: 1,
+    description: 'Emendas individuais ao orçamento são impositivas (CF art. 166 §§9º–11), mas o ritmo de pagamento depende do Executivo. Valores de jogo.',
+    availability: (s) => (isLegislatorUpper(s.player.mandate?.office) ? ((s.player.mandate!.upper?.amendmentBudget ?? 0) > 0 ? null : 'Saldo de emendas do ano esgotado.') : 'hidden'),
+    paramLabel: 'Região e área',
+    params: () => REGIONS.flatMap((r) => ['saúde', 'educação', 'infraestrutura'].map((t) => ({ value: `${r.id}|${t}`, label: `${r.name} — ${t}` }))),
+    apply: (s, rng, param) => upperAmendment(s, rng, param!),
+  },
+  {
+    id: 'up_articular', label: 'Articular com o governo', category: 'Mandato estadual/federal', cost: 1,
+    description: 'Melhora a relação com o Executivo de referência (governador para a Alesp; presidente para o Congresso).',
+    availability: (s) => (isLegislatorUpper(s.player.mandate?.office) || s.player.mandate?.office === 'secretario_estadual' ? null : 'hidden'),
+    apply: (s, rng) => articulateGov(s, rng),
+  },
+  {
+    id: 'up_comissao', fatigue: false, label: 'Disputar cargo em comissão', category: 'Mandato estadual/federal', cost: 1,
+    description: 'Presidência ou relatoria dá peso aos seus projetos.',
+    availability: (s) => (isLegislatorUpper(s.player.mandate?.office) ? (s.player.mandate!.upper?.committeeRole ? 'hidden' : null) : 'hidden'),
+    apply: (s, rng) => seekCommittee(s, rng),
+  },
+  {
+    id: 'up_fiscalizar', label: 'Fiscalizar o Executivo', category: 'Mandato estadual/federal', cost: 1,
+    description: 'Requerimentos de informação e convocações. Dá visibilidade e desgasta a relação com o governo.',
+    availability: (s) => (isLegislatorUpper(s.player.mandate?.office) ? null : 'hidden'),
+    apply: (s, rng) => oversight(s, rng),
+  },
+  {
+    id: 'up_base', label: 'Agenda na base eleitoral', category: 'Mandato estadual/federal', cost: 1,
+    description: 'Visitas e atendimento na capital. Para quem está em Brasília, compensa a distância da base.',
+    availability: (s) => (isLegislatorUpper(s.player.mandate?.office) || s.player.mandate?.office === 'governador' ? null : 'hidden'),
+    paramLabel: 'Região', params: () => regionOptions(),
+    apply: (s, rng, param) => visitBase(s, rng, param!),
+  },
+  {
+    id: 'gov_programa', label: 'Lançar programa estadual', category: 'Governo do Estado', cost: 1,
+    description: 'Programa abstrato por área (simplificação: sem orçamento estadual detalhado). Sem maioria na Alesp, atrasa.',
+    availability: (s) => (inMandate(s, 'governador') || inMandate(s, 'secretario_estadual') ? null : 'hidden'),
+    paramLabel: 'Área',
+    params: (s) => STATE_AREAS.filter((a) => !inMandate(s, 'secretario_estadual') || a.id === s.player.mandate?.portfolio).map((a) => ({ value: a.id, label: a.label })),
+    apply: (s, rng, param) => startStateProgram(s, rng, param!),
+  },
+  {
+    id: 'gov_alesp', label: 'Negociar base na Alesp', category: 'Governo do Estado', cost: 1,
+    description: 'Maioria simples: 48 dos 94 deputados.',
+    availability: (s) => (inMandate(s, 'governador') ? null : 'hidden'),
+    apply: (s, rng) => articulateGov(s, rng),
+  },
+  {
+    id: 'gov_convenio', label: 'Convênio com a Prefeitura de São Paulo', category: 'Governo do Estado', cost: 1,
+    description: 'Transferência voluntária para obras na capital. Prefeito aliado divide o crédito; de oposição, disputa.',
+    availability: (s) => (inMandate(s, 'governador') ? null : 'hidden'),
+    apply: (s, rng) => transferToCity(s, rng),
   },
 
   // ---------------- Prefeitura ----------------
@@ -936,7 +1075,9 @@ export const ACTIONS: ActionDef[] = [
     description: 'Transferências voluntárias para obras e programas. Depende de articulação e de relação política.',
     availability: (s) => (inMandate(s, 'prefeito') ? (personnelRatio(s) > 0.6 ? 'Bloqueado: pessoal acima do limite impede transferências voluntárias (LRF art. 23 §3º).' : null) : 'hidden'),
     apply: (s, rng) => {
-      if (next(rng) < 0.3 + s.character.attributes.articulation / 200) {
+      // Fase 5: alinhamento com governador e presidente pesa nas transferências voluntárias (PROPOSTA).
+      const al = cityAlignment(s);
+      if (next(rng) < 0.18 + s.character.attributes.articulation / 200 + (al.governor + al.president) * 0.12) {
         const v = Math.round(200 + next(rng) * 600);
         s.city.cash += v;
         s.city.loa.areas.subprefeituras += v;

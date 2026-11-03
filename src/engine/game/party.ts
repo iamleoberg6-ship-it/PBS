@@ -1,5 +1,5 @@
 // Filiação, desfiliação e troca de partido.
-import { monthIndex, monthToIso } from '../calendar';
+import { monthToIso } from '../calendar';
 import { partyById } from '../data/parties';
 import type { GameState } from './types';
 import { PROFESSIONS } from './create';
@@ -7,17 +7,24 @@ import { ideologicalDistance, partyIdeology } from '../data/ideology';
 import { defaultPartyRel, seedPlayerPartyRelations } from './partyorg';
 import { PLAYER, adjustRel } from './relations';
 
-const mi = (y: number, m: number) => y * 12 + (m - 1);
 
-/** Janela partidária para vereadores: 30 dias antes do prazo de filiação, no último ano do mandato (Lei 9.096/95 art. 22-A, III). */
+/** Janela partidária: 30 dias antes do prazo de filiação, na eleição do fim do mandato (Lei 9.096/95 art. 22-A, III).
+ *  Vereador: março de 2028, 2032… · Deputado(a): março de 2030, 2034… */
 export function inPartyWindowForCouncillor(s: GameState): boolean {
-  return monthIndex(s.month) === mi(2032, 3);
+  return s.month.month === 3 && s.month.year >= 2028 && (s.month.year - 2028) % 4 === 0;
+}
+export function inPartyWindowForDeputy(s: GameState): boolean {
+  return s.month.month === 3 && s.month.year >= 2030 && (s.month.year - 2030) % 4 === 0;
 }
 
 export function partyChangeBlock(s: GameState, targetId: string | null): string | null {
   if (targetId && targetId === s.player.partyId) return 'Você já é filiado(a) a este partido.';
-  if (s.player.mandate?.office === 'vereador' && !inPartyWindowForCouncillor(s)) {
-    return 'Mandato proporcional pertence ao partido: sair fora da janela partidária (março de 2032) sem justa causa leva à perda do mandato (Lei 9.096/95 art. 22-A).';
+  const off = s.player.mandate?.office;
+  if (off === 'vereador' && !inPartyWindowForCouncillor(s)) {
+    return 'Mandato proporcional pertence ao partido: sair fora da janela partidária (março do ano da eleição municipal) sem justa causa leva à perda do mandato (Lei 9.096/95 art. 22-A).';
+  }
+  if ((off === 'deputado_estadual' || off === 'deputado_federal') && !inPartyWindowForDeputy(s)) {
+    return 'Mandato de deputado pertence ao partido: só é possível trocar na janela de março do ano da eleição geral (Lei 9.096/95 art. 22-A, III).';
   }
   return null;
 }

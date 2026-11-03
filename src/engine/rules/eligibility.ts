@@ -2,12 +2,14 @@
 // Cada verificação devolve a regra e a fonte para a interface explicar o bloqueio.
 
 import { ageAt, formatIsoPt } from '../calendar';
-import type { MunicipalRulePack } from '../data/rulepack';
+import type { GeneralOffice, GeneralRulePack, MunicipalRulePack } from '../data/rulepack';
 
 export type MunicipalOffice = 'vereador' | 'prefeito' | 'vice_prefeito';
+export type ElectiveOffice = MunicipalOffice | GeneralOffice;
+export const EXECUTIVE_OFFICES: ElectiveOffice[] = ['prefeito', 'governador'];
 
 export interface EligibilityInput {
-  office: MunicipalOffice;
+  office: ElectiveOffice;
   birthDate: string;
   brazilian: boolean;
   politicalRightsOk: boolean;
@@ -19,6 +21,8 @@ export interface EligibilityInput {
   /** Mandatos consecutivos já exercidos como titular do cargo executivo pretendido. */
   consecutiveTermsSameOffice: number;
   chosenInConvention: boolean;
+  /** Desincompatibilização (CF art. 14 §6º; LC 64/90): null = não se aplica. */
+  desincompatibilizacao?: { ok: boolean; detail: string; source: string } | null;
 }
 
 export interface EligibilityCheck {
@@ -29,10 +33,17 @@ export interface EligibilityCheck {
   source: string;
 }
 
-export function checkEligibility(input: EligibilityInput, rp: MunicipalRulePack): EligibilityCheck[] {
+function ageRuleFor(office: ElectiveOffice, rp: MunicipalRulePack | GeneralRulePack) {
+  if ('posse' in rp) return { rule: rp.minAge[office as GeneralOffice], posse: rp.posse[office as GeneralOffice].value };
+  const m = rp as MunicipalRulePack;
+  const rule = office === 'vereador' ? m.minAge.vereador : office === 'prefeito' ? m.minAge.prefeito : m.minAge.vicePrefeito;
+  return { rule, posse: m.posseDate.value };
+}
+
+export function checkEligibility(input: EligibilityInput, rp: MunicipalRulePack | GeneralRulePack): EligibilityCheck[] {
   const checks: EligibilityCheck[] = [];
-  const ageRule = input.office === 'vereador' ? rp.minAge.vereador : input.office === 'prefeito' ? rp.minAge.prefeito : rp.minAge.vicePrefeito;
-  const checkDate = ageRule.value.checkedAt === 'registration' ? rp.registrationDeadline.value : rp.posseDate.value;
+  const { rule: ageRule, posse } = ageRuleFor(input.office, rp);
+  const checkDate = ageRule.value.checkedAt === 'registration' ? rp.registrationDeadline.value : posse;
   const age = ageAt(input.birthDate, checkDate);
 
   checks.push({
@@ -64,12 +75,15 @@ export function checkEligibility(input: EligibilityInput, rp: MunicipalRulePack)
       : filiationOk ? `Filiado desde ${formatIsoPt(input.filiationDate)}.` : `Filiação em ${formatIsoPt(input.filiationDate)}, depois do prazo de ${formatIsoPt(rp.filiationDeadline.value)}.`,
     source: rp.filiationDeadline.source,
   });
-  if (input.office === 'prefeito') {
+  if (input.desincompatibilizacao) {
+    checks.push({ id: 'desincompatibilizacao', ok: input.desincompatibilizacao.ok, label: 'Desincompatibilização', detail: input.desincompatibilizacao.detail, source: input.desincompatibilizacao.source });
+  }
+  if (EXECUTIVE_OFFICES.includes(input.office)) {
     const maxTerms = rp.maxConsecutiveTermsExecutive.value;
     const ok = input.consecutiveTermsSameOffice < maxTerms;
     checks.push({
       id: 'reeleicao', ok, label: 'Limite de reeleição',
-      detail: ok ? 'Cumprido.' : 'Já exerceu dois mandatos consecutivos como prefeito: vedado um terceiro consecutivo.',
+      detail: ok ? 'Cumprido.' : `Já exerceu dois mandatos consecutivos como ${input.office}: vedado um terceiro consecutivo.`,
       source: rp.maxConsecutiveTermsExecutive.source,
     });
   }

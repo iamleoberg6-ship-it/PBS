@@ -1,10 +1,10 @@
 import type { GameMonth } from '../calendar';
 import type { RngState } from '../rng';
-import type { EligibilityCheck, MunicipalOffice } from '../rules/eligibility';
+import type { ElectiveOffice, EligibilityCheck } from '../rules/eligibility';
 import type { ProportionalResult } from '../rules/proportional';
 import type { MajRoundResult } from '../rules/majoritarian';
 
-export const SAVE_VERSION = 7;
+export const SAVE_VERSION = 8;
 
 export type NetworkId = 'instagram' | 'x' | 'youtube' | 'tiktok';
 
@@ -105,7 +105,9 @@ export interface CampaignPlan {
 export type CandidacyStatus = 'pretendida' | 'aprovada_convencao' | 'rejeitada_convencao' | 'registrada' | 'indeferida';
 
 export interface Candidacy {
-  office: MunicipalOffice;
+  office: ElectiveOffice;
+  /** Ano da eleição disputada (Fase 5: 2028, 2030, 2032…). Ausente em saves antigos = 2028. */
+  year?: number;
   status: CandidacyStatus;
   checks: EligibilityCheck[];
   coalitionPartyIds: string[];
@@ -143,7 +145,7 @@ export interface StaffJob {
   since: GameMonth;
 }
 
-export type OfficeHeld = 'vereador' | 'prefeito' | 'secretario' | 'assessor';
+export type OfficeHeld = 'vereador' | 'prefeito' | 'secretario' | 'assessor' | 'deputado_estadual' | 'deputado_federal' | 'senador' | 'governador' | 'secretario_estadual';
 
 export interface Project {
   id: string;
@@ -167,6 +169,25 @@ export interface Mandate {
   portfolio: string | null; // secretário: pasta
   budgetShare: number; // secretário: 0..100
   secretariat?: Secretariat | null;
+  /** Mandatos estaduais/federais (Fase 5): estado abstrato — SIMPLIFICAÇÃO documentada em upper.ts. */
+  upper?: UpperMandate | null;
+}
+
+export interface UpperMandate {
+  /** Projetos apresentados e o que aconteceu com eles. */
+  bills: { id: string; title: string; theme: string; status: 'tramitando' | 'aprovado' | 'arquivado'; monthsLeft: number }[];
+  /** Emendas individuais destinadas a regiões da capital (R$ mi, valores de jogo). */
+  amendments: { region: string; theme: string; value: number; month: GameMonth; paid: boolean }[];
+  amendmentBudget: number; // saldo anual de emendas (R$ mi)
+  committeeRole: string | null;
+  /** Relação com o Executivo da esfera do mandato (governador ou presidente). */
+  relationGov: number;
+  /** Governador: base na Alesp, programas e indicadores agregados. */
+  assemblyBase?: number;
+  stateIndicators?: Record<string, number>;
+  programs?: { id: string; label: string; monthsLeft: number; area: string }[];
+  /** Ponto de agenda gasto em Brasília/capital no mês (deputado federal/senador) — ausência da base. */
+  awayFromBase: number;
 }
 
 export interface PlayerState {
@@ -187,6 +208,12 @@ export interface PlayerState {
   social: SocialState;
   staff: StaffJob | null;
   homeRegion: string;
+  /** Mandatos consecutivos de governador (CF art. 14 §5º). */
+  consecutiveTermsGovernador?: number;
+  /** Boa vontade por região da capital (Fase 5): emendas, promessas cumpridas/quebradas. */
+  regionalGoodwill?: Record<string, number>;
+  /** Credibilidade pessoal diante da imprensa (Fase 5): cai quando o jogador nega algo verdadeiro e é desmentido. */
+  credibility?: number;
 }
 
 export type Stance = 'base' | 'independente' | 'oposicao' | 'oposicao_radical';
@@ -513,6 +540,8 @@ export interface Poll {
   undecided: number; // 0..1 brancos/nulos/indecisos
   results: { id: string; name: string; label: string; share: number }[]; // share sobre o total de entrevistados
   scenario: '1º turno' | '2º turno';
+  /** Cargo pesquisado (ausente = prefeito, saves antigos). */
+  race?: 'prefeito' | 'governador' | 'senador';
   rejection?: Record<string, number>; // id → fração que não votaria de jeito nenhum
   knowledge?: Record<string, number>; // id → fração que conhece o candidato
   govEval?: { good: number; regular: number; bad: number };
@@ -534,7 +563,7 @@ export interface ElectionRecord {
   proportional: ProportionalResult | null;
   mayorFirst: MajRoundResult | null;
   mayorRunoff: MajRoundResult | null;
-  playerOffice: MunicipalOffice | null;
+  playerOffice: ElectiveOffice | null;
   playerCandidateId: string | null;
   playerVotes: number | null;
   playerElected: boolean;
@@ -547,6 +576,123 @@ export interface ElectionRecord {
   } | null;
   playerVotesByRegion?: Record<string, number>;
   mayorByRegion?: Record<string, { id: string; name: string; share: number }[]>;
+}
+
+// ---------------- Fase 5: mundo estadual e federal ----------------
+
+export interface StateHolder {
+  id: string;
+  name: string;
+  partyId: string;
+  /** true = pessoa real (apenas fatos públicos: cargo, partido, mandato). */
+  real: boolean;
+  since: number; // ano de início
+  until: number; // ano de término
+  consecutiveTerms: number;
+  isPlayer?: boolean;
+}
+
+export interface StateWorld {
+  president: StateHolder;
+  governor: StateHolder;
+  /** As três cadeiras de SP no Senado. */
+  senators: StateHolder[];
+  alespSeats: Record<string, number>;
+  camaraSeats: Record<string, number>;
+  /** Avaliação simulada (personagens reais: número de jogo, não pesquisa real). */
+  governorApproval: number;
+  presidentApproval: number;
+  governorCoalition: string[];
+  presidentCoalition: string[];
+  /** Vereadores que trocaram de mandato (eleitos deputados) e aguardam posse. */
+  pendingDepartures: { councillorId: string; office: 'deputado_estadual' | 'deputado_federal'; posseMonth: number }[];
+  governorRace: RaceCandidate[] | null;
+  senateRace: RaceCandidate[] | null;
+  /** Vereadores (IA) que anunciaram candidatura a deputado no ciclo corrente. */
+  councillorRuns: { id: string; office: 'deputado_estadual' | 'deputado_federal' }[];
+}
+
+export interface GeneralElectionRecord {
+  year: number;
+  alesp: ProportionalResult;
+  camara: ProportionalResult;
+  senate: MajRoundResult;
+  senateSeats: number;
+  governorFirst: MajRoundResult;
+  governorRunoff: MajRoundResult | null;
+  presidentFirst: MajRoundResult;
+  presidentRunoff: MajRoundResult | null;
+  candidatePartyById: Record<string, string>;
+  playerOffice: ElectiveOffice | null;
+  playerVotes: number | null;
+  playerElected: boolean;
+  playerVotesByRegion?: Record<string, number>;
+  governorWinner: { id: string; name: string; partyId: string; isPlayer: boolean } | null;
+  presidentWinner: { id: string; name: string; partyId: string } | null;
+  senateWinners: { id: string; name: string; partyId: string; isPlayer: boolean }[];
+  /** Vereadores de SP (IA) que disputaram e o resultado. */
+  councillorRuns: { id: string; name: string; partyId: string; office: 'deputado_estadual' | 'deputado_federal'; votes: number; elected: boolean }[];
+  runoffPending: {
+    a: { id: string; name: string; label: string; partyId: string; votes: number; strength: number; birthDate: string; isPlayer: boolean };
+    b: { id: string; name: string; label: string; partyId: string; votes: number; strength: number; birthDate: string; isPlayer: boolean };
+    rest: number;
+  } | null;
+}
+
+/** Crise de imagem (Fase 5.2). O jogador sabe se a acusação é verdadeira; o público não. */
+export interface ImageCrisis {
+  id: string;
+  targetId: string; // 'character_player' ou personagem fictício
+  targetName: string;
+  topic: string;
+  headline: string;
+  truth: 'verdadeira' | 'falsa' | 'distorcida';
+  outletId: string;
+  severity: number; // 0–100
+  month: GameMonth;
+  deadline: number; // índice do mês até o qual a resposta conta
+  status: 'ativa' | 'respondida' | 'esquecida';
+  response: CrisisResponse | null;
+  outcome: string | null;
+  /** Origem: ato real do jogador (flag) ou boato/ataque. */
+  origin: string;
+}
+
+export type CrisisResponse = 'desmentir' | 'explicar' | 'desculpas' | 'direito_resposta' | 'ignorar';
+
+/** Estado dinâmico de um veículo fictício (credibilidade muda com o que ele publica). */
+export interface OutletState {
+  id: string;
+  credibility: number; // 0–100 (simulado)
+  falseStories: number;
+  correctedStories: number;
+}
+
+/** Promessa pública feita a uma comunidade (Fase 5.3). */
+export interface CommunityPromise {
+  id: string;
+  region: string;
+  theme: string;
+  text: string;
+  madeAt: GameMonth;
+  /** Mandato a que a promessa se refere: vence no fim desse mandato (ou 24 meses se feita sem cargo em vista). */
+  dueMonth: number;
+  status: 'aberta' | 'cumprida' | 'quebrada' | 'em_andamento' | 'caducou';
+  progress: number; // 0–100
+  context: string; // ex.: 'campanha 2028 (vereador)'
+}
+
+export interface Achievement {
+  id: string;
+  month: GameMonth;
+}
+
+export interface Ending {
+  id: string;
+  title: string;
+  text: string;
+  score: number;
+  month: GameMonth;
 }
 
 export interface LogEntry {
@@ -585,6 +731,13 @@ export interface GameState {
   ledger: CauseEntry[];
   legislature: Legislature;
   city: City;
+  stateWorld: StateWorld;
+  generalElections: GeneralElectionRecord[];
+  crises: ImageCrisis[];
+  outlets: OutletState[];
+  communityPromises: CommunityPromise[];
+  achievements: Achievement[];
+  ending: Ending | null;
   pendingEvents: PendingEvent[];
   log: LogEntry[];
   flags: Record<string, boolean | number | string>;

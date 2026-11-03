@@ -19,7 +19,10 @@ import type { Bill, City, CitySecretary, GameState, LoaBudget, Secretariat, Year
 
 const clamp = (v: number, a = 0, b = 100) => Math.max(a, Math.min(b, v));
 const r0 = (v: number) => Math.round(v);
-export const MANDATE_END = 2032;
+/** Ano final do mandato municipal em curso (2028, 2032, 2036…). */
+export function mandateEndYear(year: number): number {
+  return 2028 + Math.ceil(Math.max(0, year - 2028) / 4) * 4;
+}
 
 /** Calibração (DERIVADA): fatores que levam o gasto da área ao conceito legal de aplicação mínima. */
 const EDU_ACCOUNTING = 1.12; // inclui inativos da educação e despesas de MDE lançadas fora da pasta
@@ -280,7 +283,7 @@ export function sendPloa(s: GameState, rng: RngState): string {
   if (!chk.ok) return `O projeto não pode ser enviado: ${chk.issues.join(' ')}`;
   d.status = 'rascunho';
   s.city.draft = d;
-  const withPpa = s.month.year === 2029 || s.month.year === 2025 || s.month.year === 2033;
+  const withPpa = (s.month.year - 2025) % 4 === 0; // 1º ano de cada mandato (2025, 2029, 2033…)
   if (withPpa) s.city.ppa = { period: `${s.month.year + 1}–${s.month.year + 4}`, status: 'enviado' };
   const b = fiscalBill(s, `LOA ${d.year} — orçamento de R$ ${(totalRevenue(d) / 1000).toFixed(1).replace('.', ',')} bi${withPpa ? ` e PPA ${s.month.year + 1}–${s.month.year + 4}` : ''}`, 'orcamento', { tipo: 'loa', year: d.year, ppa: withPpa ? 1 : 0 }, 55, 0, rng);
   return `${b.number}: projeto da LOA ${d.year} enviado à Câmara${withPpa ? ' junto com o Plano Plurianual' : ''} (prazo: 30 de setembro).`;
@@ -340,7 +343,7 @@ export function requestCredit(s: GameState, amount: number, area: string): strin
   const c = s.city;
   const rcl = rclEstimate(s);
   if (personnelStatus(personnelRatio(s)) === 'excedido') return 'Bloqueado: com a despesa de pessoal acima do limite, o Município não pode contratar operações de crédito (LRF art. 23 §3º).';
-  if (inArt42Window(s.month.year, s.month.month, MANDATE_END)) return 'Bloqueado: nos dois últimos quadrimestres do mandato não se contrai obrigação sem caixa para pagá-la (LRF art. 42).';
+  if (inArt42Window(s.month.year, s.month.month, mandateEndYear(s.month.year))) return 'Bloqueado: nos dois últimos quadrimestres do mandato não se contrai obrigação sem caixa para pagá-la (LRF art. 42).';
   if (c.ytd.credit + amount + c.pendingCredit.reduce((a, p) => a + p.amount, 0) > rcl * CREDIT_LIMIT) return `Bloqueado: operações de crédito do ano passariam de 16% da RCL (R$ ${r0(rcl * CREDIT_LIMIT).toLocaleString('pt-BR')} mi).`;
   if (netDebt(c) + amount > rcl * DEBT_LIMIT) return 'Bloqueado: a dívida consolidada líquida passaria de 1,2 vez a RCL.';
   c.pendingCredit.push({ amount, area, readyAt: addMonths(s.month, 2) });
@@ -348,7 +351,7 @@ export function requestCredit(s: GameState, amount: number, area: string): strin
 }
 
 export function raiseSalaries(s: GameState, pct: number): string {
-  if (inPersonnelFreeze(s.month.year, s.month.month, MANDATE_END)) return 'Bloqueado: aumento de despesa com pessoal nos 180 dias finais do mandato é nulo (LRF art. 21).';
+  if (inPersonnelFreeze(s.month.year, s.month.month, mandateEndYear(s.month.year))) return 'Bloqueado: aumento de despesa com pessoal nos 180 dias finais do mandato é nulo (LRF art. 21).';
   const st = personnelStatus(personnelRatio(s));
   if (st === 'prudencial' || st === 'excedido') return 'Bloqueado: acima do limite prudencial, reajustes ficam vedados (LRF art. 22).';
   s.city.loa.personnel = r0(s.city.loa.personnel * (1 + pct));
@@ -569,7 +572,7 @@ export function fiscalCalendar(s: GameState, rng: RngState): string[] {
     // A LOA precisa ser votada até 31/12 e a LDO no 1º semestre: a Presidência inclui na Ordem do Dia.
     for (const b of s.legislature.bills) if (b.kind === 'orcamento' && b.stage === 'plenario') b.scheduled = true;
   }
-  if (isPlayerMayor && y === 2029 && mo === 4 && !s.city.metas) {
+  if (isPlayerMayor && (y - 2029) % 4 === 0 && mo === 4 && !s.city.metas) {
     notes.push('O prazo de 90 dias do Programa de Metas (LOM art. 69-A) venceu sem apresentação. A imprensa e a Câmara cobram.');
     if (s.player.mandate) s.player.mandate.approval = clamp(s.player.mandate.approval - 4);
   }

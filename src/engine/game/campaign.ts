@@ -36,7 +36,24 @@ export const CAMPAIGN_RULES = [
 ];
 
 export function spendingLimit(office: string): number {
-  return office === 'prefeito' ? GAMEPLAY.spendingLimitPrefeitoSP.value : GAMEPLAY.spendingLimitVereadorSP.value;
+  switch (office) {
+    case 'prefeito': return GAMEPLAY.spendingLimitPrefeitoSP.value;
+    case 'deputado_estadual': return GAMEPLAY.spendingLimitDepEstadual.value;
+    case 'deputado_federal': return GAMEPLAY.spendingLimitDepFederal.value;
+    case 'senador': return GAMEPLAY.spendingLimitSenadorSP.value;
+    case 'governador': return GAMEPLAY.spendingLimitGovernadorSP.value;
+    default: return GAMEPLAY.spendingLimitVereadorSP.value;
+  }
+}
+
+/** Boa vontade acumulada numa região da capital (−100..100). Afeta a próxima campanha (PROPOSTA). */
+export function addGoodwill(s: GameState, region: string, v: number) {
+  const g = (s.player.regionalGoodwill ??= {});
+  g[region] = Math.max(-100, Math.min(100, (g[region] ?? 0) + v));
+  const rc = s.player.candidacy?.plan?.regions[region];
+  if (rc) {
+    if (v > 0) { rc.presence = clamp(rc.presence + v * 0.5); rc.knowledge = clamp(rc.knowledge + v * 0.3); } else rc.rejection = clamp(rc.rejection - v * 0.6);
+  }
 }
 
 // ---------------- Plano ----------------
@@ -46,10 +63,12 @@ export function initPlan(s: GameState): CampaignPlan {
   const extreme = Math.abs(pos - 5) * 4;
   for (const r of REGIONS) {
     const home = r.id === s.player.homeRegion;
+    // Fase 5: o trabalho de mandato (emendas, promessas cumpridas ou quebradas) deixa marca nas regiões.
+    const gw = s.player.regionalGoodwill?.[r.id] ?? 0;
     regions[r.id] = {
-      presence: home ? 25 + s.player.base * 0.4 : 5,
-      knowledge: clamp(s.player.recognition * 0.85 + (home ? s.player.base * 0.6 + 10 : 0)),
-      rejection: clamp(8 + extreme + Math.max(0, (pos - 5) * r.lean * -6)),
+      presence: clamp((home ? 25 + s.player.base * 0.4 : 5) + Math.max(0, gw) * 0.5),
+      knowledge: clamp(s.player.recognition * 0.85 + (home ? s.player.base * 0.6 + 10 : 0) + Math.max(0, gw) * 0.3),
+      rejection: clamp(8 + extreme + Math.max(0, (pos - 5) * r.lean * -6) + Math.max(0, -gw) * 0.6),
       leaders: home ? 1 : 0,
     };
   }
@@ -280,7 +299,8 @@ export function judgeAccounts(s: GameState, rng: RngState): string | null {
 
 /** Ação de investigação judicial eleitoral (AIJE/art. 30-A): risco de cassação de quem se elegeu com irregularidades. */
 export function electoralLawsuit(s: GameState, rng: RngState): string | null {
-  const rec = s.elections.find((e) => e.year === 2028);
+  const y = Number(s.flags.lastElectionYear ?? 2028);
+  const rec = s.elections.find((e) => e.year === y) ?? s.generalElections?.find((e) => e.year === y);
   if (!rec?.playerElected) return null;
   const irreg = Number(s.flags.irregCampanha ?? 0);
   const desaprov = s.flags.contasCampanha === 'desaprovadas';

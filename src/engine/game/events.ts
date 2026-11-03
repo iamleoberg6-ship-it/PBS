@@ -10,6 +10,9 @@ import { offeredPortfolios } from './secretariat';
 import { recomputeNetWorth } from './finance';
 import { snapshot, recordDiff } from './ledger';
 import { changeParty } from './party';
+import { STATE_AREAS } from './upper';
+import { addGoodwill } from './campaign';
+import { REGIONS } from '../data/regions';
 import type { GameState, PendingEvent } from './types';
 
 const clamp = (v: number, a = 0, b = 100) => Math.max(a, Math.min(b, v));
@@ -30,7 +33,7 @@ export interface EventTemplate {
   options: (s: GameState, vars: PendingEvent['vars']) => EventOption[];
 }
 
-const inCampaign = (s: GameState) => s.player.candidacy?.status === 'registrada' && monthIndex(s.month) >= 2028 * 12 + 7 && monthIndex(s.month) <= 2028 * 12 + 8;
+const inCampaign = (s: GameState) => { const y = s.player.candidacy?.year ?? 2028; return s.player.candidacy?.status === 'registrada' && monthIndex(s.month) >= y * 12 + 7 && monthIndex(s.month) <= y * 12 + 8; };
 
 export const EVENTS: EventTemplate[] = [
   {
@@ -265,16 +268,16 @@ export const EVENTS: EventTemplate[] = [
     title: () => 'Campanha no horário de trabalho',
     body: () => 'A coordenação de campanha do partido pede que você use o horário de expediente no gabinete para panfletar e organizar eventos. Servidor não pode fazer campanha durante o expediente (Lei 9.504/97, art. 73, III).',
     weight: 0.25,
-    condition: (s) => !!s.player.staff && !!s.player.candidacy && s.month.year === 2028 && s.month.month >= 8 && s.month.month <= 9 && !s.flags.expedienteDecidido,
+    condition: (s) => !!s.player.staff && !!s.player.candidacy && s.month.year === (s.player.candidacy.year ?? 2028) && s.month.month >= 8 && s.month.month <= 9 && !s.flags[`expediente_${s.month.year}`],
     options: () => [
-      { label: 'Tirar licença para fazer campanha', apply: (st) => { st.flags.expedienteDecidido = true; st.finances.cash -= Math.round(st.finances.monthlyIncome * 0.5); return 'Você tirou licença não remunerada parcial e fez campanha fora do expediente.'; } },
-      { label: 'Fazer campanha no expediente', hint: 'Conduta vedada', apply: (st) => { st.flags.expedienteDecidido = true; if (st.player.candidacy) { st.player.candidacy.campaignPoints += 6; st.player.candidacy.irregularities += 1; } return 'Você ganhou tempo de campanha, mas cometeu conduta vedada. Se denunciada, pesa na prestação de contas e em ações eleitorais.'; } },
+      { label: 'Tirar licença para fazer campanha', apply: (st) => { st.flags[`expediente_${st.month.year}`] = true; st.finances.cash -= Math.round(st.finances.monthlyIncome * 0.5); return 'Você tirou licença não remunerada parcial e fez campanha fora do expediente.'; } },
+      { label: 'Fazer campanha no expediente', hint: 'Conduta vedada', apply: (st) => { st.flags[`expediente_${st.month.year}`] = true; if (st.player.candidacy) { st.player.candidacy.campaignPoints += 6; st.player.candidacy.irregularities += 1; } return 'Você ganhou tempo de campanha, mas cometeu conduta vedada. Se denunciada, pesa na prestação de contas e em ações eleitorais.'; } },
     ],
   },
   {
     id: 'convite_secretaria',
     title: () => 'Convite para a prefeitura',
-    body: (s) => `O(a) prefeito(a) eleito(a), ${s.government.mayor.name}, convida você para chefiar uma secretaria municipal a partir de janeiro. É cargo de livre nomeação e exoneração, não eletivo. Por que você: ${String(s.flags.conviteMotivo ?? '')}`,
+    body: (s) => `O(a) prefeito(a) eleito(a), ${String(s.flags.prefeitoEleitoNome ?? s.government.mayor.name)}, convida você para chefiar uma secretaria municipal a partir de janeiro. É cargo de livre nomeação e exoneração, não eletivo. Por que você: ${String(s.flags.conviteMotivo ?? '')}`,
     weight: 0,
     condition: () => false,
     options: (s) => [
@@ -283,13 +286,74 @@ export const EVENTS: EventTemplate[] = [
         hint: `Orçamento (ordem de grandeza simulada): R$ ${p.budget.toLocaleString('pt-BR')} mi/ano. Indicadores: ${p.indicators.map((i) => i.label.toLowerCase()).join('; ')}.`,
         apply: (st: GameState) => {
           st.flags.secretariaAceita = p.id;
-          return `Você aceitou a Secretaria de ${p.name}. Toma posse em janeiro de 2029.`;
+          return `Você aceitou a Secretaria de ${p.name}. Toma posse em janeiro de ${st.month.year + 1}.`;
         },
       })),
       { label: 'Recusar', apply: () => 'Você recusou o convite.' },
     ],
   },
+  {
+    id: 'convite_secretaria_estadual',
+    title: () => 'Convite para o governo do Estado',
+    body: (s) => `O(a) governador(a) eleito(a), ${String(s.flags.conviteEstadualGov ?? '')} (personagem do jogo), convida você para uma secretaria estadual a partir de 6 de janeiro. Cargo de livre nomeação: o mandato no secretariado é abstrato nesta versão (programas por área e relação com o governador).`,
+    weight: 0,
+    condition: () => false,
+    options: () => [
+      ...STATE_AREAS.slice(0, 4).map((a) => ({
+        label: `Aceitar: ${a.label}`,
+        hint: s0(a.id),
+        apply: (st: GameState) => {
+          if (st.player.mandate && ['vereador', 'deputado_estadual', 'deputado_federal', 'senador'].includes(st.player.mandate.office)) {
+            st.flags.secEstadualAceita = a.id;
+            return `Você aceitou. Para assumir, deixará o mandato atual (o suplente assume a vaga). Posse em 6 de janeiro.`;
+          }
+          st.flags.secEstadualAceita = a.id;
+          return `Você aceitou a secretaria estadual (${a.label}). Posse em 6 de janeiro.`;
+        },
+      })),
+      { label: 'Recusar', apply: () => 'Você recusou o convite.' },
+    ],
+  },
+  {
+    id: 'enchente_regiao',
+    title: (_s, v) => `Enchente atinge a região ${String(v.regiao ?? '')}`,
+    body: (s, v) => `Chuvas fortes deixaram famílias desalojadas na região ${String(v.regiao ?? '')}. ${s.communityPromises.some((p) => p.region === v.regionId && (p.status === 'aberta' || p.status === 'em_andamento')) ? 'Moradores lembram que você fez uma promessa pública para esta região.' : 'Lideranças locais pedem ajuda e visibilidade.'} Como você reage?`,
+    weight: 0.05,
+    condition: (s) => s.player.recognition >= 15 && (s.month.month <= 3 || s.month.month === 12),
+    options: (s, v) => [
+      {
+        label: 'Ir ao local e coordenar ajuda', hint: 'Custa tempo e dinheiro pessoal (R$ 5 mil); rende confiança',
+        apply: (st, rng) => {
+          st.finances.cash -= 5000;
+          addGoodwill(st, String(v.regionId), 6 + next(rng) * 4);
+          st.player.base = grow(st.player.base, 2);
+          if (st.player.mandate) st.player.mandate.approval = clamp(st.player.mandate.approval + 1);
+          return 'Você passou o dia no local, ajudou a organizar abrigos e doações. A região reconhece a presença.';
+        },
+      },
+      {
+        label: 'Postar nas redes e cobrar o poder público',
+        apply: (st, rng) => {
+          st.player.recognition = grow(st.player.recognition, 2);
+          if (next(rng) < 0.35) { addGoodwill(st, String(v.regionId), -4); return 'O post rendeu alcance, mas moradores reclamaram de quem "só aparece no celular".'; }
+          return 'O post circulou e pressionou a prefeitura.';
+        },
+      },
+      ...(s.player.mandate && ['prefeito', 'governador'].includes(s.player.mandate.office) ? [{
+        label: 'Decretar emergência e liberar recursos', hint: 'R$ 80 mi do caixa',
+        apply: (st: GameState) => {
+          if (st.player.mandate!.office === 'prefeito') st.city.cash -= 80;
+          addGoodwill(st, String(v.regionId), 10);
+          st.player.mandate!.approval = clamp(st.player.mandate!.approval + 2);
+          return 'Situação de emergência decretada; equipes e recursos chegaram em 48 horas.';
+        },
+      }] : []),
+      { label: 'Não se envolver', apply: (st) => { addGoodwill(st, String(v.regionId), -3); return 'Você não apareceu. Alguém notou.'; } },
+    ],
+  },
 ];
+
+const s0 = (area: string) => `Área estadual: ${area}`;
 
 export function eventById(id: string) {
   return EVENTS.find((e) => e.id === id);
@@ -297,7 +361,13 @@ export function eventById(id: string) {
 
 export function rollEvent(s: GameState, rng: RngState): PendingEvent | null {
   for (const e of EVENTS) {
-    if (e.weight > 0 && e.condition(s) && next(rng) < e.weight) return { templateId: e.id, vars: {} };
+    if (e.weight > 0 && e.condition(s) && next(rng) < e.weight) {
+      if (e.id === 'enchente_regiao') {
+        const r = REGIONS[Math.floor(next(rng) * REGIONS.length)];
+        return { templateId: e.id, vars: { regiao: r.name, regionId: r.id } };
+      }
+      return { templateId: e.id, vars: {} };
+    }
   }
   return null;
 }
