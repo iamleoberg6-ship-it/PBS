@@ -2,7 +2,7 @@
 //
 // [REAL] Secretário municipal é cargo de livre nomeação e exoneração do prefeito (CF art. 37 II; LOM-SP).
 // [REAL] Contratações seguem a Lei 14.133/2021 (licitação), com controle do Tribunal de Contas do Município de SP.
-// [FICÇÃO/PARÂMETRO] Orçamentos são ORDENS DE GRANDEZA SIMULADAS (não são os valores oficiais da LOA);
+// Orçamentos: Saúde, Educação e Assistência ancorados no PLOA 2026 (ver data/spfinance.ts); demais áreas são estimativas;
 // os indicadores sociais partem de valores SIMULADOS e plausíveis, rotulados como tal; custos e prazos de programas
 // são parâmetros de jogo.
 
@@ -10,6 +10,8 @@ import { next, normal, pick, type RngState } from '../rng';
 import { ideologicalDistance, partyIdeology, EXPERT_SCALE } from '../data/ideology';
 import { listIdForParty } from '../data/parties';
 import type { GameState, ProfessionId, SecIndicator, SecProgram, Secretariat } from './types';
+import { AREA_BASE_2027, type AreaKey } from '../data/spfinance';
+import { areaFunding } from './municipality';
 
 const clamp = (v: number, a = 0, b = 100) => Math.max(a, Math.min(b, v));
 
@@ -29,7 +31,7 @@ export interface PortfolioDef {
 
 export const PORTFOLIOS: PortfolioDef[] = [
   {
-    id: 'saude', name: 'Saúde', budget: 18000, fit: ['medico', 'servidor', 'economista'],
+    id: 'saude', name: 'Saúde', budget: AREA_BASE_2027.saude.total, fit: ['medico', 'servidor', 'economista'],
     indicators: [
       { key: 'espera', label: 'Espera por consulta na atenção básica', unit: 'dias', start: 28, better: 'down', drift: 0.25, min: 3 },
       { key: 'esf', label: 'Cobertura da Saúde da Família', unit: '%', start: 52, better: 'up', drift: -0.05, max: 100 },
@@ -47,7 +49,7 @@ export const PORTFOLIOS: PortfolioDef[] = [
     ],
   },
   {
-    id: 'educacao', name: 'Educação', budget: 22000, fit: ['professor', 'servidor'],
+    id: 'educacao', name: 'Educação', budget: AREA_BASE_2027.educacao.total, fit: ['professor', 'servidor'],
     indicators: [
       { key: 'fila_creche', label: 'Fila de vagas em creche', unit: 'crianças', start: 12000, better: 'down', drift: 120, min: 0 },
       { key: 'aprend', label: 'Índice de aprendizagem (escala do jogo)', unit: '/10', start: 5.6, better: 'up', drift: -0.005, max: 10 },
@@ -65,7 +67,7 @@ export const PORTFOLIOS: PortfolioDef[] = [
     ],
   },
   {
-    id: 'mobilidade', name: 'Mobilidade e Trânsito', budget: 8000, fit: ['engenheiro', 'economista', 'servidor'],
+    id: 'mobilidade', name: 'Mobilidade e Trânsito', budget: AREA_BASE_2027.mobilidade.total, fit: ['engenheiro', 'economista', 'servidor'],
     indicators: [
       { key: 'viagem', label: 'Tempo médio de viagem de ônibus', unit: 'min', start: 52, better: 'down', drift: 0.12, min: 20 },
       { key: 'veloc', label: 'Velocidade média nos corredores', unit: 'km/h', start: 17, better: 'up', drift: -0.03, max: 30 },
@@ -83,7 +85,7 @@ export const PORTFOLIOS: PortfolioDef[] = [
     ],
   },
   {
-    id: 'habitacao', name: 'Habitação', budget: 2500, fit: ['engenheiro', 'lider_comunitario', 'advogado'],
+    id: 'habitacao', name: 'Habitação', budget: AREA_BASE_2027.habitacao.total, fit: ['engenheiro', 'lider_comunitario', 'advogado'],
     indicators: [
       { key: 'unidades', label: 'Moradias entregues no mandato', unit: 'unidades', start: 0, better: 'up', drift: 0, min: 0 },
       { key: 'risco', label: 'Famílias em área de risco', unit: 'mil', start: 40, better: 'down', drift: 0.05, min: 0 },
@@ -101,7 +103,7 @@ export const PORTFOLIOS: PortfolioDef[] = [
     ],
   },
   {
-    id: 'assistencia', name: 'Assistência e Desenvolvimento Social', budget: 3000, fit: ['lider_comunitario', 'servidor', 'professor'],
+    id: 'assistencia', name: 'Assistência e Desenvolvimento Social', budget: AREA_BASE_2027.assistencia.total, fit: ['lider_comunitario', 'servidor', 'professor'],
     indicators: [
       { key: 'acolhidos', label: 'População de rua acolhida', unit: '%', start: 45, better: 'up', drift: -0.1, max: 100 },
       { key: 'cras', label: 'Famílias atendidas nos CRAS', unit: 'mil/mês', start: 60, better: 'up', drift: -0.05, min: 0 },
@@ -119,7 +121,7 @@ export const PORTFOLIOS: PortfolioDef[] = [
     ],
   },
   {
-    id: 'cultura', name: 'Cultura', budget: 900, fit: ['jornalista', 'influenciador', 'professor'],
+    id: 'cultura', name: 'Cultura', budget: AREA_BASE_2027.cultura.total, fit: ['jornalista', 'influenciador', 'professor'],
     indicators: [
       { key: 'publico', label: 'Público nos equipamentos culturais', unit: 'mil/mês', start: 380, better: 'up', drift: -1, min: 0 },
       { key: 'fomento', label: 'Projetos culturais fomentados no mandato', unit: 'projetos', start: 0, better: 'up', drift: 0, min: 0 },
@@ -136,7 +138,7 @@ export const PORTFOLIOS: PortfolioDef[] = [
     ],
   },
   {
-    id: 'esportes', name: 'Esportes e Lazer', budget: 400, fit: ['influenciador', 'professor', 'policial'],
+    id: 'esportes', name: 'Esportes e Lazer', budget: AREA_BASE_2027.esportes.total, fit: ['influenciador', 'professor', 'policial'],
     indicators: [
       { key: 'participantes', label: 'Participantes em programas esportivos', unit: 'mil', start: 90, better: 'up', drift: -0.2, min: 0 },
       { key: 'centros_ok', label: 'Centros esportivos em boas condições', unit: '%', start: 60, better: 'up', drift: -0.15, max: 100 },
@@ -152,7 +154,7 @@ export const PORTFOLIOS: PortfolioDef[] = [
     ],
   },
   {
-    id: 'meioambiente', name: 'Verde e Meio Ambiente', budget: 600, fit: ['engenheiro', 'agricultor', 'estudante'],
+    id: 'meioambiente', name: 'Verde e Meio Ambiente', budget: AREA_BASE_2027.meioambiente.total, fit: ['engenheiro', 'agricultor', 'estudante'],
     indicators: [
       { key: 'verde', label: 'Área verde por habitante', unit: 'm²', start: 12, better: 'up', drift: -0.005, min: 0 },
       { key: 'arvores', label: 'Árvores plantadas no mandato', unit: 'mil', start: 0, better: 'up', drift: 0, min: 0 },
@@ -169,7 +171,7 @@ export const PORTFOLIOS: PortfolioDef[] = [
     ],
   },
   {
-    id: 'subprefeituras', name: 'Subprefeituras (zeladoria)', budget: 4000, fit: ['lider_comunitario', 'empresario', 'engenheiro'],
+    id: 'subprefeituras', name: 'Subprefeituras (zeladoria)', budget: AREA_BASE_2027.subprefeituras.total, fit: ['lider_comunitario', 'empresario', 'engenheiro'],
     indicators: [
       { key: 'buracos', label: 'Buracos tapados no prazo', unit: '%', start: 55, better: 'up', drift: -0.2, max: 100 },
       { key: 'pedidos', label: 'Pedidos de zeladoria em aberto', unit: 'mil', start: 35, better: 'down', drift: 0.4, min: 0 },
@@ -186,7 +188,7 @@ export const PORTFOLIOS: PortfolioDef[] = [
     ],
   },
   {
-    id: 'seguranca', name: 'Segurança Urbana', budget: 900, fit: ['policial', 'advogado', 'servidor'],
+    id: 'seguranca', name: 'Segurança Urbana', budget: AREA_BASE_2027.seguranca.total, fit: ['policial', 'advogado', 'servidor'],
     indicators: [
       { key: 'patrulha', label: 'Efetivo da GCM em patrulhamento', unit: '%', start: 60, better: 'up', drift: -0.1, max: 100 },
       { key: 'furtos', label: 'Furtos em áreas monitoradas (índice do jogo)', unit: '/100', start: 60, better: 'down', drift: 0.1, min: 0 },
@@ -209,7 +211,7 @@ export const portfolioById = (id: string) => PORTFOLIOS.find((p) => p.id === id 
 export const SEC_RULES = [
   '[REAL] Secretário municipal é cargo de livre nomeação e exoneração do prefeito.',
   '[REAL] Contratações passam por licitação (Lei 14.133/2021) e são fiscalizadas pelo Tribunal de Contas do Município.',
-  '[FICÇÃO] Orçamentos são ordens de grandeza simuladas, não os valores da Lei Orçamentária.',
+  '[REAL/ESTIMATIVA] Orçamento da pasta vem da LOA do jogo: Saúde, Educação e Assistência ancorados no PLOA 2026; as demais áreas são estimativas do jogo.',
   '[FICÇÃO] Indicadores começam em valores simulados plausíveis; não são estatísticas oficiais.',
   '[PARÂMETRO] Custos, prazos, atrasos, crises e risco de exoneração são parâmetros de jogo.',
 ];
@@ -253,7 +255,7 @@ export function createSecretariat(portfolioId: string): Secretariat {
 /** Orçamento livre: fatia discricionária do ano menos programas ainda não entregues e ações pontuais. */
 export const freeBudget = (sec: Secretariat) => Math.round(sec.budget * DISCRETIONARY_SHARE - sec.programs.filter((p) => p.phase !== 'cancelado' && p.phase !== 'entregue').reduce((a, p) => a + p.cost, 0) - sec.extraSpent);
 
-function applyEffects(sec: Secretariat, effects: Record<string, number>, scale = 1) {
+export function applyEffects(sec: Secretariat, effects: Record<string, number>, scale = 1) {
   const def = portfolioById(sec.portfolio)!;
   for (const [k, v] of Object.entries(effects)) {
     const ind = sec.indicators.find((i) => i.key === k);
@@ -385,65 +387,84 @@ export function manageCrisis(s: GameState, rng: RngState): string {
 }
 
 // ---------------- Passo mensal ----------------
-export function secretariatMonthlyStep(s: GameState, rng: RngState): string[] {
-  const m = s.player.mandate;
-  const sec = m?.secretariat;
-  if (!m || !sec) return [];
-  const out: string[] = [];
+export interface CoreStepResult { notes: string[]; delivered: number; crisisStarted: boolean; crisisSeverity: number }
+
+/**
+ * Passo mensal de uma pasta, comum ao jogador e às secretarias da IA.
+ * funding = orçamento da área na LOA ÷ orçamento de referência (1 = mantido; < 1 = corte; > 1 = reforço).
+ */
+export function stepSecretariatCore(sec: Secretariat, rng: RngState, opts: { funding?: number; crisisShield?: boolean } = {}): CoreStepResult {
   const def = portfolioById(sec.portfolio)!;
-  sec.monthsInOffice++;
-  if (s.month.month === 1 && sec.monthsInOffice > 1) { sec.executed = 0; sec.extraSpent = 0; sec.budget = Math.round(def.budget * (1 + (sec.budget / def.budget - 1) * 0.5)); }
-  // Pressão natural sobre os indicadores (demanda cresce, equipamentos envelhecem).
-  for (const d of def.indicators) if (d.drift) applyEffects(sec, { [d.key]: d.drift * (1.2 - sec.capacity / 100) });
-  // Programas.
+  const res: CoreStepResult = { notes: [], delivered: 0, crisisStarted: false, crisisSeverity: 0 };
+  const funding = opts.funding ?? 1;
+  const fundingDrift = Math.max(0.4, Math.min(3, 1 + (1 - funding) * 2.5));
+  // Pressão natural sobre os indicadores (demanda cresce, equipamentos envelhecem); cortes aceleram, reforço freia.
+  for (const d of def.indicators) if (d.drift) applyEffects(sec, { [d.key]: d.drift * (1.2 - sec.capacity / 100) * fundingDrift });
   for (const p of sec.programs) {
     if (!['planejamento', 'licitacao', 'execucao'].includes(p.phase)) continue;
     const pd = def.programs.find((x) => x.id === p.id)!;
     if (p.phase === 'execucao') sec.executed += p.cost / Math.max(1, pd.exec);
     p.monthsLeft--;
     if (p.monthsLeft > 0) continue;
-    if (p.phase === 'planejamento') { p.phase = 'licitacao'; p.monthsLeft = pd.lic; out.push(`"${p.label}": edital publicado; começa a licitação.`); continue; }
+    if (p.phase === 'planejamento') { p.phase = 'licitacao'; p.monthsLeft = pd.lic; res.notes.push(`"${p.label}": edital publicado; começa a licitação.`); continue; }
     if (p.phase === 'licitacao') {
-      if (next(rng) < 0.3 - sec.capacity / 400) { p.monthsLeft = 1 + Math.floor(next(rng) * 2); p.delayed = true; out.push(`"${p.label}": licitação impugnada; o Tribunal de Contas pediu esclarecimentos. Atraso de ${p.monthsLeft} mês(es).`); continue; }
-      p.phase = 'execucao'; p.monthsLeft = pd.exec; out.push(`"${p.label}": contrato assinado; execução começa.`); continue;
+      if (next(rng) < 0.3 - sec.capacity / 400) { p.monthsLeft = 1 + Math.floor(next(rng) * 2); p.delayed = true; res.notes.push(`"${p.label}": licitação impugnada; o Tribunal de Contas pediu esclarecimentos. Atraso de ${p.monthsLeft} mês(es).`); continue; }
+      p.phase = 'execucao'; p.monthsLeft = pd.exec; res.notes.push(`"${p.label}": contrato assinado; execução começa.`); continue;
     }
     if (p.phase === 'execucao') {
       if (next(rng) < 0.28 - sec.capacity / 450) {
         p.monthsLeft = 1 + Math.floor(next(rng) * 3); p.delayed = true;
         const over = Math.round(p.cost * 0.1);
         p.cost += over;
-        out.push(`"${p.label}": atraso na execução e aditivo de R$ ${over} mi.`);
+        res.notes.push(`"${p.label}": atraso na execução e aditivo de R$ ${over} mi.`);
         continue;
       }
       p.phase = 'entregue';
       applyEffects(sec, p.effects, 0.85 + sec.capacity / 400);
-      m.approval = clamp(m.approval + 3);
-      s.player.recognition = clamp(s.player.recognition + 2.5);
-      out.push(`Entrega: "${p.label}" concluído.`);
+      res.delivered++;
+      res.notes.push(`Entrega: "${p.label}" concluído.`);
     }
   }
-  // Crises.
   if (sec.crisis) {
     applyEffects(sec, Object.fromEntries(Object.entries(def.crises.find((c) => c.id === sec.crisis!.id)?.effects ?? {}).map(([k, v]) => [k, v * 0.25])));
-    m.approval = clamp(m.approval - sec.crisis.severity * 0.6);
-    m.relationExecutive = clamp(m.relationExecutive - 1);
+    res.crisisSeverity = sec.crisis.severity;
     sec.crisis.monthsLeft--;
-    if (sec.crisis.monthsLeft <= 0) { out.push(`A crise "${sec.crisis.label}" saiu do noticiário.`); sec.crisis = null; }
+    if (sec.crisis.monthsLeft <= 0) { res.notes.push(`A crise "${sec.crisis.label}" saiu do noticiário.`); sec.crisis = null; }
   } else {
-    let p = 0.07;
-    if (def.id === 'habitacao' && typeof s.flags.vistoriaRisco === 'number' && monthIndexOf(s) - (s.flags.vistoriaRisco as number) < 6) p *= 0.4;
+    let p = 0.07 * (funding < 0.9 ? 1.5 : 1);
+    if (opts.crisisShield) p *= 0.4;
     if (next(rng) < p) {
       const c = pick(rng, def.crises);
       sec.crisis = { id: c.id, label: c.label, monthsLeft: 2 + Math.floor(next(rng) * 2), severity: 1 + Math.floor(next(rng) * 3) };
       applyEffects(sec, c.effects);
-      m.approval = clamp(m.approval - 3);
-      out.push(`Crise na pasta: ${c.label}. Use "Gabinete de crise".`);
+      res.crisisStarted = true;
+      res.notes.push(`Crise na pasta de ${sec.name}: ${c.label}.`);
     }
   }
+  sec.relationCouncil = clamp(sec.relationCouncil + (50 - sec.relationCouncil) * 0.04);
+  return res;
+}
+
+export function secretariatMonthlyStep(s: GameState, rng: RngState): string[] {
+  const m = s.player.mandate;
+  const sec = m?.secretariat;
+  if (!m || !sec) return [];
+  const def = portfolioById(sec.portfolio)!;
+  sec.monthsInOffice++;
+  if (s.month.month === 1 && sec.monthsInOffice > 1) {
+    sec.executed = 0; sec.extraSpent = 0;
+    const loaBudget = s.city?.loa.areas[def.id as AreaKey];
+    sec.budget = loaBudget ? Math.round(loaBudget) : Math.round(def.budget * (1 + (sec.budget / def.budget - 1) * 0.5));
+  }
+  const shield = def.id === 'habitacao' && typeof s.flags.vistoriaRisco === 'number' && monthIndexOf(s) - (s.flags.vistoriaRisco as number) < 6;
+  const r = stepSecretariatCore(sec, rng, { funding: s.city ? areaFunding(s, def.id as AreaKey) : 1, crisisShield: shield });
+  const out = r.notes.map((n) => (n.startsWith('Crise na pasta') ? `${n} Use "Gabinete de crise".` : n));
+  m.approval = clamp(m.approval + r.delivered * 3 - r.crisisSeverity * 0.6 - (r.crisisStarted ? 3 : 0));
+  s.player.recognition = clamp(s.player.recognition + r.delivered * 2.5);
+  if (r.crisisSeverity) m.relationExecutive = clamp(m.relationExecutive - 1);
   // Aprovação da pasta acompanha desempenho e relações.
   const target = 45 + performance(sec) * 30 + (sec.relationCouncil - 50) / 10 - (sec.crisis ? 6 : 0);
   m.approval = clamp(m.approval + (target - m.approval) * 0.15 + normal(rng, 0, 0.8));
-  sec.relationCouncil = clamp(sec.relationCouncil + (50 - sec.relationCouncil) * 0.04);
   m.relationExecutive = clamp(m.relationExecutive + (m.approval - 50) / 80 + (55 - m.relationExecutive) * 0.04);
   // Risco de exoneração (livre nomeação): relação ruim ou pasta mal avaliada por 3+ meses.
   if (m.relationExecutive < 25 || m.approval < 28) sec.lowMonths++; else sec.lowMonths = Math.max(0, sec.lowMonths - 1);

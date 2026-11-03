@@ -4,7 +4,7 @@ import type { EligibilityCheck, MunicipalOffice } from '../rules/eligibility';
 import type { ProportionalResult } from '../rules/proportional';
 import type { MajRoundResult } from '../rules/majoritarian';
 
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 
 export type NetworkId = 'instagram' | 'x' | 'youtube' | 'tiktok';
 
@@ -159,7 +159,7 @@ export interface RollCall {
   quorum: string;
 }
 
-export type BillKind = 'regulacao' | 'programa' | 'denominacao' | 'executivo';
+export type BillKind = 'regulacao' | 'programa' | 'denominacao' | 'executivo' | 'orcamento' | 'tributo';
 export type BillStage = 'ccj' | 'merito' | 'financas' | 'plenario' | 'sancao' | 'veto' | 'lei' | 'arquivado' | 'rejeitado' | 'veto_mantido';
 
 export interface Bill {
@@ -186,6 +186,8 @@ export interface Bill {
   vote: RollCall | null;
   vetoVote: RollCall | null;
   history: { month: GameMonth; text: string }[];
+  /** Dados de projetos fiscais (LDO, LOA, tributos): aplicados quando viram lei. */
+  payload?: Record<string, string | number>;
 }
 
 export interface Cpi {
@@ -247,7 +249,75 @@ export interface Secretariat {
   monthsInOffice: number;
   crisis: { id: string; label: string; monthsLeft: number; severity: number } | null;
   lowMonths: number; // meses seguidos com relação/aprovação críticas (risco de exoneração)
+  approval?: number; // aprovação da pasta quando chefiada pela IA
   lastActionNote: string | null;
+}
+
+export interface LoaBudget {
+  year: number;
+  revenue: { iptu: number; iss: number; itbi: number; transf: number; outras: number; credito: number; capitalOutras: number };
+  personnel: number; // pessoal ativo + inativo (R$ mi)
+  debtService: number; // juros + amortização
+  areas: Record<string, number>; // orçamento total de cada área (inclui o pessoal lotado nela)
+  other: number; // demais órgãos: obras, administração, Câmara, encargos gerais
+  reserve: number; // reserva de contingência (LRF art. 5º, III)
+  status: 'base' | 'aprovada' | 'prorrogada' | 'rascunho';
+  source: string;
+}
+
+export interface CitySecretary {
+  portfolio: string;
+  name: string;
+  partyId: string | null;
+  kind: 'tecnico' | 'politico' | 'interino';
+  competence: number; // 0–100 (simulado)
+  since: GameMonth;
+}
+
+export interface YearResult {
+  year: number;
+  revenue: number;
+  expense: number;
+  result: number;
+  rcl: number;
+  personnelRatio: number;
+  educationRatio: number;
+  healthRatio: number;
+  debtRatio: number;
+  creditOps: number;
+  mayorWasPlayer: boolean;
+}
+
+export interface TcmOpinion {
+  year: number;
+  opinion: 'favoravel' | 'favoravel_ressalvas' | 'contrario';
+  reasons: string[];
+  judgment: 'pendente' | 'aprovadas' | 'rejeitadas';
+  votes?: number;
+}
+
+export interface City {
+  loa: LoaBudget;
+  nextLoa: LoaBudget | null;
+  draft: LoaBudget | null;
+  ytd: { revenue: number; correntes: number; impostos: number; expense: number; personnel: number; byArea: Record<string, number>; credit: number; months: number };
+  activity: number; // índice de atividade econômica (1 = tendência)
+  priceLevel: number; // nível de preços relativo a 2027
+  iptuIndex: number; // multiplicador da arrecadação do IPTU (planta genérica)
+  issIndex: number; // multiplicador da arrecadação do ISS (alíquotas)
+  pendingTaxes: { tax: 'iptu' | 'iss'; change: number; effectiveYear: number }[];
+  debt: number; // dívida consolidada bruta (R$ mi)
+  cash: number; // disponibilidade de caixa (R$ mi)
+  contingency: number; // 0–0,3: fração do custeio/investimento contingenciada
+  pendingCredit: { amount: number; area: string; readyAt: GameMonth }[];
+  secretaries: Record<string, CitySecretary>;
+  secretariats: Record<string, Secretariat>; // pastas chefiadas pela IA
+  history: YearResult[];
+  tcm: TcmOpinion[];
+  ldo: Record<string, { target: 'equilibrio' | 'expansionista' | 'austero'; status: 'enviada' | 'aprovada' | 'rejeitada' }>;
+  metas: { pkg: string; areas: string[]; start: Record<string, number>; presentedAt: GameMonth } | null;
+  ppa: { period: string; status: 'enviado' | 'aprovado' } | null;
+  approval: number; // avaliação do governo (simulada) quando o prefeito é da IA
 }
 
 export interface PlayerPartyRel {
@@ -457,6 +527,7 @@ export interface GameState {
   promises: PoliticalPromise[];
   ledger: CauseEntry[];
   legislature: Legislature;
+  city: City;
   pendingEvents: PendingEvent[];
   log: LogEntry[];
   flags: Record<string, boolean | number | string>;

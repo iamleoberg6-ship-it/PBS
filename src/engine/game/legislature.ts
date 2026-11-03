@@ -12,6 +12,7 @@ import { partyById } from '../data/parties';
 import { PLAYER, adjustRel, rel, standing } from './relations';
 import { councillorActors } from './actors';
 import { pushNews } from './news';
+import { onLawEnacted } from './municipality';
 import type { Bill, BillKind, BillStage, Committee, Cpi, GameState, Legislature, RollCall, Stance, VoteChoice } from './types';
 
 const clamp = (v: number, a = 0, b = 100) => Math.max(a, Math.min(b, v));
@@ -54,6 +55,8 @@ export const THEME_LABEL: Record<string, string> = {
 };
 
 export const KIND_LABEL: Record<BillKind, string> = {
+  orcamento: 'Lei orçamentária (LDO, LOA, PPA)',
+  tributo: 'Lei tributária',
   regulacao: 'Regulação de serviço ou atividade local',
   programa: 'Cria programa municipal (gera despesa)',
   denominacao: 'Denominação de logradouro / data comemorativa',
@@ -533,6 +536,10 @@ export function legislatureMonthlyStep(s: GameState, rng: RngState): string[] {
       continue;
     }
     if (b.stage === 'sancao') {
+      if (b.author === 'executivo' && (playerIsMayor(s) || b.kind === 'orcamento' || b.kind === 'tributo')) {
+        enactLaw(s, b, playerIsMayor(s) ? 'Sancionado por você (projeto do seu governo).' : 'Sancionado pelo prefeito.', notes);
+        continue;
+      }
       if (playerIsMayor(s)) {
         if (b.monthsInStage >= 2) { enactLaw(s, b, 'Sanção tácita: o prazo de 15 dias passou sem manifestação do prefeito.', notes); }
         continue;
@@ -580,13 +587,15 @@ function enactLaw(s: GameState, b: Bill, text: string, notes: string[]) {
   b.stage = 'lei';
   b.monthsInStage = 0;
   b.history.push({ month: { ...s.month }, text });
+  const fiscal = onLawEnacted(s, b, s.rng);
+  if (fiscal) { notes.push(fiscal); b.history.push({ month: { ...s.month }, text: fiscal }); }
   if (b.author === PLAYER && s.player.mandate) {
     s.player.mandate.approval = clamp(s.player.mandate.approval + 3 + b.salience / 25);
     s.player.recognition = clamp(s.player.recognition + 2 + b.salience / 20);
     s.player.base = clamp(s.player.base + 1.5);
     notes.push(`${b.number} — ${b.title}: aprovado e sancionado! Agora é lei municipal.`);
   } else if (b.author === 'executivo' && playerIsMayor(s) && s.player.mandate) {
-    s.player.mandate.approval = clamp(s.player.mandate.approval + 1.5 + b.salience / 30);
+    if (b.kind !== 'tributo') s.player.mandate.approval = clamp(s.player.mandate.approval + (b.kind === 'orcamento' ? 0.5 : 1.5 + b.salience / 30));
     notes.push(`Seu projeto ${b.number} — ${b.title} virou lei.`);
   }
 }

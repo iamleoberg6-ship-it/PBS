@@ -12,6 +12,7 @@ import { seatsByParty } from './council';
 import { PROFESSIONS } from './create';
 import { blocCounts, electMesa, initLegislature, legislatureMonthlyStep, legislatureNews, mesaWindow, playerIsCouncillor } from './legislature';
 import { createSecretariat, inviteAffinity, secretariatMonthlyStep } from './secretariat';
+import { aiFiscalPolicy, cityMonthlyStep, citySummaryForMayorApproval, closeFiscalYear, fiscalCalendar, isMayorPlayer, resetSecretariatForNewMayor, tcmStep } from './municipality';
 import { makeMayorPoll, makeRunoffPoll } from './polls';
 import { createMayorRace } from './elections';
 import { monthlySocialGrowth, digitalScore } from './social';
@@ -64,10 +65,23 @@ export function advanceMonth(state: GameState): GameState {
   if (mesaTerm !== null && !s.flags[`mesa_${mesaTerm}`]) log(s, 'camara', electMesa(s, mesaTerm, rng));
   mark('Câmara Municipal: votações, vetos e Mesa');
 
+  // 2a) Prefeitura: execução do orçamento, secretarias da IA, calendário fiscal e Tribunal de Contas.
+  aiFiscalPolicy(s);
+  for (const n of cityMonthlyStep(s, rng)) log(s, isMayorPlayer(s) ? 'mandato' : 'sistema', n);
+  for (const n of fiscalCalendar(s, rng)) log(s, isMayorPlayer(s) ? 'mandato' : 'sistema', n);
+  for (const n of tcmStep(s, rng)) log(s, 'mandato', n);
+  if (s.month.month === 12) for (const n of closeFiscalYear(s, rng)) log(s, isMayorPlayer(s) ? 'mandato' : 'sistema', n);
+  mark('Prefeitura: orçamento, secretarias e contas');
+
   // 2b) Secretaria (se o jogador chefia uma pasta).
   for (const n of secretariatMonthlyStep(s, rng)) log(s, 'secretaria', n);
   if (s.flags.exonerado && s.player.mandate?.office === 'secretario') {
     delete s.flags.exonerado;
+    const sec = s.player.mandate.secretariat;
+    if (sec) {
+      s.city.secretariats[sec.portfolio] = sec;
+      s.city.secretaries[sec.portfolio] = { portfolio: sec.portfolio, name: 'Novo(a) secretário(a) (personagem do jogo)', partyId: null, kind: 'tecnico', competence: 60, since: { ...s.month } };
+    }
     s.player.careerHistory.forEach((h) => { if (h.to === null) h.to = `${s.month.year}-${String(s.month.month).padStart(2, '0')}`; });
     s.player.mandate = null;
     s.player.job = 'profissao';
@@ -80,7 +94,7 @@ export function advanceMonth(state: GameState): GameState {
   if (m) {
     if (m.office === 'prefeito') {
       m.councilBase = blocCounts(s).base;
-      const drift = (50 - m.approval) * 0.03 + normal(rng, 0, 1.2) + (m.priorityArea ? 0.6 + s.character.attributes.management / 120 : -0.4) + (m.councilBase < 28 ? -0.8 : 0.3);
+      const drift = (50 - m.approval) * 0.05 + normal(rng, 0, 1.2) + (s.city.metas ? 0.3 + s.character.attributes.management / 160 : -0.3) + (m.councilBase < 28 ? -0.8 : 0.3) + citySummaryForMayorApproval(s) * 0.12;
       m.approval = clamp(m.approval + drift);
     } else if (!m.secretariat) {
       m.approval = clamp(m.approval + (50 - m.approval) * 0.02 + normal(rng, 0, 0.6));
@@ -351,10 +365,15 @@ function handlePosse(s: GameState) {
     s.player.careerHistory.forEach((h) => { if (h.to === null) h.to = '2028-12'; });
     s.player.careerHistory.push({ office: 'Prefeito(a) de São Paulo', from: '2029-01', to: null, note: `${(rec.playerVotes ?? 0).toLocaleString('pt-BR')} votos no 1º turno` });
     log(s, 'mandato', `Você tomou posse como prefeito(a). Sua coligação elegeu ${base} dos 55 vereadores: ${base >= 28 ? 'você começa com maioria' : 'você precisa ampliar a base para aprovar projetos'}.`);
+    resetSecretariatForNewMayor(s, s.rng);
+    log(s, 'mandato', 'As secretarias estão com interinos: nomeie o secretariado. Você tem até o fim de março para apresentar o Programa de Metas (LOM art. 69-A).');
     s.government.mayorCoalition = coalition;
   } else if (typeof s.flags.secretariaAceita === 'string') {
     s.player.mandate = newMandate('secretario', '2029-01-01', '2032-12-31');
-    const sec = createSecretariat(String(s.flags.secretariaAceita));
+    const pid = String(s.flags.secretariaAceita);
+    // O jogador herda a pasta como ela está na cidade (indicadores, programas em andamento).
+    const sec = s.city.secretariats[pid] ? { ...structuredClone(s.city.secretariats[pid]), monthsInOffice: 0, lowMonths: 0, crisis: null } : createSecretariat(pid);
+    s.city.secretaries[pid] = { portfolio: pid, name: s.character.name, partyId: s.player.partyId, kind: 'politico', competence: s.character.attributes.management, since: { ...s.month } };
     s.player.mandate.portfolio = sec.name;
     s.player.mandate.secretariat = sec;
     s.player.mandate.stance = 'base';

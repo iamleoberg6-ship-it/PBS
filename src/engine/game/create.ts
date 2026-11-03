@@ -5,6 +5,7 @@ import { REAL_FIGURES, SAO_PAULO } from '../data/world';
 import { fictionalName } from './names';
 import { initialCouncillors, seatsByParty } from './council';
 import { electMesa, emptyLegislature, initLegislature } from './legislature';
+import { initCity } from './municipality';
 import { initialSocial } from './social';
 import { recomputeNetWorth } from './finance';
 import { councillorActors } from './actors';
@@ -179,6 +180,7 @@ export function createGame(input: NewGameInput): GameState {
     promises: [],
     ledger: [],
     legislature: emptyLegislature(),
+    city: null as unknown as GameState['city'],
     pendingEvents: [],
     log: [{ month: { year: 2027, month: 1 }, kind: 'sistema', text: `Partida iniciada em ${startDate}. Pacote de regras: ${RULEPACK_BR_2028_MUN.label}. Dados reais congelados em 30/10/2026.` }],
     flags: { seed },
@@ -194,6 +196,7 @@ export function createGame(input: NewGameInput): GameState {
   seedPlayerPartyRelations(state, rng);
   recomputeNetWorth(state);
   initLegislature(state, rng);
+  state.city = initCity(state, rng);
   const mesa = electMesa(state, 2027, rng);
   state.log.push({ month: state.month, kind: 'sistema', text: `${mesa} A eleição real da Mesa de 2027 acontece em dezembro de 2026, depois do retrato de dados do jogo.` });
   if (joinsParty) {

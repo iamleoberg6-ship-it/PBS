@@ -61,14 +61,14 @@ export function Secretaria({ s }: { s: GameState }) {
 
       <div className="grid g-2" style={{ marginTop: 10 }}>
         <div className="card">
-          <div className="card-title"><h3>Orçamento</h3><span className="tag proposta">ordem de grandeza simulada</span></div>
+          <div className="card-title"><h3>Orçamento</h3><span className="tag derivada">da LOA do jogo</span></div>
           <table><tbody>
             <tr><td>Orçamento anual da pasta</td><td className="num">R$ {sec.budget.toLocaleString('pt-BR')} mi</td></tr>
             <tr><td>Fatia livre para novos programas ({Math.round(DISCRETIONARY_SHARE * 100)}%)</td><td className="num">R$ {Math.round(sec.budget * DISCRETIONARY_SHARE).toLocaleString('pt-BR')} mi</td></tr>
             <tr><td><b>Disponível agora</b></td><td className="num"><b>R$ {freeBudget(sec).toLocaleString('pt-BR')} mi</b></td></tr>
             <tr><td>Executado no ano (programas e ações)</td><td className="num">R$ {Math.round(sec.executed).toLocaleString('pt-BR')} mi</td></tr>
           </tbody></table>
-          <p className="small muted" style={{ marginTop: 8 }}>O restante do orçamento é custeio já comprometido (pessoal, contratos, manutenção). Não são os valores da Lei Orçamentária real.</p>
+          <p className="small muted" style={{ marginTop: 8 }}>O restante é custeio já comprometido (pessoal, contratos, manutenção). Saúde, Educação e Assistência partem do PLOA 2026; as demais áreas são estimativas.</p>
         </div>
         <div className="card">
           <h3>Programas</h3>

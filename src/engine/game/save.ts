@@ -17,6 +17,7 @@ import { councillorActors } from './actors';
 import { buildPartyOrgs, defaultPartyRel, seedPlayerPartyRelations } from './partyorg';
 import { emptyLegislature, fileBill, initLegislature } from './legislature';
 import { createSecretariat } from './secretariat';
+import { initCity } from './municipality';
 import { NUNES_2024_COALITION } from './create';
 
 const KEY = 'pbs_save_slot_1';
@@ -109,6 +110,13 @@ export function migrate(raw: Raw, report: LoadReport): Raw {
       m.portfolio = m.secretariat.name;
     }
     report.repairs.push('Câmara Municipal ganhou comissões, projetos com tramitação, blocos e Mesa (gerados para esta partida).');
+  }
+  // v5 → v6: Prefeitura com orçamento, limites fiscais, secretarias da IA e contas.
+  if (!s.city) {
+    s.city = initCity(s as GameState, createRng((s.rng?.seed ?? 1) + 37));
+    const m = s.player?.mandate;
+    if (m?.office === 'secretario' && m.secretariat) m.secretariat.budget = s.city.loa.areas[m.secretariat.portfolio] ?? m.secretariat.budget;
+    report.repairs.push('Prefeitura ganhou orçamento (base real de 2025–2027), limites fiscais e secretariado.');
   }
   s.saveVersion = SAVE_VERSION;
   return s;
@@ -208,6 +216,10 @@ export function validateState(s: GameState, report: LoadReport = { migratedFrom:
     const billIds = new Set(s.legislature.bills.map((b) => b.id));
     for (const id of Object.keys(s.legislature.playerVotes)) if (!billIds.has(id)) delete s.legislature.playerVotes[id];
   }
+
+  // Prefeitura
+  if (!s.city || !s.city.loa) { s.city = initCity(s, createRng(s.rng.seed + 41)); report.repairs.push('Estado da Prefeitura ausente: recriado.'); }
+  for (const k of ['debt', 'cash', 'contingency', 'activity', 'priceLevel'] as const) if (!Number.isFinite(s.city[k])) { s.city[k] = k === 'activity' || k === 'priceLevel' ? 1 : 0; report.repairs.push(`Prefeitura: ${k} inválido corrigido.`); }
 
   // Redes sociais
   for (const [k, v] of Object.entries(s.player.social.networks)) {

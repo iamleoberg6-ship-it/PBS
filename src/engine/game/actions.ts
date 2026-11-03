@@ -7,7 +7,9 @@ import { monthIndex } from '../calendar';
 import { next, normal, pick, type RngState } from '../rng';
 import { partyStrength } from './elections';
 import { ABSOLUTE_MAJORITY, BLOC_LABEL, CPI_SIGNATURES, STAGE_LABEL, articulateVotes, blocCounts, collectSignatures, computeBlocs, fileBill, fileExecutiveBill, isActive, mayorDecide, mesaWindow, negotiateMesaVote, playerCommittee, publicHearing, requestRapporteur, schedule, startCpi } from './legislature';
-import { PORTFOLIOS, freeBudget, disputeBudget, manageCrisis, meetCouncillors, portfolioById, pressConference, specialAction, startProgram, superviseProgram, trainTeam } from './secretariat';
+import { METAS_PACKAGES, appointSecretary, draftChecks, personnelRatio, presentMetas, raiseSalaries, requestCredit, sendLdo, sendPloa, sendTaxBill, setContingency } from './municipality';
+import { AREA_KEYS } from '../data/spfinance';
+import { applyEffects, PORTFOLIOS, freeBudget, disputeBudget, manageCrisis, meetCouncillors, portfolioById, pressConference, specialAction, startProgram, superviseProgram, trainTeam } from './secretariat';
 import { PLAYER, adjustRel, standing } from './relations';
 import { contestBlock } from './partyorg';
 import { fatigueMultiplier, registerUse, dampenGains } from './fatigue';
@@ -676,35 +678,102 @@ export const ACTIONS: ActionDef[] = [
 
   // ---------------- Prefeitura ----------------
   {
-    id: 'prioridade', fatigue: false, label: 'Definir prioridade de gestão', category: 'Prefeitura', cost: 1,
-    description: 'Concentra recursos e atenção numa área de competência municipal.',
+    id: 'programa_metas', fatigue: false, label: 'Apresentar o Programa de Metas', category: 'Prefeitura', cost: 1,
+    description: 'Obrigatório até 90 dias após a posse (LOM art. 69-A): prioridades, indicadores e metas. As pastas escolhidas serão cobradas até o fim do mandato.',
+    availability: (s) => (inMandate(s, 'prefeito') ? (s.city.metas ? 'Programa de Metas já apresentado.' : null) : 'hidden'),
+    paramLabel: 'Prioridades',
+    params: () => Object.entries(METAS_PACKAGES).map(([k, v]) => ({ value: k, label: v.label })),
+    apply: (s, _rng, param) => presentMetas(s, param ?? 'social'),
+  },
+  {
+    id: 'nomear_secretario', label: 'Nomear secretário(a)', category: 'Prefeitura', cost: 1,
+    description: 'Perfil técnico entrega mais; indicação política agrada partidos e amplia a base na Câmara, com menos competência.',
     availability: (s) => (inMandate(s, 'prefeito') ? null : 'hidden'),
-    paramLabel: 'Área', params: () => THEMES,
-    apply: (s, _rng, param) => {
-      s.player.mandate!.priorityArea = param ?? null;
-      return `Prioridade da gestão: ${THEMES.find((t) => t.value === param)?.label}. Os resultados aparecem ao longo dos meses.`;
+    paramLabel: 'Pasta e perfil',
+    params: (s) => AREA_KEYS.flatMap((k) => {
+      const cur = s.city.secretaries[k];
+      const name = portfolioById(k)!.name;
+      const opts = [{ value: `${k}|tecnico|`, label: `${name} — perfil técnico${cur?.kind === 'interino' ? ' (hoje: interino)' : ''}` }];
+      const parties = Object.entries(s.government.councilSeatsByParty).filter(([p, n]) => n > 0 && p !== s.player.partyId).sort((a, b) => b[1] - a[1]).slice(0, 4);
+      for (const [p] of [[s.player.partyId ?? '', 0] as [string, number], ...parties]) if (p) opts.push({ value: `${k}|politico|${p}`, label: `${name} — indicação do ${partyById(p)?.acronym}${s.government.mayorCoalition.includes(p) ? '' : ' (traz o partido para a base)'}` });
+      return opts;
+    }),
+    apply: (s, rng, param) => {
+      const [k, kind, party] = (param ?? 'saude|tecnico|').split('|');
+      if (kind === 'politico' && party && !s.government.mayorCoalition.includes(party)) {
+        const d = ideologicalDistance(s.character.ideology, partyIdeology(party)) ?? 0.3;
+        if (next(rng) > 0.45 + s.character.attributes.negotiation / 200 - d * 0.9) return `O ${partyById(party)?.acronym} recusou a pasta: distância política grande demais.`;
+      }
+      const msg = appointSecretary(s, rng, k, kind as 'tecnico' | 'politico', party || null);
+      s.legislature.blocs = computeBlocs(s, rng);
+      s.player.mandate!.councilBase = blocCounts(s).base;
+      return `${msg} Base na Câmara: ${s.player.mandate!.councilBase}/55.`;
     },
   },
   {
-    id: 'secretariado', label: 'Ceder espaço no governo a um partido', category: 'Prefeitura', cost: 1,
-    description: 'Secretarias e cargos em troca de apoio na Câmara. Amplia a base, mas custa aprovação e coerência.',
-    availability: (s) => (inMandate(s, 'prefeito') ? (coalitionCandidates(s).length ? null : 'Todas as bancadas já estão na base.') : 'hidden'),
-    paramLabel: 'Partido',
-    params: (s) => coalitionCandidates(s).map(([p, n]) => ({ value: p, label: `${partyById(p)?.acronym} (${n} vereador${n > 1 ? 'es' : ''})` })),
-    apply: (s, rng, param) => {
-      const pid = param!;
-      const d = ideologicalDistance(s.character.ideology, partyIdeology(pid)) ?? 0.3;
-      const p = 0.35 + s.character.attributes.negotiation / 200 - d * 0.9;
-      const acr = partyById(pid)?.acronym;
-      if (next(rng) < Math.max(0.05, p)) {
-        s.government.mayorCoalition.push(pid);
-        s.legislature.blocs = computeBlocs(s, rng);
-        s.player.mandate!.councilBase = blocCounts(s).base;
-        s.player.mandate!.approval = clamp(s.player.mandate!.approval - 1 - d * 3);
-        return `Acordo com o ${acr}: o partido entra no governo. Base na Câmara: ${s.player.mandate!.councilBase}/55.`;
-      }
-      return `O ${acr} recusou entrar no governo (distância política e cargos oferecidos insuficientes).`;
+    id: 'enviar_ldo', fatigue: false, label: 'Enviar a LDO à Câmara', category: 'Prefeitura', cost: 1,
+    description: 'Diretrizes e metas fiscais do ano seguinte. Prazo: 15 de abril (LOM art. 138).',
+    availability: (s) => {
+      if (!inMandate(s, 'prefeito')) return 'hidden';
+      if (s.city.ldo[String(s.month.year + 1)]) return 'LDO do próximo ano já enviada.';
+      return s.month.month <= 4 ? null : 'A LDO é enviada até 15 de abril.';
     },
+    paramLabel: 'Meta fiscal',
+    params: () => [{ value: 'equilibrio', label: 'Equilíbrio' }, { value: 'expansionista', label: 'Expansão do investimento (déficit financiado por crédito)' }, { value: 'austero', label: 'Superávit e redução da dívida' }],
+    apply: (s, rng, param) => sendLdo(s, rng, (param ?? 'equilibrio') as 'equilibrio'),
+  },
+  {
+    id: 'enviar_ploa', fatigue: false, label: 'Enviar o projeto de LOA à Câmara', category: 'Prefeitura', cost: 1,
+    description: 'Monte o orçamento na página Prefeitura (de julho a setembro). Prazo: 30 de setembro; a Câmara vota até 31/12. No 1º ano do mandato vai junto o Plano Plurianual.',
+    availability: (s) => {
+      if (!inMandate(s, 'prefeito')) return 'hidden';
+      if (s.legislature.bills.some((b) => b.payload?.tipo === 'loa' && Number(b.payload.year) === s.month.year + 1)) return 'LOA do próximo ano já enviada.';
+      if (s.month.month < 7 || s.month.month > 9) return 'O projeto de LOA é preparado de julho a setembro.';
+      if (!s.city.draft) return 'Abra o rascunho do orçamento na página Prefeitura.';
+      const chk = draftChecks(s, s.city.draft);
+      return chk.ok ? null : chk.issues[0];
+    },
+    apply: (s, rng) => sendPloa(s, rng),
+  },
+  {
+    id: 'reajustar_iptu', label: 'Propor mudança no IPTU', category: 'Prefeitura', cost: 1,
+    description: 'Atualização da planta genérica de valores. Precisa passar na Câmara; vale a partir do ano seguinte (anterioridade, CF art. 150). Aumento é impopular.',
+    availability: (s) => (inMandate(s, 'prefeito') ? (s.legislature.bills.some((b) => b.kind === 'tributo' && isActive(b)) ? 'Já há um projeto tributário tramitando.' : null) : 'hidden'),
+    paramLabel: 'Mudança',
+    params: () => [{ value: '0.05', label: '+5% na arrecadação' }, { value: '0.1', label: '+10% na arrecadação' }, { value: '-0.05', label: '−5% (redução)' }],
+    apply: (s, rng, param) => sendTaxBill(s, rng, 'iptu', Number(param ?? 0.05)),
+  },
+  {
+    id: 'reajustar_iss', label: 'Propor mudança no ISS', category: 'Prefeitura', cost: 1,
+    description: 'Alíquotas entre 2% e 5% (LC 116/2003). Vale no ano seguinte e 90 dias após a publicação. Empresas reagem; aumento pesa na atividade.',
+    availability: (s) => (inMandate(s, 'prefeito') ? (s.legislature.bills.some((b) => b.kind === 'tributo' && isActive(b)) ? 'Já há um projeto tributário tramitando.' : null) : 'hidden'),
+    paramLabel: 'Mudança',
+    params: () => [{ value: '0.04', label: '+4% na arrecadação' }, { value: '-0.04', label: '−4% (redução)' }],
+    apply: (s, rng, param) => sendTaxBill(s, rng, 'iss', Number(param ?? 0.04)),
+  },
+  {
+    id: 'contingenciar', fatigue: false, label: 'Decretar contingenciamento', category: 'Prefeitura', cost: 1,
+    description: 'Bloqueia parte do custeio e dos investimentos (LRF art. 9º). Melhora o caixa; piora os serviços e a avaliação.',
+    availability: (s) => (inMandate(s, 'prefeito') ? null : 'hidden'),
+    paramLabel: 'Bloqueio',
+    params: (s) => [0, 0.05, 0.1, 0.2].filter((v) => v !== s.city.contingency).map((v) => ({ value: String(v), label: v === 0 ? 'Suspender o contingenciamento' : `${v * 100}% do custeio e investimento` })),
+    apply: (s, _rng, param) => setContingency(s, Number(param ?? 0)),
+  },
+  {
+    id: 'operacao_credito', label: 'Contratar operação de crédito', category: 'Prefeitura', cost: 1,
+    description: 'Empréstimo para investimento (crédito adicional na área). Limites: 16% da RCL no ano e dívida até 1,2 vez a RCL (Senado). Vira dívida e serviço da dívida.',
+    availability: (s) => (inMandate(s, 'prefeito') ? null : 'hidden'),
+    paramLabel: 'Valor e destino',
+    params: () => (['saude', 'educacao', 'mobilidade', 'habitacao', 'subprefeituras'] as const).flatMap((a) => [1000, 3000].map((v) => ({ value: `${v}|${a}`, label: `R$ ${v.toLocaleString('pt-BR')} mi — ${portfolioById(a)!.name}` }))),
+    apply: (s, _rng, param) => { const [v, a] = (param ?? '1000|saude').split('|'); return requestCredit(s, Number(v), a); },
+  },
+  {
+    id: 'reajuste_servidores', label: 'Conceder reajuste aos servidores', category: 'Prefeitura', cost: 1,
+    description: 'Melhora as equipes e agrada o funcionalismo; aumenta a despesa com pessoal. Vedado acima do limite prudencial e nos 180 dias finais do mandato (LRF arts. 21 e 22).',
+    availability: (s) => (inMandate(s, 'prefeito') ? null : 'hidden'),
+    paramLabel: 'Reajuste',
+    params: () => [{ value: '0.03', label: '3%' }, { value: '0.06', label: '6%' }],
+    apply: (s, _rng, param) => raiseSalaries(s, Number(param ?? 0.03)),
   },
   {
     id: 'projeto_executivo', label: 'Enviar projeto do Executivo à Câmara', category: 'Prefeitura', cost: 1,
@@ -735,19 +804,25 @@ export const ACTIONS: ActionDef[] = [
     description: 'Tapa-buraco, poda, iluminação. Efeito rápido na aprovação.',
     availability: (s) => (inMandate(s, 'prefeito') ? null : 'hidden'),
     apply: (s, rng) => {
-      const g = 1.5 + s.character.attributes.management / 40 + next(rng);
+      const g = 0.8 + s.character.attributes.management / 90 + next(rng) * 0.6;
       s.player.mandate!.approval = clamp(s.player.mandate!.approval + g);
-      return `Zeladoria nos bairros: aprovação +${g.toFixed(1)}.`;
+      s.city.cash -= 150;
+      const sub = s.city.secretariats.subprefeituras;
+      if (sub) applyEffects(sub, { buracos: 1.5, pedidos: -1 });
+      return `Mutirão de zeladoria (R$ 150 mi do caixa): aprovação +${g.toFixed(1)}.`;
     },
   },
   {
     id: 'negociar_estado_uniao', label: 'Negociar convênios com Estado e União', category: 'Prefeitura', cost: 1,
     description: 'Transferências voluntárias para obras e programas. Depende de articulação e de relação política.',
-    availability: (s) => (inMandate(s, 'prefeito') ? null : 'hidden'),
+    availability: (s) => (inMandate(s, 'prefeito') ? (personnelRatio(s) > 0.6 ? 'Bloqueado: pessoal acima do limite impede transferências voluntárias (LRF art. 23 §3º).' : null) : 'hidden'),
     apply: (s, rng) => {
       if (next(rng) < 0.3 + s.character.attributes.articulation / 200) {
-        s.player.mandate!.approval = clamp(s.player.mandate!.approval + 3);
-        return 'Convênio assinado: recursos para uma obra importante. Aprovação +3.';
+        const v = Math.round(200 + next(rng) * 600);
+        s.city.cash += v;
+        s.city.loa.areas.subprefeituras += v;
+        s.player.mandate!.approval = clamp(s.player.mandate!.approval + 1.5);
+        return `Convênio assinado: R$ ${v} mi em transferência voluntária para obras de bairro. Aprovação +1,5.`;
       }
       return 'As negociações não avançaram este mês.';
     },
@@ -819,9 +894,6 @@ function articulable(s: GameState) {
 }
 function plenaryQueue(s: GameState) {
   return s.legislature.bills.filter((b) => b.stage === 'plenario' && !b.scheduled);
-}
-function coalitionCandidates(s: GameState): [string, number][] {
-  return Object.entries(s.government.councilSeatsByParty).filter(([p]) => !s.government.mayorCoalition.includes(p)).sort((a, b) => b[1] - a[1]);
 }
 function programOptions(s: GameState) {
   const sec = s.player.mandate?.secretariat;

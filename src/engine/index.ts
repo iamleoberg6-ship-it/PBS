@@ -27,3 +27,6 @@ export * from './game/actors';
 export * from './game/partyorg';
 export * from './game/legislature';
 export * from './game/secretariat';
+export * from './game/municipality';
+export * from './data/spfinance';
+export * from './rules/fiscal';

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  GAMEPLAY, advanceMonth, setPlayerVote, changeParty, setSocialFocus, currentPhaseLabel, eventById, monthLabel, performAction, resolveEvent, saveLocal, serialize,
+  GAMEPLAY, advanceMonth, setPlayerVote, openDraft, adjustDraft, changeParty, setSocialFocus, currentPhaseLabel, eventById, monthLabel, performAction, resolveEvent, saveLocal, serialize,
   type GameState,
 } from '../engine';
 import { brl } from './format';
@@ -9,6 +9,7 @@ import { Noticias, Redes } from './media';
 import { MeuPartido } from './party';
 import { Camara } from './camara';
 import { Secretaria } from './secretaria';
+import { Governo } from './governo';
 
 const PAGES = [
   ['gabinete', 'Gabinete'],
@@ -18,9 +19,10 @@ const PAGES = [
   ['redes', 'Redes sociais'],
   ['noticias', 'Notícias'],
   ['eleicoes', 'Eleições 2028'],
+  ['governo', 'Prefeitura'],
   ['camara', 'Câmara Municipal'],
   ['secretaria', 'Minha secretaria'],
-  ['cidade', 'Prefeitura e vereadores'],
+  ['cidade', 'Vereadores e cidade'],
   ['historico', 'Histórico'],
   ['regras', 'Regras'],
 ] as const;
@@ -88,6 +90,7 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
         {page === 'redes' && <Redes s={s} setFocus={(n) => setS(setSocialFocus(s, n))} />}
         {page === 'noticias' && <Noticias s={s} />}
         {page === 'eleicoes' && <Eleicoes s={s} />}
+        {page === 'governo' && <Governo s={s} openDraft={() => setS(openDraft(s))} adjust={(k, p) => setS(adjustDraft(s, k, p))} />}
         {page === 'camara' && <Camara s={s} vote={(id, c) => setS(setPlayerVote(s, id, c))} />}
         {page === 'secretaria' && <Secretaria s={s} />}
         {page === 'cidade' && <Cidade s={s} />}
