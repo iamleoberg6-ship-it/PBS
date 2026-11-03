@@ -14,9 +14,9 @@ Versão: 0.6.0. Save: versão 8 (ajustes automáticos ao carregar). Testes: 133 
 |---|---|---|
 | Windows | `.exe` (instalador) e `.msi` | — |
 | macOS | `.dmg` | Sem assinatura da Apple: na 1ª abertura, clique com o botão direito → Abrir. |
-| Linux | `.AppImage` e `.deb` | O `.deb` também foi gerado e testado neste ambiente. |
+| Linux | `.AppImage` e `.deb` | O `.deb` também foi compilado com sucesso neste ambiente. |
 
-Ao criar uma tag `v*` (por exemplo `v0.6.0`), os instaladores também viram uma Release no GitHub.
+Se você criar uma tag `v*` no GitHub (por exemplo `v0.6.0`, em Releases → Draft a new release), os instaladores são anexados automaticamente a essa Release.
 
 **Saves em arquivo** (só no desktop):
 - Pasta visível: `Documentos/Political Brazilian Simulator`.
@@ -27,7 +27,7 @@ Ao criar uma tag `v*` (por exemplo `v0.6.0`), os instaladores também viram uma 
 - Segurança: o backend nativo só lê e escreve dentro dessa pasta, só arquivos `.json` com nome simples. Não há acesso à rede.
 
 **No navegador**:
-- "Salvar / exportar partida" agora baixa um arquivo `.json`; continua dando para copiar o texto.
+- "Salvar / exportar partida" agora baixa um arquivo `.json` (no protótipo publicado no Claude, pela permissão de download do artefato, com confirmação); continua dando para copiar o texto.
 - "Abrir arquivo de save" na tela inicial carrega esse arquivo.
 - O localStorage continua como salvamento automático, com as 3 cópias de segurança da versão anterior.
 

@@ -55,6 +55,17 @@ export async function exportSave(s: GameState): Promise<string> {
     const path = await writeSaveFile(name, text);
     return path ? `Partida salva em ${path}` : 'Não foi possível gravar o arquivo.';
   }
+  // Dentro do visualizador de artefatos do Claude, links de download não funcionam: usa a capacidade "downloads".
+  const cl = (window as unknown as { claude?: { use?: (n: string) => Promise<{ save: (r: { filename: string; data: string }) => Promise<unknown> } | null> } }).claude;
+  if (cl?.use) {
+    try {
+      const dl = await Promise.race([cl.use('downloads'), new Promise<null>((r) => setTimeout(() => r(null), 3000))]);
+      if (dl) {
+        try { await dl.save({ filename: `${name}.json`, data: text }); return `Arquivo ${name}.json salvo.`; }
+        catch (e) { const code = (e as { code?: string }).code; return code === 'declined' ? 'Download cancelado.' : 'Não deu para baixar aqui: use "Copiar" e cole num arquivo de texto.'; }
+      }
+    } catch { /* segue para o download comum */ }
+  }
   const blob = new Blob([text], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
