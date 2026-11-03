@@ -68,7 +68,7 @@ export function careerScore(s: GameState): number {
   const rep = (s.player.credibility ?? 60) - 60;
   const promises = promisesKept(s) * 2 - promisesBroken(s) * 3;
   const approval = s.player.mandate ? (s.player.mandate.approval - 50) / 3 : 0;
-  const stains = Number(s.flags.vantagemIndevida ?? 0) * 6 + Number(s.flags.mentirasExpostas ?? 0) * 5 + (s.flags.cassado ? 20 : 0);
+  const stains = Number(s.flags.esquemaEmendas ?? 0) * 4 + Number(s.flags.vantagemIndevida ?? 0) * 6 + Number(s.flags.mentirasExpostas ?? 0) * 5 + (s.flags.cassado ? 20 : 0);
   return Math.max(0, Math.min(100, Math.round(peak * 0.7 + rep * 0.3 + promises + approval + s.achievements.length * 0.6 - stains)));
 }
 
@@ -76,12 +76,12 @@ export function careerScore(s: GameState): number {
 export function computeEnding(s: GameState, reason: 'fim' | 'aposentadoria'): Ending {
   const score = careerScore(s);
   const lies = Number(s.flags.mentirasExpostas ?? 0);
-  const corrupt = Number(s.flags.vantagemIndevida ?? 0) > 0;
+  const corrupt = Number(s.flags.vantagemIndevida ?? 0) > 0 || Number(s.flags.esquemaEmendas ?? 0) > 0;
   const kept = promisesKept(s);
   const broken = promisesBroken(s);
   const pick = (id: string, title: string, text: string): Ending => ({ id, title, text: `${text}${reason === 'aposentadoria' ? ' Você decidiu encerrar a carreira por conta própria.' : ''}`, score, month: { ...s.month } });
   if (s.flags.cassado) return pick('cassado', 'Diploma cassado', 'A Justiça Eleitoral cassou um mandato seu. Sua história política ficou marcada pelo processo — e pela inelegibilidade que a acompanha (LC 64/90).');
-  if (corrupt && lies > 0) return pick('escandalo', 'Escândalo', 'Você chegou longe, mas o que aceitou por fora e as negações desmentidas viraram a sua biografia pública.');
+  if (corrupt && (lies > 0 || s.flags.esquemaInvestigado)) return pick('escandalo', 'Escândalo', 'Você chegou longe, mas o que aceitou por fora e as negações desmentidas viraram a sua biografia pública.');
   if (held(s, 'governador(a)') && (s.player.mandate?.office !== 'governador' || s.player.mandate.approval >= 50)) return pick('estadista', 'Estadista paulista', 'Você saiu do bairro para o Palácio dos Bandeirantes. Poucos conseguem; menos ainda deixam o cargo com a confiança do eleitor.');
   if (held(s, 'senador(a)')) return pick('senado', 'Voz de São Paulo no Senado', 'Oito anos de mandato no Senado coroam uma carreira construída na cidade.');
   if (held(s, 'prefeito(a) de são paulo') && kept >= broken) return pick('prefeito_entrega', 'Prefeito(a) que entregou', 'Você governou a maior cidade do país e cumpriu mais do que prometeu. A cidade lembra de quem entrega.');

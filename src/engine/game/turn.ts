@@ -27,7 +27,7 @@ import { partyMonthlyStep } from './partyorg';
 import { decayRelations } from './relations';
 import { LAST_YEAR, councilLegislatureNumber, genCycle, isGenYear, isMunYear, munCycle, munTerm, nextElection } from './cycle';
 import { applyGeneralResults, createStateRace, generalTermEnd, pickCouncillorCandidates, resolveGovernorRunoff, runGeneralElection, stateRaceShares, stateStrength, stateWorldMonthly } from './general';
-import { UPPER_LABEL, UPPER_SALARIES, upperMonthlyStep } from './upper';
+import { UPPER_LABEL, UPPER_SALARIES, schemeInvestigation, upperMonthlyStep } from './upper';
 import { councillorWindowSwitches, crisisMonthlyStep, lapseCampaignPromises, promisesMonthlyStep } from './livingworld';
 import { checkAchievements, computeEnding } from './endings';
 import { endMandate, isMunicipalMandate, mandateExpired, newMandate, startUpperMandate, vacateCouncilSeat } from './careers';
@@ -121,6 +121,8 @@ export function advanceMonth(state: GameState): GameState {
     if (s.flags.cassado && s.player.mandate && !s.flags[`cassadoAplicado_${ly}`]) { s.flags[`cassadoAplicado_${ly}`] = true; cassate(s); }
   }
   for (const n of upperMonthlyStep(s, rng)) log(s, 'mandato', n);
+  for (const n of schemeInvestigation(s, rng)) log(s, 'mandato', n);
+  if (s.flags.perdaMandatoEsquema && s.player.mandate) { delete s.flags.perdaMandatoEsquema; endMandate(s, 'Você perdeu o mandato por quebra de decoro parlamentar.'); }
   if (s.flags.exoneradoEstadual && s.player.mandate?.office === 'secretario_estadual') { delete s.flags.exoneradoEstadual; endMandate(s, 'Você deixou a secretaria estadual.'); }
   stateWorldMonthly(s, rng);
   mark('Campanha e gabinete');
@@ -434,6 +436,7 @@ function handleConventionAndRegistration(s: GameState) {
     const baseFund = ({ prefeito: 1_200_000, governador: 2_500_000, senador: 900_000, deputado_federal: 60_000, deputado_estadual: 35_000 } as Record<string, number>)[c.office] ?? 15_000;
     const fefc = Math.round(baseFund * (0.5 + strength / 4) * (0.4 + s.player.partyRel.leadershipTrust / 140 + s.player.partyRel.influence / 200));
     c.account.fefc = fefc;
+    if (s.flags.caixaDoisReserva) { c.account.donations += Number(s.flags.caixaDoisReserva); c.irregularities += 1; s.flags.irregCampanha = Number(s.flags.irregCampanha ?? 0) + 1; log(s, 'eleicao', `O dinheiro guardado por fora (${brl(Number(s.flags.caixaDoisReserva))}) entrou na campanha sem declaração: caixa dois.`); delete s.flags.caixaDoisReserva; }
     if (c.account.crowdPending) { c.account.donations += c.account.crowdPending; log(s, 'eleicao', `Vaquinha virtual liberada com o registro: ${brl(c.account.crowdPending)} entram na conta de campanha.`); c.account.crowdPending = 0; }
     log(s, 'eleicao', `Registro de candidatura deferido. O ${party.acronym} repassou ${brl(fefc)} do FEFC para sua campanha (critério de distribuição interno do partido — valor de jogo). Campanha liberada a partir de 16/08.`);
   } else {

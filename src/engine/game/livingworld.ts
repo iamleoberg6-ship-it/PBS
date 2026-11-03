@@ -79,6 +79,7 @@ function trueTopics(s: GameState): Topic[] {
   const out: Topic[] = [];
   const c = s.player.candidacy;
   if ((c?.irregularities ?? 0) > 0 || s.flags.irregCampanha) out.push({ topic: 'campanha', truth: 'verdadeira', origin: 'irregularidade de campanha registrada', headline: (n) => `Gastos da campanha de ${n} não batem com a prestação de contas` });
+  if (Number(s.flags.esquemaEmendas ?? 0) > 0 && !s.flags.esquemaInvestigado) out.push({ topic: 'esquema', truth: 'verdadeira', origin: 'esquema com emendas', headline: (n) => `Prefeito do interior diz que devolvia parte das emendas de ${n}` });
   if (Number(s.flags.vantagemIndevida ?? 0) > 0) out.push({ topic: 'vantagem', truth: 'verdadeira', origin: 'vantagem indevida aceita', headline: (n) => `Empresário relata pagamento a ${n} em troca de emenda` });
   if (s.communityPromises.some((p) => p.status === 'quebrada')) out.push({ topic: 'promessa', truth: 'verdadeira', origin: 'promessa quebrada', headline: (n) => `Moradores cobram ${n}: promessa de campanha não saiu do papel` });
   if (s.player.mandate?.office === 'prefeito' && s.city.cash < 0) out.push({ topic: 'contas', truth: 'verdadeira', origin: 'caixa negativo da prefeitura', headline: (n) => `Prefeitura de ${n} fecha o mês no vermelho` });

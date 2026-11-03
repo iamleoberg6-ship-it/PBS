@@ -23,7 +23,7 @@ import { NETWORKS, produceContent } from './social';
 import { ideologicalDistance, partyIdeology } from '../data/ideology';
 import { isMunYear, nextElection } from './cycle';
 import { cityAlignment } from './general';
-import { AMENDMENT_BUDGET, STATE_AREAS, UPPER_THEMES, amendmentYearTotals, healthShareRequired, articulateGov, isLegislatorUpper, oversight, seekCommittee, startStateProgram, transferToCity, upperAmendment, upperBill, visitBase } from './upper';
+import { AMENDMENT_BUDGET, STATE_AREAS, UPPER_THEMES, amendmentYearTotals, healthShareRequired, amendmentScheme, claimBancada, claimCommission, requestIndication, voteWithGov, yearKindTotal, articulateGov, isLegislatorUpper, oversight, seekCommittee, startStateProgram, transferToCity, upperAmendment, upperBill, visitBase } from './upper';
 import { RESPONSE_LABEL, lapseCampaignPromises, makePromise, promiseCapacity, respondCrisis, workOnPromise } from './livingworld';
 import { computeEnding } from './endings';
 import { resignForCandidacy } from './careers';
@@ -974,6 +974,56 @@ export const ACTIONS: ActionDef[] = [
       return REGIONS.flatMap((r) => ['saúde', 'educação', 'infraestrutura', 'assistência social'].flatMap((a) => vals.filter((v) => a === 'saúde' || v <= nonHealthLeft).map((v) => ({ value: `${r.id}|${a}|${v}`, label: `${r.name} — ${a} — R$ ${v} mi` }))));
     },
     apply: (s, rng, param) => upperAmendment(s, rng, param!),
+  },
+  {
+    id: 'up_indicacao', label: 'Pedir verba ao governo (indicação)', category: 'Mandato estadual/federal', cost: 1,
+    description: 'Pedido de transferência voluntária ao Executivo (governador para a Alesp; presidente para o Congresso). Não é obrigatório: sai muito mais para quem é da base e vota com o governo. Teto anual de jogo.',
+    availability: (s) => (isLegislatorUpper(s.player.mandate?.office) ? null : 'hidden'),
+    paramLabel: 'Região, área e valor',
+    params: () => REGIONS.flatMap((r) => ['saúde', 'educação', 'infraestrutura', 'assistência social'].flatMap((a) => [5, 10, 20].map((v) => ({ value: `${r.id}|${a}|${v}`, label: `${r.name} — ${a} — R$ ${v} mi` })))),
+    apply: (s, rng, param) => requestIndication(s, rng, param!),
+  },
+  {
+    id: 'up_votar_governo', label: 'Votar com o governo em matéria importante', category: 'Mandato estadual/federal', cost: 1,
+    description: 'Fidelidade ao governo abre as portas das indicações e acelera o pagamento das emendas. Às vezes a matéria é impopular na sua base.',
+    availability: (s) => (isLegislatorUpper(s.player.mandate?.office) ? null : 'hidden'),
+    apply: (s, rng) => voteWithGov(s, rng),
+  },
+  {
+    id: 'up_bancada', fatigue: false, label: 'Negociar fatia da emenda de bancada', category: 'Mandato estadual/federal', cost: 1,
+    description: 'A bancada paulista no Congresso divide cerca de R$ 500 mi por ano em emendas de bancada, que são impositivas. A fatia de cada um é decidida politicamente: tamanho do seu partido, articulação e cargos pesam. Janeiro a março, uma vez por ano.',
+    availability: (s) => {
+      const o = s.player.mandate?.office;
+      if (o !== 'deputado_federal' && o !== 'senador') return 'hidden';
+      if (s.month.month > 3) return 'A divisão da emenda de bancada acontece de janeiro a março.';
+      return yearKindTotal(s.player.mandate!.upper!, s.month.year, 'bancada') > 0 ? 'Fatia deste ano já definida.' : null;
+    },
+    paramLabel: 'Região e área', params: () => REGIONS.flatMap((r) => ['saúde', 'educação', 'infraestrutura'].map((a) => ({ value: `${r.id}|${a}`, label: `${r.name} — ${a}` }))),
+    apply: (s, rng, param) => claimBancada(s, rng, param!),
+  },
+  {
+    id: 'up_emenda_comissao', fatigue: false, label: 'Buscar emenda de comissão', category: 'Mandato estadual/federal', cost: 1,
+    description: 'Emendas de comissão (R$ 12,1 bi na LOA 2026) não são impositivas e são divididas pelas lideranças. Quem preside comissão tem muito mais acesso. Uma vez por ano.',
+    availability: (s) => {
+      const o = s.player.mandate?.office;
+      if (o !== 'deputado_federal' && o !== 'senador') return 'hidden';
+      return yearKindTotal(s.player.mandate!.upper!, s.month.year, 'comissao') > 0 ? 'Você já conseguiu emenda de comissão neste ano.' : null;
+    },
+    paramLabel: 'Região e área', params: () => REGIONS.flatMap((r) => ['saúde', 'educação', 'infraestrutura'].map((a) => ({ value: `${r.id}|${a}`, label: `${r.name} — ${a}` }))),
+    apply: (s, rng, param) => claimCommission(s, rng, param!),
+  },
+  {
+    id: 'up_esquema', fatigue: false, label: 'Cobrar "retorno" de quem recebe suas emendas', category: 'Mandato estadual/federal', cost: 1,
+    description: 'ILEGAL. Combinar com prefeitura, ONG ou empreiteira beneficiada que parte do dinheiro volte para você. É corrupção passiva e peculato: cada vez aumenta o risco de operação policial, crise de imagem verdadeira, perda do mandato por quebra de decoro e inelegibilidade.',
+    availability: (s) => {
+      if (!isLegislatorUpper(s.player.mandate?.office)) return 'hidden';
+      const u = s.player.mandate!.upper!;
+      if (!u.amendments.some((a) => a.month.year === s.month.year)) return 'Só depois de indicar emendas no ano.';
+      return s.flags[`esquema_${s.month.year}_${s.month.month}`] ? 'Já feito este mês.' : null;
+    },
+    paramLabel: 'Destino do dinheiro',
+    params: () => [{ value: 'bolso', label: 'Para o seu bolso' }, { value: 'caixa', label: 'Guardar para a próxima campanha (caixa dois)' }],
+    apply: (s, rng, param) => { s.flags[`esquema_${s.month.year}_${s.month.month}`] = true; return amendmentScheme(s, rng, param!); },
   },
   {
     id: 'up_articular', label: 'Articular com o governo', category: 'Mandato estadual/federal', cost: 1,

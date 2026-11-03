@@ -35,7 +35,7 @@ export const AMENDMENT_SOURCES: Record<string, { text: string; status: 'REGRA_RE
 /** Federal: metade das emendas individuais vai para ações e serviços de saúde (CF art. 166 §9º). */
 export const healthShareRequired = (office: string) => office === 'deputado_federal' || office === 'senador';
 export function amendmentYearTotals(u: UpperMandate, year: number) {
-  const ys = u.amendments.filter((a) => a.month.year === year);
+  const ys = u.amendments.filter((a) => a.month.year === year && (a.kind ?? 'individual') === 'individual');
   return { total: ys.reduce((x, a) => x + a.value, 0), health: ys.filter((a) => a.theme === 'saúde').reduce((x, a) => x + a.value, 0) };
 }
 
@@ -113,7 +113,7 @@ export function upperAmendment(s: GameState, rng: RngState, param: string): stri
     if (t.total - t.health + value > cap + 1e-9) return `Metade da cota anual precisa ir para a saúde (CF art. 166 §9º): você só pode indicar mais R$ ${Math.max(0, cap - (t.total - t.health))} mi fora da saúde este ano.`;
   }
   u.amendmentBudget -= value;
-  u.amendments.push({ region, theme, value, month: { ...s.month }, paid: false });
+  u.amendments.push({ region, theme, value, month: { ...s.month }, paid: false, kind: 'individual' });
   void rng;
   const r = REGIONS.find((x) => x.id === region);
   return `Emenda individual de R$ ${value} mi indicada para ${theme} na região ${r?.name ?? region}. O pagamento depende da execução pelo Executivo (emendas individuais são impositivas, mas o ritmo de pagamento varia).`;
@@ -161,6 +161,120 @@ export function visitBase(s: GameState, rng: RngState, region: string): string {
   m.approval = clamp(m.approval + 0.4);
   return `Agenda na base (${REGIONS.find((r) => r.id === region)?.name ?? region}): base +${(1.5 + s.character.attributes.charisma / 50).toFixed(1)}.`;
 }
+
+// ---------------- Outras fontes de recursos (ajuste pós-Fase 5) ----------------
+// REGRA REAL: indicações ao Executivo não são obrigatórias (dependem de decisão do governo); emendas de bancada
+// estadual são impositivas (CF art. 166 §12) e as de comissão não são. Valores de 2026: R$ 11,2 bi de bancada
+// (~R$ 500 mi por estado) e R$ 12,1 bi de comissão (LOA 2026). Como cada bancada/comissão reparte o dinheiro
+// entre os membros é decisão política interna — aqui é PROPOSTA de jogo.
+
+const KIND_LABEL = { individual: 'emenda individual', indicacao: 'indicação ao governo', bancada: 'emenda de bancada', comissao: 'emenda de comissão' } as const;
+/** Teto anual de indicações atendidas (R$ mi) — PROPOSTA. */
+export const INDICATION_CAP: Record<string, number> = { deputado_estadual: 30, deputado_federal: 60, senador: 90 };
+
+export function yearKindTotal(u: UpperMandate, year: number, kind: string) {
+  return u.amendments.filter((a) => a.month.year === year && (a.kind ?? 'individual') === kind).reduce((x, a) => x + a.value, 0);
+}
+
+/** Pede ao Executivo uma transferência voluntária para a sua região. Sai mais fácil para quem é da base. */
+export function requestIndication(s: GameState, rng: RngState, param: string): string {
+  const m = s.player.mandate!;
+  const u = m.upper!;
+  const [region, theme, v] = param.split('|');
+  const value = Number(v) || 5;
+  const left = (INDICATION_CAP[m.office] ?? 0) - yearKindTotal(u, s.month.year, 'indicacao');
+  if (left < value) return `O governo já atendeu o que costuma atender de um parlamentar neste ano (teto de jogo: R$ ${INDICATION_CAP[m.office]} mi).`;
+  const align = upperAlignment(s);
+  const chance = clamp(8 + align * 40 + u.relationGov * 0.35 + s.character.attributes.negotiation * 0.1 - value * 0.6, 3, 85) / 100;
+  const who = govRef(s, m.office).h;
+  if (next(rng) < chance) {
+    u.amendments.push({ region, theme, value, month: { ...s.month }, paid: false, kind: 'indicacao' });
+    u.relationGov = clamp(u.relationGov - 2);
+    return `${who.name} atendeu sua indicação: R$ ${value} mi para ${theme} na região ${REGIONS.find((r) => r.id === region)?.name}. Em troca, o governo espera seu voto nas votações importantes.`;
+  }
+  return `O governo de ${who.name} não atendeu a indicação desta vez (chance era de ~${Math.round(chance * 100)}%). Estar na base e votar com o governo ajuda.`;
+}
+
+/** Vota com o governo numa matéria importante: melhora a relação, mas custa com o eleitorado se o projeto é impopular. */
+export function voteWithGov(s: GameState, rng: RngState): string {
+  const m = s.player.mandate!;
+  const u = m.upper!;
+  const unpopular = next(rng) < 0.4;
+  u.relationGov = clamp(u.relationGov + 6 + s.character.attributes.articulation / 25);
+  if (unpopular) { m.approval = clamp(m.approval - 1.5); s.character.attributes.popularity = clamp(s.character.attributes.popularity - 0.8); }
+  return `Você votou com o governo numa matéria importante${unpopular ? ' — impopular na sua base: aprovação −1,5' : ''}. Relação com o governo melhora.`;
+}
+
+/** Fatia da emenda de bancada estadual (federal e senador). Uma vez por ano, de janeiro a março. */
+export function claimBancada(s: GameState, rng: RngState, param: string): string {
+  const m = s.player.mandate!;
+  const u = m.upper!;
+  if (yearKindTotal(u, s.month.year, 'bancada') > 0) return 'Você já tem sua fatia da emenda de bancada deste ano.';
+  const [region, theme] = param.split('|');
+  const partySeats = s.stateWorld.camaraSeats[s.player.partyId ?? ''] ?? 0;
+  const base = 500 / 73; // ~R$ 6,8 mi por parlamentar paulista se a divisão fosse igual
+  const factor = clamp(0.5 + partySeats / 20 + s.character.attributes.articulation / 100 + (u.committeeRole ? 0.3 : 0) + (next(rng) - 0.5) * 0.4, 0.4, 2.2);
+  const value = Math.round(base * factor);
+  u.amendments.push({ region, theme, value, month: { ...s.month }, paid: false, kind: 'bancada' });
+  return `Na divisão da emenda de bancada de SP (~R$ 500 mi), você ficou com R$ ${value} mi para ${theme} na região ${REGIONS.find((r) => r.id === region)?.name}. Emenda de bancada é impositiva.`;
+}
+
+/** Emenda de comissão: não é impositiva; quem preside comissão ou é próximo da liderança tem acesso. */
+export function claimCommission(s: GameState, rng: RngState, param: string): string {
+  const m = s.player.mandate!;
+  const u = m.upper!;
+  if (yearKindTotal(u, s.month.year, 'comissao') > 0) return 'Você já conseguiu emenda de comissão neste ano.';
+  const [region, theme] = param.split('|');
+  const chance = clamp(10 + (u.committeeRole ? 35 : 0) + s.player.partyRel.influence * 0.3 + upperAlignment(s) * 15, 5, 80) / 100;
+  if (next(rng) >= chance) return `As lideranças não incluíram você na divisão das emendas de comissão (chance ~${Math.round(chance * 100)}%). Presidir comissão ajuda.`;
+  const value = Math.round(8 + next(rng) * (u.committeeRole ? 30 : 12));
+  u.amendments.push({ region, theme, value, month: { ...s.month }, paid: false, kind: 'comissao' });
+  return `Você conseguiu R$ ${value} mi em emenda de comissão para ${theme} na região ${REGIONS.find((r) => r.id === region)?.name}. Não é impositiva: o pagamento depende do governo.`;
+}
+
+/** Esquema ilegal com prefeitura/ONG/empreiteira beneficiada pela emenda. Crime (corrupção passiva, peculato). */
+export function amendmentScheme(s: GameState, rng: RngState, param: string): string {
+  const m = s.player.mandate!;
+  const u = m.upper!;
+  const indicated = u.amendments.filter((a) => a.month.year === s.month.year).reduce((x, a) => x + a.value, 0);
+  if (indicated <= 0) return 'Não há emendas indicadas neste ano para servir de esquema.';
+  const pct = 0.05 + next(rng) * 0.05;
+  const value = Math.round(indicated * pct * 1_000_000);
+  if (param === 'caixa') {
+    s.flags.caixaDoisReserva = Number(s.flags.caixaDoisReserva ?? 0) + value;
+  } else {
+    s.finances.cash += value;
+  }
+  s.flags.esquemaEmendas = Number(s.flags.esquemaEmendas ?? 0) + 1;
+  s.flags.esquemaUltimo = s.month.year * 12 + s.month.month - 1;
+  return param === 'caixa'
+    ? `Você combinou com os beneficiários das emendas um "retorno" de ${(pct * 100).toFixed(0)}%: R$ ${value.toLocaleString('pt-BR')} guardados por fora para a próxima campanha. Isso é crime e caixa dois — o risco de investigação cresce a cada vez.`
+    : `Você combinou com os beneficiários das emendas um "retorno" de ${(pct * 100).toFixed(0)}%: R$ ${value.toLocaleString('pt-BR')} no seu bolso. Isso é crime — o risco de investigação cresce a cada vez.`;
+}
+
+/** Risco mensal de investigação dos esquemas (PROPOSTA). */
+export function schemeInvestigation(s: GameState, rng: RngState): string[] {
+  const n = Number(s.flags.esquemaEmendas ?? 0);
+  if (!n || s.flags.esquemaInvestigado) return [];
+  const p = 0.012 * n + (s.player.recognition > 60 ? 0.008 : 0);
+  if (next(rng) >= p) return [];
+  s.flags.esquemaInvestigado = true;
+  const notes = ['OPERAÇÃO POLICIAL: investigação aponta que beneficiários das suas emendas devolviam parte do dinheiro. Busca e apreensão no seu gabinete.'];
+  s.character.attributes.popularity = clamp(s.character.attributes.popularity - 10);
+  s.player.credibility = clamp((s.player.credibility ?? 60) - 15);
+  s.flags.vantagemIndevida = Number(s.flags.vantagemIndevida ?? 0) + 1;
+  const m = s.player.mandate;
+  if (m) m.approval = clamp(m.approval - 12);
+  s.crises.push({ id: `cr_esq_${s.month.year}_${s.month.month}`, targetId: 'character_player', targetName: s.character.name, topic: 'esquema', headline: `Operação investiga desvio de emendas no gabinete de ${s.character.name}`, truth: 'verdadeira', outletId: 'tvmetropole', severity: 90, month: { ...s.month }, deadline: s.month.year * 12 + s.month.month, status: 'ativa', response: null, outcome: null, origin: 'esquema com emendas' });
+  if (m && next(rng) < 0.25 + n * 0.1) {
+    s.flags.cassado = true;
+    s.flags.perdaMandatoEsquema = true;
+    notes.push('O processo por quebra de decoro avança: a Casa aprovou a perda do seu mandato (CF art. 55). Com condenação, vem a inelegibilidade (LC 64/90, Lei da Ficha Limpa).');
+  }
+  return notes;
+}
+
+export { KIND_LABEL as FUNDING_KIND_LABEL };
 
 // ---------------- Governador ----------------
 
@@ -211,11 +325,12 @@ export function upperMonthlyStep(s: GameState, rng: RngState): string[] {
   }
   for (const a of u.amendments) {
     if (a.paid) continue;
-    if (next(rng) < 0.1 + u.relationGov / 300) {
+    const kindBoost = a.kind === 'indicacao' ? 0.1 : a.kind === 'comissao' ? -0.03 + upperAlignment(s) * 0.1 : 0;
+    if (next(rng) < 0.1 + u.relationGov / 300 + kindBoost) {
       a.paid = true;
       addGoodwill(s, a.region, Math.min(12, 2 + a.value / 3));
       s.player.base = clamp(s.player.base + Math.min(3, a.value / 6));
-      notes.push(`Emenda paga: R$ ${a.value} mi chegaram à região ${REGIONS.find((r) => r.id === a.region)?.name ?? a.region}.`);
+      notes.push(`${KIND_LABEL[a.kind ?? 'individual'][0].toUpperCase()}${KIND_LABEL[a.kind ?? 'individual'].slice(1)} paga: R$ ${a.value} mi chegaram à região ${REGIONS.find((r) => r.id === a.region)?.name ?? a.region}.`);
     }
   }
   if (m.office === 'deputado_federal' || m.office === 'senador') {

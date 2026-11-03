@@ -181,7 +181,8 @@ export interface UpperMandate {
   /** Projetos apresentados e o que aconteceu com eles. */
   bills: { id: string; title: string; theme: string; status: 'tramitando' | 'aprovado' | 'arquivado'; monthsLeft: number }[];
   /** Emendas individuais destinadas a regiões da capital (R$ mi, valores de jogo). */
-  amendments: { region: string; theme: string; value: number; month: GameMonth; paid: boolean }[];
+  /** kind: individual (impositiva), indicacao (pedido ao Executivo, não obrigatório), bancada, comissao. */
+  amendments: { region: string; theme: string; value: number; month: GameMonth; paid: boolean; kind?: 'individual' | 'indicacao' | 'bancada' | 'comissao' }[];
   amendmentBudget: number; // saldo anual de emendas (R$ mi)
   committeeRole: string | null;
   /** Relação com o Executivo da esfera do mandato (governador ou presidente). */

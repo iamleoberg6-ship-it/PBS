@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  ACHIEVEMENTS, AMENDMENT_BUDGET, AMENDMENT_SOURCES, amendmentYearTotals, healthShareRequired, LAST_YEAR, availableActions, officePointsFor, REGIONS, RESPONSE_LABEL, STATE_AREAS, STATE_SOURCES, UPPER_LABEL, careerScore, cityAlignment, formatIsoPt, genCycle, genRulepack,
+  ACHIEVEMENTS, FUNDING_KIND_LABEL, AMENDMENT_BUDGET, AMENDMENT_SOURCES, amendmentYearTotals, healthShareRequired, LAST_YEAR, availableActions, officePointsFor, REGIONS, RESPONSE_LABEL, STATE_AREAS, STATE_SOURCES, UPPER_LABEL, careerScore, cityAlignment, formatIsoPt, genCycle, genRulepack,
   monthIndex, monthLabel, outletById, partyById, previewEligibility, promiseCapacity, upperSummary,
   type CrisisResponse, type GameState, type GeneralElectionRecord, type MajRoundResult, type ProportionalResult,
 } from '../engine';
@@ -125,7 +125,13 @@ function UpperPanel({ s }: { s: GameState }) {
           {healthShareRequired(m.office) && (() => { const t = amendmentYearTotals(u, s.month.year); return ` Saúde em ${s.month.year}: R$ ${t.health} mi de no mínimo R$ ${AMENDMENT_BUDGET[m.office] / 2} mi.`; })()}
         </p>
       )}
-      {u.amendments.length > 0 && <p className="small">Emendas: {u.amendments.filter((a) => a.paid).length} pagas de {u.amendments.length} indicadas (R$ {u.amendments.filter((a) => a.paid).reduce((x, a) => x + a.value, 0)} mi pagos de R$ {u.amendments.reduce((x, a) => x + a.value, 0)} mi).</p>}
+      {u.amendments.length > 0 && (
+        <div className="table-wrap" style={{ marginTop: 8 }}><table>
+          <thead><tr><th>Recursos de {s.month.year}</th><th className="num">Conseguido</th><th className="num">Pago</th></tr></thead>
+          <tbody>{(['individual', 'indicacao', 'bancada', 'comissao'] as const).map((k) => { const ys = u.amendments.filter((a) => a.month.year === s.month.year && (a.kind ?? 'individual') === k); return ys.length ? <tr key={k}><td className="small">{FUNDING_KIND_LABEL[k]}</td><td className="num">R$ {ys.reduce((x, a) => x + a.value, 0)} mi</td><td className="num">R$ {ys.filter((a) => a.paid).reduce((x, a) => x + a.value, 0)} mi</td></tr> : null; })}</tbody>
+        </table></div>
+      )}
+      {s.flags.esquemaEmendas ? <p className="small" style={{ color: 'var(--red)' }}>Você tem {String(s.flags.esquemaEmendas)} esquema(s) ilegal(is) com emendas{s.flags.esquemaInvestigado ? ' — já sob investigação.' : '. O risco de investigação cresce a cada mês.'}</p> : null}
       <p className="small muted">Simplificação declarada: Alesp, Câmara dos Deputados e Senado não têm votação nominal simulada como a Câmara Municipal; projetos e emendas têm prazos e chances de jogo.</p>
     </div>
   );

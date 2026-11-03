@@ -279,3 +279,41 @@ describe('Emendas com valores reais', () => {
     expect(s.player.mandate!.upper!.amendmentBudget).toBe(0);
   });
 });
+
+describe('Outras fontes de recursos', () => {
+  const dep = (seed: number, office: 'deputado_estadual' | 'deputado_federal', party: string) => {
+    const s = mk(seed, party);
+    s.month = { year: 2031, month: 2 };
+    s.player.mandate = { ...newMandate(office, '2031-02-01', '2035-01-31') };
+    return s;
+  };
+  it('indicações saem mais para a base do governo; bancada e comissão no Congresso', async () => {
+    const { newUpper, requestIndication, claimBancada } = await import('./upper');
+    let base = 0, opo = 0;
+    for (let i = 0; i < 40; i++) {
+      const a = dep(100 + i, 'deputado_estadual', 'party_real_republicanos'); a.player.mandate!.upper = newUpper('deputado_estadual');
+      a.stateWorld.governor.partyId = 'party_real_republicanos';
+      if (requestIndication(a, a.rng, 'leste1|saúde|5').includes('atendeu sua indicação')) base++;
+      const b = dep(200 + i, 'deputado_estadual', 'party_real_psol'); b.player.mandate!.upper = newUpper('deputado_estadual');
+      b.stateWorld.governor.partyId = 'party_real_republicanos';
+      if (requestIndication(b, b.rng, 'leste1|saúde|5').includes('atendeu sua indicação')) opo++;
+    }
+    expect(base).toBeGreaterThan(opo);
+    const f = dep(300, 'deputado_federal', 'party_real_pl'); f.player.mandate!.upper = newUpper('deputado_federal');
+    claimBancada(f, f.rng, 'sul1|saúde');
+    expect(f.player.mandate!.upper!.amendments.some((a) => a.kind === 'bancada' && a.value > 0)).toBe(true);
+  });
+  it('esquema com emendas gera dinheiro e acaba em investigação', async () => {
+    const { newUpper, amendmentScheme, schemeInvestigation } = await import('./upper');
+    const s = dep(400, 'deputado_estadual', 'party_real_pl'); s.player.mandate!.upper = newUpper('deputado_estadual');
+    s.player.mandate!.upper!.amendments.push({ region: 'leste1', theme: 'saúde', value: 13, month: { ...s.month }, paid: false, kind: 'individual' });
+    const cash = s.finances.cash;
+    amendmentScheme(s, s.rng, 'bolso');
+    expect(s.finances.cash).toBeGreaterThan(cash + 500_000);
+    for (let i = 0; i < 6; i++) amendmentScheme(s, s.rng, 'caixa');
+    let months = 0;
+    while (!s.flags.esquemaInvestigado && months++ < 400) schemeInvestigation(s, s.rng);
+    expect(s.flags.esquemaInvestigado).toBe(true);
+    expect(s.crises.some((c) => c.topic === 'esquema' && c.truth === 'verdadeira')).toBe(true);
+  });
+});

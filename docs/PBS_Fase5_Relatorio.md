@@ -268,7 +268,39 @@ Outras mudanças de navegação:
 - **Valor de cada emenda**: o jogador escolhe (R$ 1, 2, 5, 10 ou 20 mi, ou o saldo restante), além da região e da área.
 - **Saves em andamento** recebem a nova cota, descontado o que já foi indicado no ano.
 
-## 15. Pendências conhecidas
+## 15. Outras fontes de recursos e esquemas ilegais (ajuste pós-fase)
+
+**Caminhos legais** (ações na página do mandato):
+
+- **Pedir verba ao governo (indicação)**
+  - O que é: pedido de transferência voluntária ao governador (deputado estadual) ou à União (deputado federal e senador).
+  - REGRA REAL: não é obrigatória, depende de decisão do Executivo. Exemplo: no ABC paulista, R$ 68,3 mi em indicações dependiam do governo, contra R$ 56,7 mi em emendas impositivas.
+  - PROPOSTA:
+    - a chance de ser atendido depende do alinhamento com o governo, da relação e do valor pedido;
+    - o pagamento dessas verbas sai mais rápido;
+    - teto anual de R$ 30 mi para deputado estadual, R$ 60 mi para federal e R$ 90 mi para senador.
+- **Votar com o governo em matéria importante**
+  - Melhora a relação com o Executivo, o que abre as indicações e acelera os pagamentos.
+  - Às vezes a matéria é impopular na base do jogador.
+- **Emenda de bancada** (deputado federal e senador)
+  - REGRA REAL: impositiva; a LOA 2026 destina R$ 11,2 bi, cerca de R$ 500 mi por estado.
+  - PROPOSTA: a fatia de cada parlamentar depende do tamanho do partido, da articulação e de ter cargo em comissão. A divisão acontece de janeiro a março, uma vez por ano.
+- **Emenda de comissão** (deputado federal e senador)
+  - REGRA REAL: não é impositiva; a LOA 2026 destina R$ 12,1 bi.
+  - PROPOSTA: quem preside comissão tem muito mais acesso. Uma vez por ano.
+
+**Caminho ilegal**: cobrar "retorno" de quem recebe as emendas.
+- **O que acontece no jogo**:
+  - entra de 5% a 10% do valor das emendas do ano;
+  - o dinheiro vai para o bolso ou para a próxima campanha, onde vira caixa dois e irregularidade ao entrar.
+- **Risco de investigação** (PROPOSTA): cresce mensalmente a cada esquema. A operação policial causa:
+  - crise de imagem verdadeira;
+  - popularidade −10, credibilidade −15 e aprovação −12;
+  - chance de perda do mandato por quebra de decoro (CF art. 55) e inelegibilidade (LC 64/90).
+- **No desfecho da carreira**: o esquema conta como corrupção e pode levar ao final "Escândalo".
+- **Tipificação real**: corrupção passiva e peculato.
+
+## 16. Pendências conhecidas
 
 1. **Votação nominal na Alesp e no Congresso**: hoje o mandato estadual/federal é abstrato. Seria uma extensão futura usando o motor da Fase 2.
 2. **Secretário estadual**: o mandato é abstrato. O orçamento estadual detalhado não está modelado.
