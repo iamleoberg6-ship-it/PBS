@@ -15,6 +15,9 @@ import { EVENTS } from './events';
 import { COUNCILLOR_BIRTHS } from '../data/world';
 import { councillorActors } from './actors';
 import { buildPartyOrgs, defaultPartyRel, seedPlayerPartyRelations } from './partyorg';
+import { emptyLegislature, fileBill, initLegislature } from './legislature';
+import { createSecretariat } from './secretariat';
+import { NUNES_2024_COALITION } from './create';
 
 const KEY = 'pbs_save_slot_1';
 
@@ -82,9 +85,36 @@ export function migrate(raw: Raw, report: LoadReport): Raw {
     seedPlayerPartyRelations(s as GameState, rng);
     report.repairs.push('Partidos ganharam diretório, executiva e facções (gerados para esta partida).');
   }
+  // v4 → v5: motor legislativo (comissões, projetos, blocos, Mesa, CPI) e secretarias com indicadores.
+  if (!s.legislature) {
+    const rng = createRng((s.rng?.seed ?? 1) + 23);
+    if (Array.isArray(s.government?.mayorCoalition) && s.government.mayorCoalition.join() === 'party_real_mdb,party_real_pl' && (s.month?.year ?? 2027) < 2029) {
+      s.government.mayorCoalition = NUNES_2024_COALITION;
+      report.repairs.push('Base do prefeito atualizada para a coligação de 12 partidos de 2024.');
+    }
+    s.legislature = emptyLegislature();
+    initLegislature(s as GameState, rng);
+    const pres = s.government?.councilPresident;
+    if (pres?.personId) { s.legislature.presidentId = pres.personId; s.legislature.mesaYear = pres.year ?? null; }
+    const m = s.player?.mandate;
+    if (m?.office === 'vereador' && Array.isArray(m.projects)) {
+      for (const p of m.projects.filter((x: Raw) => x.status === 'tramitando')) {
+        const b = fileBill(s as GameState, rng, THEMES_FOR_MIGRATION.includes(p.theme) ? p.theme : 'zeladoria', 'regulacao');
+        b.title = p.title;
+      }
+      m.projects = [];
+    }
+    if (m?.office === 'secretario' && !m.secretariat) {
+      m.secretariat = createSecretariat(String(m.portfolio ?? ''));
+      m.portfolio = m.secretariat.name;
+    }
+    report.repairs.push('Câmara Municipal ganhou comissões, projetos com tramitação, blocos e Mesa (gerados para esta partida).');
+  }
   s.saveVersion = SAVE_VERSION;
   return s;
 }
+
+const THEMES_FOR_MIGRATION = ['zeladoria', 'saude', 'educacao', 'mobilidade', 'cultura', 'gcm', 'meioambiente', 'habitacao'];
 
 const clamp = (v: unknown, a = 0, b = 100) => Math.max(a, Math.min(b, Number.isFinite(v as number) ? (v as number) : a));
 
@@ -162,6 +192,22 @@ export function validateState(s: GameState, report: LoadReport = { migratedFrom:
     if (!ok(a) || !ok(b)) { delete s.relations[k]; report.repairs.push('Relação com personagem inexistente descartada.'); }
   }
   if (s.player.partyId && s.partyOrgs[s.player.partyId] === undefined) report.repairs.push('Partido do jogador sem organização.');
+
+  // Câmara: comissões só com vereadores em exercício; votos registrados só para projetos existentes.
+  if (!s.legislature || !Array.isArray(s.legislature.committees)) {
+    s.legislature = emptyLegislature();
+    initLegislature(s, createRng(s.rng.seed + 29));
+    report.repairs.push('Estado da Câmara ausente: comissões e blocos recriados.');
+  } else {
+    const members = new Set(s.government.councillors.map((c) => c.id));
+    const assigned = s.legislature.committees.flatMap((c) => c.members);
+    if (assigned.some((id) => !members.has(id)) || assigned.length !== members.size) {
+      initLegislature(s, createRng(s.rng.seed + 31));
+      report.repairs.push('Comissões inconsistentes com a composição da Câmara foram recompostas.');
+    }
+    const billIds = new Set(s.legislature.bills.map((b) => b.id));
+    for (const id of Object.keys(s.legislature.playerVotes)) if (!billIds.has(id)) delete s.legislature.playerVotes[id];
+  }
 
   // Redes sociais
   for (const [k, v] of Object.entries(s.player.social.networks)) {

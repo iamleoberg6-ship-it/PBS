@@ -144,8 +144,10 @@ describe('Fase 1 — desgaste por repetição', () => {
     let s = mk(9);
     expect(fatigueMultiplier(s, 'comunidade').mult).toBe(1);
     const r0 = s.player.base; s = act(s, 'comunidade'); const g1 = s.player.base - r0;
-    const r1 = s.player.base; s = act(s, 'comunidade'); const g2 = s.player.base - r1;
-    expect(g2).toBeLessThan(g1 * 0.75);
+    expect(g1).toBeGreaterThan(0);
+    expect(fatigueMultiplier(s, 'comunidade').mult).toBeCloseTo(0.6);
+    s = act(s, 'comunidade');
+    expect(s.log[s.log.length - 1].text).toContain('Ganhos reduzidos a 60%');
     for (let i = 0; i < 4; i++) { s = month(s); s = act(s, 'comunidade'); }
     s = month(s);
     expect(fatigueMultiplier(s, 'comunidade').mult).toBeLessThan(0.8);

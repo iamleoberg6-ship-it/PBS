@@ -4,7 +4,9 @@
 import { monthIndex } from '../calendar';
 import { next, type RngState } from '../rng';
 import { partyById } from '../data/parties';
-import { PORTFOLIO_OPTIONS, grow } from './actions';
+import { grow } from './actions';
+import { collectSignatures, startCpi } from './legislature';
+import { offeredPortfolios } from './secretariat';
 import { recomputeNetWorth } from './finance';
 import { snapshot, recordDiff } from './ledger';
 import { changeParty } from './party';
@@ -192,16 +194,12 @@ export const EVENTS: EventTemplate[] = [
         },
       },
       {
-        label: 'Colher assinaturas para CPI', hint: 'Precisa de 1/3 dos vereadores (19) — parâmetro do Regimento',
+        label: 'Abrir pedido de CPI e colher assinaturas', hint: 'Precisa de 1/3 dos vereadores (19 de 55)',
         apply: (st, rng) => {
-          const signatures = Math.round(10 + st.character.attributes.articulation / 6 + (st.player.mandate?.stance === 'oposicao' ? 6 : 0) + (next(rng) - 0.5) * 8);
-          if (signatures >= 19) {
-            st.player.recognition = grow(st.player.recognition, 10);
-            if (st.player.mandate) st.player.mandate.relationExecutive = clamp(st.player.mandate.relationExecutive - 25);
-            return `CPI instalada com ${signatures} assinaturas! Você será figura central da investigação. Reconhecimento +10.`;
-          }
-          st.player.recognition = grow(st.player.recognition, 2);
-          return `Só ${signatures} assinaturas. A CPI não foi instalada.`;
+          if (st.player.mandate?.office !== 'vereador') return 'Só vereadores podem requerer CPI.';
+          const cpi = startCpi(st, 'contrato de manutenção com indícios de sobrepreço');
+          const msg = collectSignatures(st, rng, cpi.id);
+          return `Pedido de CPI protocolado. ${msg} Continue com a ação "Colher assinaturas para CPI".`;
         },
       },
       ...(s.player.mandate?.stance === 'base'
@@ -229,15 +227,16 @@ export const EVENTS: EventTemplate[] = [
   {
     id: 'convite_secretaria',
     title: () => 'Convite para a prefeitura',
-    body: (s) => `O(a) prefeito(a) eleito(a), ${s.government.mayor.name}, convida você para chefiar uma secretaria municipal a partir de janeiro. É um cargo de nomeação, não eletivo.`,
+    body: (s) => `O(a) prefeito(a) eleito(a), ${s.government.mayor.name}, convida você para chefiar uma secretaria municipal a partir de janeiro. É cargo de livre nomeação e exoneração, não eletivo. Por que você: ${String(s.flags.conviteMotivo ?? '')}`,
     weight: 0,
     condition: () => false,
-    options: () => [
-      ...PORTFOLIO_OPTIONS.slice(0, 3).map((p) => ({
-        label: `Aceitar: Secretaria de ${p}`,
-        apply: (s: GameState) => {
-          s.flags.secretariaAceita = p;
-          return `Você aceitou a Secretaria de ${p}. Toma posse em janeiro de 2029.`;
+    options: (s) => [
+      ...offeredPortfolios(s, 3).map((p) => ({
+        label: `Aceitar: Secretaria de ${p.name}`,
+        hint: `Orçamento (ordem de grandeza simulada): R$ ${p.budget.toLocaleString('pt-BR')} mi/ano. Indicadores: ${p.indicators.map((i) => i.label.toLowerCase()).join('; ')}.`,
+        apply: (st: GameState) => {
+          st.flags.secretariaAceita = p.id;
+          return `Você aceitou a Secretaria de ${p.name}. Toma posse em janeiro de 2029.`;
         },
       })),
       { label: 'Recusar', apply: () => 'Você recusou o convite.' },

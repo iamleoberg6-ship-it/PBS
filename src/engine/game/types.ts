@@ -4,7 +4,7 @@ import type { EligibilityCheck, MunicipalOffice } from '../rules/eligibility';
 import type { ProportionalResult } from '../rules/proportional';
 import type { MajRoundResult } from '../rules/majoritarian';
 
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
 export type NetworkId = 'instagram' | 'x' | 'youtube' | 'tiktok';
 
@@ -108,7 +108,7 @@ export interface Mandate {
   office: OfficeHeld;
   since: string;
   until: string;
-  stance: 'base' | 'oposicao' | 'independente';
+  stance: Stance;
   approval: number; // aprovação pública do mandato/governo 0..100
   relationExecutive: number; // relação com a prefeitura 0..100 (vereador/secretário)
   councilBase: number; // prefeito: nº de vereadores na base
@@ -117,6 +117,7 @@ export interface Mandate {
   priorityArea: string | null;
   portfolio: string | null; // secretário: pasta
   budgetShare: number; // secretário: 0..100
+  secretariat?: Secretariat | null;
 }
 
 export interface PlayerState {
@@ -135,6 +136,118 @@ export interface PlayerState {
   consecutiveTermsPrefeito: number;
   careerHistory: { office: string; from: string; to: string | null; note: string }[];
   social: SocialState;
+}
+
+export type Stance = 'base' | 'independente' | 'oposicao' | 'oposicao_radical';
+export type VoteChoice = 'S' | 'N' | 'A';
+
+export interface Committee {
+  id: string;
+  name: string;
+  themes: string[];
+  seats: number;
+  members: string[];
+  presidentId: string | null;
+}
+
+export interface RollCall {
+  yes: number;
+  no: number;
+  abst: number;
+  byMember: Record<string, VoteChoice>;
+  outcome: 'aprovado' | 'rejeitado';
+  quorum: string;
+}
+
+export type BillKind = 'regulacao' | 'programa' | 'denominacao' | 'executivo';
+export type BillStage = 'ccj' | 'merito' | 'financas' | 'plenario' | 'sancao' | 'veto' | 'lei' | 'arquivado' | 'rejeitado' | 'veto_mantido';
+
+export interface Bill {
+  id: string;
+  number: string;
+  title: string;
+  theme: string;
+  /** Autor: 'character_player', 'executivo' ou 'bancada:<partyId>' (projetos da IA não são atribuídos a pessoas reais). */
+  author: string;
+  kind: BillKind;
+  executiveInitiativeOnly: boolean; // texto invade matéria de iniciativa privativa do prefeito (vício de iniciativa)
+  publicSupport: number; // −1..+1: como a opinião pública vê o projeto (simulado)
+  scheduled: boolean; // pautado pela Presidência para votação neste mês
+  urgent: boolean;
+  parecer: 'favoravel' | 'contrario' | null; // parecer do relator na etapa atual
+  slant: number; // −1 (progressista/estatal) .. +1 (conservador/mercado) — posição do texto
+  salience: number; // 0–100 pressão pública
+  stage: BillStage;
+  monthsInStage: number;
+  committeeId: string;
+  rapporteurId: string | null;
+  executivePosition: 'favor' | 'contra' | 'neutro';
+  commitments: string[]; // vereadores que se comprometeram com o jogador a votar a favor
+  vote: RollCall | null;
+  vetoVote: RollCall | null;
+  history: { month: GameMonth; text: string }[];
+}
+
+export interface Cpi {
+  id: string;
+  topic: string;
+  signatures: string[];
+  status: 'coleta' | 'instalada' | 'concluida' | 'arquivada';
+  startedAt: GameMonth;
+  endsAt: GameMonth | null;
+  proposer: string;
+}
+
+export interface MesaSeat { role: string; actorId: string }
+
+export interface Legislature {
+  committees: Committee[];
+  bills: Bill[];
+  billSeq: number;
+  blocs: Record<string, Stance>;
+  cpis: Cpi[];
+  mesa: MesaSeat[];
+  mesaCandidates: string[];
+  mesaDeals: string[]; // bancadas (partyId) que fecharam apoio à chapa do jogador em troca de cargo na Mesa
+  mesaYear: number | null;
+  presidentId: string | null;
+  playerVotes: Record<string, VoteChoice>; // voto que o jogador registrou para a próxima votação de cada projeto
+  voteHistory: { billId: string; month: GameMonth; title: string; player: VoteChoice | null; outcome: string }[];
+}
+
+export interface SecIndicator {
+  key: string;
+  label: string;
+  unit: string;
+  value: number;
+  better: 'up' | 'down';
+  start: number;
+}
+
+export interface SecProgram {
+  id: string;
+  label: string;
+  phase: 'planejamento' | 'licitacao' | 'execucao' | 'entregue' | 'cancelado';
+  monthsLeft: number;
+  cost: number; // R$ milhões
+  effects: Record<string, number>; // efeito total por indicador, aplicado gradualmente na entrega
+  delayed: boolean;
+}
+
+export interface Secretariat {
+  portfolio: string; // id da pasta
+  name: string;
+  budget: number; // R$ milhões/ano (ordem de grandeza simulada)
+  executed: number; // R$ milhões executados no ano
+  extraSpent: number; // ações pontuais pagas com o orçamento livre no ano
+  capacity: number; // equipe técnica 0–100
+  relationCouncil: number; // relação com vereadores da área 0–100
+  indicators: SecIndicator[];
+  programs: SecProgram[];
+  monthsInOffice: number;
+  crisis: { id: string; label: string; monthsLeft: number; severity: number } | null;
+  lowMonths: number; // meses seguidos com relação/aprovação críticas (risco de exoneração)
+  lastActionNote: string | null;
 }
 
 export interface PlayerPartyRel {
@@ -220,7 +333,7 @@ export interface InternalContest {
 export interface PoliticalPromise {
   id: string;
   toActorId: string;
-  kind: 'apoio_disputa' | 'vaga_executiva';
+  kind: 'apoio_disputa' | 'vaga_executiva' | 'cargo_mesa';
   contestId: string | null;
   text: string;
   status: 'aberta' | 'cumprida' | 'quebrada' | 'caducou';
@@ -311,7 +424,7 @@ export interface ElectionRecord {
 
 export interface LogEntry {
   month: GameMonth;
-  kind: 'acao' | 'evento' | 'eleicao' | 'partido' | 'mandato' | 'sistema' | 'financas';
+  kind: 'acao' | 'evento' | 'eleicao' | 'partido' | 'mandato' | 'sistema' | 'financas' | 'camara' | 'secretaria';
   text: string;
 }
 
@@ -343,6 +456,7 @@ export interface GameState {
   contests: InternalContest[];
   promises: PoliticalPromise[];
   ledger: CauseEntry[];
+  legislature: Legislature;
   pendingEvents: PendingEvent[];
   log: LogEntry[];
   flags: Record<string, boolean | number | string>;

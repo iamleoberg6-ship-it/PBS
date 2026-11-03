@@ -101,7 +101,7 @@ export { isEligible };
 
 export function simulateCouncil(state: GameState, rng: RngState): { record: Pick<ElectionRecord, 'proportional' | 'playerCandidateId' | 'playerVotes' | 'candidatePartyById'>; } {
   // Total de votos válidos (nominais + legenda) da eleição: é a restrição que nunca pode ser violada.
-  const valid = Math.round(SAO_PAULO.electorate * GAMEPLAY.validVoteRateProportional.value * (1 + normal(rng, 0, 0.01)));
+  const valid = Math.round(SAO_PAULO.electorate * GAMEPLAY.validVoteRateProportional.value * (1 + Math.max(-0.025, Math.min(0.025, normal(rng, 0, 0.01)))));
   const listIds = allListIds();
   const strengths = listIds.map((id) => listStrength(state, id) * Math.max(0.3, 1 + normal(rng, 0, 0.12)));
   const listVotes = apportion(valid, strengths);

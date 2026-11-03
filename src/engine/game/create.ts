@@ -3,7 +3,8 @@ import { PARTIES } from '../data/parties';
 import { GAMEPLAY, RULEPACK_BR_2028_MUN } from '../data/rulepack';
 import { REAL_FIGURES, SAO_PAULO } from '../data/world';
 import { fictionalName } from './names';
-import { aiElectMesa, initialCouncillors, seatsByParty } from './council';
+import { initialCouncillors, seatsByParty } from './council';
+import { electMesa, emptyLegislature, initLegislature } from './legislature';
 import { initialSocial } from './social';
 import { recomputeNetWorth } from './finance';
 import { councillorActors } from './actors';
@@ -28,6 +29,9 @@ import { SAVE_VERSION } from './types';
 // Origens profissionais (PROPOSTA de balanceamento). Nenhuma bloqueia caminhos.
 // Origens profissionais (PROPOSTA de balanceamento). Cada uma tem pontos fortes e fracos;
 // nenhuma bloqueia caminhos. Valores somados à base de 35 (conhecimento político: 30; articulação: 25).
+/** Coligação "Caminho Seguro para São Paulo" (2024), 12 partidos — registro público da eleição. */
+export const NUNES_2024_COALITION = ['party_real_mdb', 'party_real_pl', 'party_real_psd', 'party_real_uniao', 'party_real_republicanos', 'party_real_pp', 'party_real_pode', 'party_real_solidariedade', 'party_real_avante', 'party_real_mobiliza', 'party_real_agir', 'party_real_prd'];
+
 export const PROFESSIONS: Record<ProfessionId, { label: string; income: number; cash: number; mods: Partial<Attributes>; recognition: number; base: number; note?: string }> = {
   empresario: { label: 'Empresário(a)', income: 22000, cash: 120000, mods: { management: 12, negotiation: 8, charisma: -4, politicalKnowledge: -4 }, recognition: 3, base: 2 },
   advogado: { label: 'Advogado(a)', income: 15000, cash: 50000, mods: { politicalKnowledge: 12, communication: 6, charisma: -4, management: -2 }, recognition: 2, base: 2 },
@@ -160,7 +164,8 @@ export function createGame(input: NewGameInput): GameState {
       viceMayor: { personId: vice.id, name: vice.name, partyId: vice.partyId, real: true },
       councilSeatsByParty: seatsByParty(initialCouncillors()),
       councilPresident: null,
-      mayorCoalition: ['party_real_mdb', 'party_real_pl'],
+      // Coligação "Caminho Seguro para São Paulo" (2024): 12 partidos, registro público da eleição.
+      mayorCoalition: [...NUNES_2024_COALITION],
       mandateUntil: '2028-12-31',
     },
     elections: [],
@@ -173,6 +178,7 @@ export function createGame(input: NewGameInput): GameState {
     contests: [],
     promises: [],
     ledger: [],
+    legislature: emptyLegislature(),
     pendingEvents: [],
     log: [{ month: { year: 2027, month: 1 }, kind: 'sistema', text: `Partida iniciada em ${startDate}. Pacote de regras: ${RULEPACK_BR_2028_MUN.label}. Dados reais congelados em 30/10/2026.` }],
     flags: { seed },
@@ -187,7 +193,8 @@ export function createGame(input: NewGameInput): GameState {
   buildPartyOrgs(state, rng);
   seedPlayerPartyRelations(state, rng);
   recomputeNetWorth(state);
-  const mesa = aiElectMesa(state, 2027, rng);
+  initLegislature(state, rng);
+  const mesa = electMesa(state, 2027, rng);
   state.log.push({ month: state.month, kind: 'sistema', text: `${mesa} A eleição real da Mesa de 2027 acontece em dezembro de 2026, depois do retrato de dados do jogo.` });
   if (joinsParty) {
     state.log.push({ month: state.month, kind: 'partido', text: `Você é filiado(a) desde 01/06/2025.` });

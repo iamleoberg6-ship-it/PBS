@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import {
-  GAMEPLAY, advanceMonth, changeParty, setSocialFocus, currentPhaseLabel, eventById, monthLabel, performAction, resolveEvent, saveLocal, serialize,
+  GAMEPLAY, advanceMonth, setPlayerVote, changeParty, setSocialFocus, currentPhaseLabel, eventById, monthLabel, performAction, resolveEvent, saveLocal, serialize,
   type GameState,
 } from '../engine';
 import { brl } from './format';
 import { Cidade, Eleicoes, Gabinete, Historico, Partidos, Personagem, Regras } from './pages';
 import { Noticias, Redes } from './media';
 import { MeuPartido } from './party';
+import { Camara } from './camara';
+import { Secretaria } from './secretaria';
 
 const PAGES = [
   ['gabinete', 'Gabinete'],
@@ -16,7 +18,9 @@ const PAGES = [
   ['redes', 'Redes sociais'],
   ['noticias', 'Notícias'],
   ['eleicoes', 'Eleições 2028'],
-  ['cidade', 'Prefeitura e Câmara'],
+  ['camara', 'Câmara Municipal'],
+  ['secretaria', 'Minha secretaria'],
+  ['cidade', 'Prefeitura e vereadores'],
   ['historico', 'Histórico'],
   ['regras', 'Regras'],
 ] as const;
@@ -68,7 +72,7 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
         </button>
       </header>
       <nav className="sidebar">
-        {PAGES.map(([id, label]) => (
+        {PAGES.filter(([id]) => id !== 'secretaria' || !!s.player.mandate?.secretariat).map(([id, label]) => (
           <button key={id} className={`nav-item ${page === id ? 'active' : ''}`} onClick={() => setPage(id)}>{label}</button>
         ))}
         <div className="nav-sep" />
@@ -84,6 +88,8 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
         {page === 'redes' && <Redes s={s} setFocus={(n) => setS(setSocialFocus(s, n))} />}
         {page === 'noticias' && <Noticias s={s} />}
         {page === 'eleicoes' && <Eleicoes s={s} />}
+        {page === 'camara' && <Camara s={s} vote={(id, c) => setS(setPlayerVote(s, id, c))} />}
+        {page === 'secretaria' && <Secretaria s={s} />}
         {page === 'cidade' && <Cidade s={s} />}
         {page === 'historico' && <Historico s={s} />}
         {page === 'regras' && <Regras s={s} />}

@@ -4,9 +4,10 @@
 import { GAMEPLAY } from '../data/rulepack';
 import { PARTIES, listIdForParty, partyById } from '../data/parties';
 import { monthIndex } from '../calendar';
-import { next, normal, type RngState } from '../rng';
+import { next, normal, pick, type RngState } from '../rng';
 import { partyStrength } from './elections';
-import { aiElectMesa } from './council';
+import { ABSOLUTE_MAJORITY, BLOC_LABEL, CPI_SIGNATURES, STAGE_LABEL, articulateVotes, blocCounts, collectSignatures, computeBlocs, fileBill, fileExecutiveBill, isActive, mayorDecide, mesaWindow, negotiateMesaVote, playerCommittee, publicHearing, requestRapporteur, schedule, startCpi } from './legislature';
+import { PORTFOLIOS, freeBudget, disputeBudget, manageCrisis, meetCouncillors, portfolioById, pressConference, specialAction, startProgram, superviseProgram, trainTeam } from './secretariat';
 import { PLAYER, adjustRel, standing } from './relations';
 import { contestBlock } from './partyorg';
 import { fatigueMultiplier, registerUse, dampenGains } from './fatigue';
@@ -14,7 +15,7 @@ import { snapshot, recordDiff } from './ledger';
 import { recomputeNetWorth } from './finance';
 import { NETWORKS, produceContent } from './social';
 import { ideologicalDistance, partyIdeology } from '../data/ideology';
-import type { AttributeKey, GameState } from './types';
+import type { AttributeKey, Bill, GameState } from './types';
 
 export type ActionCategory = 'Vida e carreira' | 'Partido' | 'Pré-candidatura' | 'Campanha' | 'Mandato de vereador' | 'Prefeitura' | 'Secretaria';
 
@@ -59,13 +60,7 @@ export const THEMES = [
   { value: 'habitacao', label: 'Habitação e regularização fundiária' },
 ];
 
-const PORTFOLIOS = ['Esportes e Lazer', 'Cultura', 'Subprefeituras', 'Assistência Social', 'Habitação', 'Meio Ambiente'];
 
-const mesaTerm = (s: GameState): number | null => {
-  if (s.month.year === 2029 && s.month.month === 1) return 2029;
-  if (s.month.month === 12 && s.month.year >= 2029 && s.month.year <= 2031) return s.month.year + 1;
-  return null;
-};
 const isFiliado = (s: GameState) => s.player.partyId !== null;
 const inMandate = (s: GameState, office: string) => s.player.mandate?.office === office;
 const campaignOn = (s: GameState) => {
@@ -501,19 +496,73 @@ export const ACTIONS: ActionDef[] = [
     },
   },
 
-  // ---------------- Mandato de vereador ----------------
+  // ---------------- Mandato de vereador (Câmara) ----------------
   {
     id: 'projeto_lei', label: 'Apresentar projeto de lei', category: 'Mandato de vereador', cost: 1,
-    description: 'Somente matérias de interesse local (CF art. 30). Projetos que criam despesa ou mexem na estrutura da prefeitura costumam ser de iniciativa do prefeito.',
-    availability: (s) => (inMandate(s, 'vereador') ? (s.player.mandate!.projects.filter((p) => p.status === 'tramitando').length >= 3 ? 'Já há 3 projetos seus tramitando.' : null) : 'hidden'),
-    paramLabel: 'Tema',
-    params: () => THEMES,
+    description: 'Só matérias de interesse local (CF art. 30). Passa pela CCJ, comissão de mérito, Finanças (se criar despesa), plenário e sanção. Criar programa com estrutura/cargos é iniciativa privativa do prefeito: risco de vício de iniciativa, maior com pouco conhecimento político.',
+    availability: (s) => (inMandate(s, 'vereador') ? (s.legislature.bills.filter((b) => b.author === PLAYER && isActive(b)).length >= 4 ? 'Você já tem 4 projetos tramitando.' : null) : 'hidden'),
+    paramLabel: 'Tema e tipo',
+    params: () => [
+      ...THEMES.flatMap((t) => [
+        { value: `${t.value}|regulacao`, label: `${t.label} — regulação/serviço` },
+        { value: `${t.value}|programa`, label: `${t.label} — cria programa (despesa)` },
+      ]),
+      { value: 'cultura|denominacao', label: 'Denominação de logradouro ou data comemorativa' },
+    ],
     apply: (s, rng, param) => {
-      const theme = THEMES.find((t) => t.value === param) ?? THEMES[0];
-      const id = `pl_${s.month.year}_${s.month.month}_${Math.floor(next(rng) * 1e6)}`;
-      s.player.mandate!.projects.push({ id, theme: theme.value, title: `PL — ${theme.label}`, monthsLeft: 3 + Math.floor(next(rng) * 4), status: 'tramitando' });
-      s.player.recognition = grow(s.player.recognition, 1);
-      return `Projeto protocolado: ${theme.label}. Começa a tramitar nas comissões.`;
+      const [theme, kind] = (param ?? 'zeladoria|regulacao').split('|') as [string, 'regulacao' | 'programa' | 'denominacao'];
+      const b = fileBill(s, rng, theme, kind);
+      s.player.recognition = grow(s.player.recognition, kind === 'denominacao' ? 0.3 : 1);
+      const warn = b.executiveInitiativeOnly && s.character.attributes.politicalKnowledge >= 45 ? ' Sua assessoria alerta: o texto pode invadir competência privativa do prefeito.' : '';
+      return `${b.number} protocolado: ${b.title}. Começa pela Comissão de Constituição e Justiça.${warn}`;
+    },
+  },
+  {
+    id: 'pedir_relatoria', label: 'Pedir a relatoria de um projeto', category: 'Mandato de vereador', cost: 1,
+    description: 'O presidente da comissão designa o relator. Relatar dá visibilidade e controle do parecer.',
+    availability: (s) => {
+      if (!inMandate(s, 'vereador')) return 'hidden';
+      return billsInMyCommittee(s).length ? null : 'Nenhum projeto aguardando parecer na sua comissão.';
+    },
+    paramLabel: 'Projeto',
+    params: (s) => billsInMyCommittee(s).map((b) => ({ value: b.id, label: `${b.number} — ${b.title}` })),
+    apply: (s, rng, param) => requestRapporteur(s, rng, param!),
+  },
+  {
+    id: 'articular_votos', label: 'Articular votos', category: 'Mandato de vereador', cost: 1,
+    description: 'Conversa com vereadores indecisos para fechar compromissos de voto. Quem ajuda cobra reciprocidade depois.',
+    availability: (s) => {
+      if (!inMandate(s, 'vereador') && !inMandate(s, 'prefeito')) return 'hidden';
+      return articulable(s).length ? null : 'Nenhum projeto seu (ou do seu governo) em votação próxima.';
+    },
+    paramLabel: 'Projeto',
+    params: (s) => articulable(s).map((b) => ({ value: b.id, label: `${b.number} — ${b.title} (${STAGE_LABEL[b.stage]})` })),
+    apply: (s, rng, param) => articulateVotes(s, rng, param!),
+  },
+  {
+    id: 'audiencia_publica', label: 'Convocar audiência pública', category: 'Mandato de vereador', cost: 1,
+    description: 'Dá repercussão a um projeto em tramitação: aumenta a pressão pública sobre os vereadores.',
+    availability: (s) => (inMandate(s, 'vereador') ? (s.legislature.bills.some(isActive) ? null : 'Nenhum projeto em tramitação.') : 'hidden'),
+    paramLabel: 'Projeto',
+    params: (s) => s.legislature.bills.filter((b) => isActive(b) && b.stage !== 'sancao').sort((a, b) => Number(b.author === PLAYER) - Number(a.author === PLAYER) || b.salience - a.salience).slice(0, 15).map((b) => ({ value: b.id, label: `${b.number} — ${b.title}` })),
+    apply: (s, rng, param) => publicHearing(s, rng, param!),
+  },
+  {
+    id: 'indicacao', label: 'Enviar indicação ao Executivo', category: 'Mandato de vereador', cost: 1,
+    description: 'Indicação é a sugestão formal do vereador à prefeitura (ex.: reforma de praça). Não obriga o Executivo; base do governo é mais atendida.',
+    availability: (s) => (inMandate(s, 'vereador') ? null : 'hidden'),
+    paramLabel: 'Tema', params: () => THEMES,
+    apply: (s, rng, param) => {
+      const m = s.player.mandate!;
+      const p = 0.2 + m.relationExecutive / 160 + (m.stance === 'base' ? 0.2 : 0);
+      const theme = THEMES.find((t) => t.value === param)?.label ?? 'zeladoria';
+      if (next(rng) < p) {
+        s.player.base = grow(s.player.base, 3);
+        m.approval = clamp(m.approval + 1);
+        return `A prefeitura atendeu sua indicação (${theme.toLowerCase()}). Base +3.`;
+      }
+      s.player.base = grow(s.player.base, 0.8);
+      return `Indicação enviada (${theme.toLowerCase()}); a prefeitura ainda não atendeu.`;
     },
   },
   {
@@ -524,11 +573,32 @@ export const ACTIONS: ActionDef[] = [
       s.player.recognition = grow(s.player.recognition, 2);
       s.player.mandate!.relationExecutive = clamp(s.player.mandate!.relationExecutive - (s.player.mandate!.stance === 'base' ? 6 : 2));
       if (next(rng) < 0.18 + s.character.attributes.politicalKnowledge / 500) {
+        s.flags.cpiTopic = pick(rng, ['contrato de manutenção com indícios de sobrepreço', 'convênios de creches com repasses irregulares', 'contratos emergenciais de zeladoria', 'fila de cirurgias e contratos de OS na saúde']);
         s.pendingEvents.push({ templateId: 'irregularidade_contrato', vars: {} });
         return 'Sua equipe encontrou indícios de irregularidade num contrato da prefeitura.';
       }
       return 'Fiscalização feita. Reconhecimento +2; relação com a prefeitura caiu.';
     },
+  },
+  {
+    id: 'propor_cpi', fatigue: false, label: 'Protocolar pedido de CPI', category: 'Mandato de vereador', cost: 1,
+    description: 'Exige fato determinado (descoberto na fiscalização) e 19 assinaturas (1/3 da Câmara).',
+    availability: (s) => {
+      if (!inMandate(s, 'vereador')) return 'hidden';
+      if (s.legislature.cpis.some((c) => c.status === 'coleta' || c.status === 'instalada')) return 'Já há uma CPI sua em andamento.';
+      return typeof s.flags.cpiTopic === 'string' ? null : 'Precisa de um fato determinado: fiscalize a prefeitura até achar indícios.';
+    },
+    apply: (s) => {
+      const cpi = startCpi(s, String(s.flags.cpiTopic));
+      delete s.flags.cpiTopic;
+      return `Pedido de CPI protocolado: ${cpi.topic}. Agora colete assinaturas (1 de ${CPI_SIGNATURES}).`;
+    },
+  },
+  {
+    id: 'colher_assinaturas', label: 'Colher assinaturas para CPI', category: 'Mandato de vereador', cost: 1,
+    description: 'Oposição assina com facilidade; a base do governo raramente. O pedido caduca em 3 meses (parâmetro).',
+    availability: (s) => (inMandate(s, 'vereador') ? (s.legislature.cpis.some((c) => c.status === 'coleta') ? null : 'hidden') : 'hidden'),
+    apply: (s, rng) => collectSignatures(s, rng, s.legislature.cpis.find((c) => c.status === 'coleta')!.id),
   },
   {
     id: 'atender_base', label: 'Atender a base nos bairros', category: 'Mandato de vereador', cost: 1,
@@ -543,15 +613,18 @@ export const ACTIONS: ActionDef[] = [
   },
   {
     id: 'posicionamento', fatigue: false, label: 'Definir posição frente à prefeitura', category: 'Mandato de vereador', cost: 1,
-    description: 'Base do governo dá acesso e emendas; oposição dá visibilidade. Independente fica no meio.',
+    description: 'Base: acesso, indicações atendidas e emendas executadas. Oposição: visibilidade e assinaturas de CPI. Mudar de lado tem custo nas relações.',
     availability: (s) => (inMandate(s, 'vereador') ? null : 'hidden'),
     paramLabel: 'Posição',
-    params: () => [{ value: 'base', label: 'Base do governo' }, { value: 'independente', label: 'Independente' }, { value: 'oposicao', label: 'Oposição' }],
+    params: () => (Object.keys(BLOC_LABEL) as (keyof typeof BLOC_LABEL)[]).map((k) => ({ value: k, label: BLOC_LABEL[k] })),
     apply: (s, _rng, param) => {
       const m = s.player.mandate!;
+      const prev = m.stance;
       m.stance = (param as typeof m.stance) ?? 'independente';
-      m.relationExecutive = clamp(m.relationExecutive + (m.stance === 'base' ? 20 : m.stance === 'oposicao' ? -20 : 0));
-      return `Você agora se declara ${m.stance === 'base' ? 'da base do governo' : m.stance === 'oposicao' ? 'de oposição' : 'independente'}.`;
+      const delta = { base: 20, independente: 0, oposicao: -20, oposicao_radical: -35 }[m.stance] - ({ base: 20, independente: 0, oposicao: -20, oposicao_radical: -35 }[prev] ?? 0);
+      m.relationExecutive = clamp(m.relationExecutive + delta * 0.8);
+      s.legislature.blocs[PLAYER] = m.stance;
+      return `Você agora se declara: ${BLOC_LABEL[m.stance].toLowerCase()}.`;
     },
   },
   {
@@ -569,31 +642,36 @@ export const ACTIONS: ActionDef[] = [
     },
   },
   {
-    id: 'presidencia_camara', fatigue: false, label: 'Disputar a presidência da Câmara', category: 'Mandato de vereador', cost: 2,
-    description: 'Eleição interna entre os 55 vereadores. Na Câmara de SP a Mesa tem mandato de 1 ano: eleição em 1º de janeiro no início da legislatura e em dezembro para o ano seguinte (prática de 2025–2026; confirmar no Regimento Interno).',
+    id: 'lancar_mesa', fatigue: false, label: 'Lançar candidatura à presidência da Câmara', category: 'Mandato de vereador', cost: 1,
+    description: 'A Mesa da CMSP tem mandato de 1 ano: eleição em 1º/01 no início da legislatura e em dezembro para o ano seguinte. O resultado sai no fechamento do mês; negocie com as bancadas antes.',
     availability: (s) => {
       if (!inMandate(s, 'vereador')) return 'hidden';
-      const term = mesaTerm(s);
+      const term = mesaWindow(s);
       if (term === null) return 'Eleição da Mesa: janeiro de 2029 e dezembro de 2029, 2030 e 2031.';
       if (s.flags[`mesa_${term}`]) return 'A Mesa deste período já foi eleita.';
-      return null;
+      return s.legislature.mesaCandidates.includes(PLAYER) ? 'Candidatura já lançada.' : null;
     },
-    apply: (s, rng) => {
-      const term = mesaTerm(s)!;
-      const a = s.character.attributes;
-      const bancada = s.government.councilSeatsByParty[s.player.partyId!] ?? 1;
-      const chance = clamp(-25 + a.articulation * 0.45 + a.negotiation * 0.35 + bancada * 2.5 + (s.player.mandate!.stance === 'base' ? 15 : 0), 2, 85) / 100;
-      if (next(rng) < chance) {
-        s.flags[`mesa_${term}`] = true;
-        s.player.mandate!.councilPresident = true;
-        s.government.councilPresident = { personId: 'character_player', name: s.character.name, partyId: s.player.partyId!, real: false, year: term, simulated: false };
-        s.player.recognition = grow(s.player.recognition, 10);
-        return `Você foi eleito(a) presidente da Câmara Municipal para ${term}! Agora controla a pauta do plenário.`;
-      }
-      s.player.mandate!.relationExecutive = clamp(s.player.mandate!.relationExecutive - 5);
-      const msg = aiElectMesa(s, term, rng);
-      return `Você perdeu a eleição da Mesa. ${msg}`;
+    apply: (s) => {
+      s.legislature.mesaCandidates.push(PLAYER);
+      s.player.recognition = grow(s.player.recognition, 1);
+      return `Candidatura lançada. Precisa de ${ABSOLUTE_MAJORITY} votos no 1º escrutínio. Use "Negociar apoio de bancada à Mesa".`;
     },
+  },
+  {
+    id: 'negociar_mesa', label: 'Negociar apoio de bancada à Mesa', category: 'Mandato de vereador', cost: 1,
+    description: 'Oferece um cargo na Mesa em troca dos votos da bancada. Se você perder, a promessa caduca.',
+    availability: (s) => (inMandate(s, 'vereador') && s.legislature.mesaCandidates.includes(PLAYER) && mesaWindow(s) !== null ? null : 'hidden'),
+    paramLabel: 'Bancada',
+    params: (s) => Object.entries(s.government.councilSeatsByParty).filter(([p]) => p !== s.player.partyId && !s.legislature.mesaDeals.includes(p)).sort((a, b) => b[1] - a[1]).map(([p, n]) => ({ value: p, label: `${partyById(p)?.acronym} (${n})${s.government.mayorCoalition.includes(p) ? ' — base do governo' : ''}` })),
+    apply: (s, rng, param) => negotiateMesaVote(s, rng, param!),
+  },
+  {
+    id: 'pautar', fatigue: false, label: 'Pautar projeto no plenário', category: 'Mandato de vereador', cost: 1,
+    description: 'Prerrogativa da Presidência: definir a Ordem do Dia.',
+    availability: (s) => (inMandate(s, 'vereador') && s.legislature.presidentId === PLAYER ? (plenaryQueue(s).length ? null : 'Nenhum projeto pronto para o plenário.') : 'hidden'),
+    paramLabel: 'Projeto',
+    params: (s) => plenaryQueue(s).map((b) => ({ value: b.id, label: `${b.number} — ${b.title}` })),
+    apply: (s, _rng, param) => schedule(s, param!),
   },
 
   // ---------------- Prefeitura ----------------
@@ -608,32 +686,48 @@ export const ACTIONS: ActionDef[] = [
     },
   },
   {
-    id: 'secretariado', label: 'Compor secretariado com aliados', category: 'Prefeitura', cost: 1,
-    description: 'Ceder secretarias a partidos amplia a base na Câmara, mas pode custar aprovação e coesão.',
-    availability: (s) => (inMandate(s, 'prefeito') ? (s.player.mandate!.councilBase >= 45 ? 'Sua base já é ampla.' : null) : 'hidden'),
-    apply: (s, rng) => {
-      const g = 3 + Math.floor(next(rng) * 4 + s.character.attributes.negotiation / 30);
-      s.player.mandate!.councilBase = Math.min(55, s.player.mandate!.councilBase + g);
-      s.player.mandate!.approval = clamp(s.player.mandate!.approval - 1);
-      return `Acordo fechado: +${g} vereadores na base (${s.player.mandate!.councilBase}/55).`;
+    id: 'secretariado', label: 'Ceder espaço no governo a um partido', category: 'Prefeitura', cost: 1,
+    description: 'Secretarias e cargos em troca de apoio na Câmara. Amplia a base, mas custa aprovação e coerência.',
+    availability: (s) => (inMandate(s, 'prefeito') ? (coalitionCandidates(s).length ? null : 'Todas as bancadas já estão na base.') : 'hidden'),
+    paramLabel: 'Partido',
+    params: (s) => coalitionCandidates(s).map(([p, n]) => ({ value: p, label: `${partyById(p)?.acronym} (${n} vereador${n > 1 ? 'es' : ''})` })),
+    apply: (s, rng, param) => {
+      const pid = param!;
+      const d = ideologicalDistance(s.character.ideology, partyIdeology(pid)) ?? 0.3;
+      const p = 0.35 + s.character.attributes.negotiation / 200 - d * 0.9;
+      const acr = partyById(pid)?.acronym;
+      if (next(rng) < Math.max(0.05, p)) {
+        s.government.mayorCoalition.push(pid);
+        s.legislature.blocs = computeBlocs(s, rng);
+        s.player.mandate!.councilBase = blocCounts(s).base;
+        s.player.mandate!.approval = clamp(s.player.mandate!.approval - 1 - d * 3);
+        return `Acordo com o ${acr}: o partido entra no governo. Base na Câmara: ${s.player.mandate!.councilBase}/55.`;
+      }
+      return `O ${acr} recusou entrar no governo (distância política e cargos oferecidos insuficientes).`;
     },
   },
   {
-    id: 'projeto_executivo', label: 'Enviar projeto à Câmara', category: 'Prefeitura', cost: 1,
-    description: 'Projetos do Executivo precisam de maioria no plenário. O prefeito não aprova lei sozinho.',
-    availability: (s) => (inMandate(s, 'prefeito') ? null : 'hidden'),
+    id: 'projeto_executivo', label: 'Enviar projeto do Executivo à Câmara', category: 'Prefeitura', cost: 1,
+    description: 'Tramita como qualquer projeto (comissões, Finanças, plenário). Com urgência ganha prioridade na pauta. O prefeito não aprova lei sozinho.',
+    availability: (s) => (inMandate(s, 'prefeito') ? (s.legislature.bills.filter((b) => b.author === 'executivo' && isActive(b)).length >= 3 ? 'Já há 3 projetos do Executivo tramitando.' : null) : 'hidden'),
     paramLabel: 'Tema', params: () => THEMES,
     apply: (s, rng, param) => {
-      const m = s.player.mandate!;
-      const theme = THEMES.find((t) => t.value === param) ?? THEMES[0];
-      const votes = Math.round(m.councilBase + normal(rng, 0, 3) + (55 - m.councilBase) * 0.2);
-      if (votes >= 28) {
-        m.approval = clamp(m.approval + 3);
-        m.projects.push({ id: `exe_${monthIndex(s.month)}`, theme: theme.value, title: `Projeto do Executivo — ${theme.label}`, monthsLeft: 0, status: 'sancionado' });
-        return `Câmara aprovou seu projeto (${theme.label}) por ${Math.min(55, votes)} votos. Aprovação +3.`;
-      }
-      m.approval = clamp(m.approval - 2);
-      return `Projeto derrotado no plenário (${Math.max(0, votes)} votos favoráveis; precisava de maioria). Sua base é insuficiente.`;
+      const b = fileExecutiveBill(s, rng, param ?? 'zeladoria');
+      return `${b.number} enviado à Câmara: ${b.title}${b.urgent ? ' (com pedido de urgência)' : ''}. Base atual: ${blocCounts(s).base}/55.`;
+    },
+  },
+  {
+    id: 'sancionar_vetar', fatigue: false, label: 'Sancionar ou vetar projeto aprovado', category: 'Prefeitura', cost: 0,
+    description: 'Prazo de 15 dias (LOM-SP art. 42). Sem decisão, há sanção tácita. A Câmara pode derrubar o veto com 28 votos.',
+    availability: (s) => (inMandate(s, 'prefeito') ? (s.legislature.bills.some((b) => b.stage === 'sancao') ? null : 'hidden') : 'hidden'),
+    paramLabel: 'Decisão',
+    params: (s) => s.legislature.bills.filter((b) => b.stage === 'sancao').flatMap((b) => [
+      { value: `${b.id}|sancionar`, label: `Sancionar ${b.number} — ${b.title}` },
+      { value: `${b.id}|vetar`, label: `Vetar ${b.number} — ${b.title}` },
+    ]),
+    apply: (s, _rng, param) => {
+      const [id, d] = param!.split('|');
+      return mayorDecide(s, id, d as 'sancionar' | 'vetar');
     },
   },
   {
@@ -661,46 +755,84 @@ export const ACTIONS: ActionDef[] = [
 
   // ---------------- Secretaria ----------------
   {
-    id: 'executar_programa', label: 'Executar programa da pasta', category: 'Secretaria', cost: 1,
-    description: 'Entregas da sua secretaria. Depende do orçamento que você conseguiu.',
-    availability: (s) => (inMandate(s, 'secretario') ? null : 'hidden'),
-    apply: (s, rng) => {
-      const m = s.player.mandate!;
-      const g = (m.budgetShare / 40 + s.character.attributes.management / 50) * (0.6 + next(rng) * 0.8);
-      m.approval = clamp(m.approval + g);
-      s.player.recognition = grow(s.player.recognition, 1.5);
-      raise(s, 'management', 0.8);
-      return `Entregas da pasta: aprovação +${g.toFixed(1)}, reconhecimento +1,5.`;
-    },
+    id: 'lancar_programa', label: 'Lançar programa da pasta', category: 'Secretaria', cost: 1,
+    description: 'Planejamento → licitação (Lei 14.133/2021) → execução → entrega. Custa orçamento livre; atrasos e aditivos dependem da capacidade da equipe.',
+    availability: (s) => (inMandate(s, 'secretario') && s.player.mandate!.secretariat ? (programOptions(s).length ? null : 'Todos os programas da pasta já foram lançados.') : 'hidden'),
+    paramLabel: 'Programa',
+    params: (s) => [...programOptions(s)].sort((a, b) => a.cost - b.cost).map((p) => ({ value: p.id, label: `${p.label} — R$ ${p.cost} mi, ~${p.plan + p.lic + p.exec} meses${p.cost > freeBudget(s.player.mandate!.secretariat!) ? ' (sem orçamento livre)' : ''}` })),
+    apply: (s, _rng, param) => startProgram(s, param!),
   },
   {
-    id: 'disputar_orcamento', label: 'Disputar orçamento com outras pastas', category: 'Secretaria', cost: 1,
-    description: 'Mais recursos para sua pasta, ao custo de atrito com o núcleo do governo.',
-    availability: (s) => (inMandate(s, 'secretario') ? null : 'hidden'),
-    apply: (s, rng) => {
-      const m = s.player.mandate!;
-      if (next(rng) < 0.3 + s.character.attributes.negotiation / 180) {
-        m.budgetShare = clamp(m.budgetShare + 12);
-        m.relationExecutive = clamp(m.relationExecutive - 4);
-        return 'Você conseguiu suplementação orçamentária para a pasta.';
-      }
-      m.relationExecutive = clamp(m.relationExecutive - 8);
-      return 'O pedido foi negado e gerou desgaste com a Fazenda.';
-    },
+    id: 'acompanhar_programa', label: 'Acompanhar e destravar programa', category: 'Secretaria', cost: 1,
+    description: 'Reuniões técnicas, cobrança de empreiteiras e respostas ao Tribunal de Contas. Pode encurtar prazos.',
+    availability: (s) => (inMandate(s, 'secretario') && s.player.mandate!.secretariat ? (runningPrograms(s).length ? null : 'Nenhum programa em andamento.') : 'hidden'),
+    paramLabel: 'Programa',
+    params: (s) => runningPrograms(s).map((p) => ({ value: p.id, label: `${p.label} (${p.phase}, ${p.monthsLeft} mês(es))` })),
+    apply: (s, rng, param) => superviseProgram(s, rng, param!),
+  },
+  ...PORTFOLIOS.map((pf): ActionDef => ({
+    id: `pasta_${pf.special.id}`, label: pf.special.label, category: 'Secretaria', cost: 1,
+    description: `${pf.special.description} Custa R$ ${pf.special.cost} mi do orçamento livre.${pf.special.risk ? ' ' + pf.special.risk : ''}`,
+    availability: (s) => (inMandate(s, 'secretario') && s.player.mandate!.secretariat?.portfolio === pf.id ? null : 'hidden'),
+    apply: (s, rng) => specialAction(s, rng),
+  })),
+  {
+    id: 'gerenciar_crise', fatigue: false, label: 'Montar gabinete de crise', category: 'Secretaria', cost: 1,
+    description: 'Responde à crise em curso na pasta. Sucesso depende de gestão e da equipe.',
+    availability: (s) => (inMandate(s, 'secretario') && s.player.mandate!.secretariat?.crisis ? null : 'hidden'),
+    apply: (s, rng) => manageCrisis(s, rng),
   },
   {
-    id: 'atender_vereadores', label: 'Atender vereadores e lideranças', category: 'Secretaria', cost: 1,
-    description: 'Secretário também é articulador político do governo.',
-    availability: (s) => (inMandate(s, 'secretario') ? null : 'hidden'),
-    apply: (s) => {
-      s.player.mandate!.relationExecutive = clamp(s.player.mandate!.relationExecutive + 5);
-      raise(s, 'articulation', 1.5);
-      return 'Relação com o prefeito +5; articulação +1,5.';
-    },
+    id: 'disputar_orcamento', label: 'Pedir suplementação à Fazenda', category: 'Secretaria', cost: 1,
+    description: 'Mais orçamento livre para a pasta, ao custo de atrito com o núcleo do governo. Bons indicadores ajudam.',
+    availability: (s) => (inMandate(s, 'secretario') && s.player.mandate!.secretariat ? null : 'hidden'),
+    apply: (s, rng) => disputeBudget(s, rng),
+  },
+  {
+    id: 'atender_vereadores', label: 'Receber vereadores e lideranças', category: 'Secretaria', cost: 1,
+    description: 'Secretário também é articulador do governo: atender pedidos da Câmara melhora a relação com o Legislativo.',
+    availability: (s) => (inMandate(s, 'secretario') && s.player.mandate!.secretariat ? null : 'hidden'),
+    apply: (s) => meetCouncillors(s),
+  },
+  {
+    id: 'treinar_equipe', label: 'Reforçar a equipe técnica', category: 'Secretaria', cost: 1,
+    description: 'Nomear quadros técnicos e reorganizar a secretaria. Menos atrasos e melhores entregas.',
+    availability: (s) => (inMandate(s, 'secretario') && s.player.mandate!.secretariat ? null : 'hidden'),
+    apply: (s) => trainTeam(s),
+  },
+  {
+    id: 'coletiva', label: 'Dar coletiva de imprensa', category: 'Secretaria', cost: 1,
+    description: 'Apresenta resultados. Se os indicadores pioraram ou há crise, a imprensa cobra.',
+    availability: (s) => (inMandate(s, 'secretario') && s.player.mandate!.secretariat ? null : 'hidden'),
+    apply: (s, rng) => pressConference(s, rng),
   },
 ];
 
-export const PORTFOLIO_OPTIONS = PORTFOLIOS;
+function billsInMyCommittee(s: GameState) {
+  const c = playerCommittee(s);
+  if (!c) return [];
+  return s.legislature.bills.filter((b) => ['ccj', 'merito', 'financas'].includes(b.stage) && b.committeeId === c.id && b.rapporteurId !== PLAYER);
+}
+function articulable(s: GameState) {
+  const mine = (b: Bill) => b.author === PLAYER || (b.author === 'executivo' && inMandate(s, 'prefeito'));
+  return s.legislature.bills.filter((b) => isActive(b) && b.stage !== 'sancao' && (mine(b) || (inMandate(s, 'vereador') && (b.stage === 'plenario' || b.stage === 'veto') && b.salience >= 40)));
+}
+function plenaryQueue(s: GameState) {
+  return s.legislature.bills.filter((b) => b.stage === 'plenario' && !b.scheduled);
+}
+function coalitionCandidates(s: GameState): [string, number][] {
+  return Object.entries(s.government.councilSeatsByParty).filter(([p]) => !s.government.mayorCoalition.includes(p)).sort((a, b) => b[1] - a[1]);
+}
+function programOptions(s: GameState) {
+  const sec = s.player.mandate?.secretariat;
+  if (!sec) return [];
+  return (portfolioById(sec.portfolio)?.programs ?? []).filter((p) => !sec.programs.some((x) => x.id === p.id && x.phase !== 'cancelado'));
+}
+function runningPrograms(s: GameState) {
+  return s.player.mandate?.secretariat?.programs.filter((p) => ['planejamento', 'licitacao', 'execucao'].includes(p.phase)) ?? [];
+}
+
+
 
 export function availableActions(s: GameState) {
   return ACTIONS.map((a) => ({ def: a, status: a.availability(s) })).filter((x) => x.status !== 'hidden');

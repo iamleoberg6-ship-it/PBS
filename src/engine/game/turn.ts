@@ -8,7 +8,10 @@ import { GAMEPLAY } from '../data/rulepack';
 import { isEligible, partyStrength, resolveConvention, runEligibility, simulateCouncil, simulateMayor } from './elections';
 import { runoff } from '../rules/majoritarian';
 import { rollEvent } from './events';
-import { aiElectMesa, seatsByParty } from './council';
+import { seatsByParty } from './council';
+import { PROFESSIONS } from './create';
+import { blocCounts, electMesa, initLegislature, legislatureMonthlyStep, legislatureNews, mesaWindow, playerIsCouncillor } from './legislature';
+import { createSecretariat, inviteAffinity, secretariatMonthlyStep } from './secretariat';
 import { makeMayorPoll, makeRunoffPoll } from './polls';
 import { createMayorRace } from './elections';
 import { monthlySocialGrowth, digitalScore } from './social';
@@ -53,40 +56,39 @@ export function advanceMonth(state: GameState): GameState {
   for (const note of closePersonalMonth(s)) log(s, 'financas', note);
   mark('Fechamento do mês: renda e despesas pessoais');
 
-  // 2) Mandato: tramitação de projetos e aprovação.
+  // 2) Câmara Municipal: tramitação, votações, vetos, CPIs (roda sempre — a Câmara funciona com ou sem o jogador).
+  const legNotes = legislatureMonthlyStep(s, rng);
+  for (const n of legNotes) log(s, 'camara', n);
+  legislatureNews(s, rng, legNotes);
+  const mesaTerm = mesaWindow(s);
+  if (mesaTerm !== null && !s.flags[`mesa_${mesaTerm}`]) log(s, 'camara', electMesa(s, mesaTerm, rng));
+  mark('Câmara Municipal: votações, vetos e Mesa');
+
+  // 2b) Secretaria (se o jogador chefia uma pasta).
+  for (const n of secretariatMonthlyStep(s, rng)) log(s, 'secretaria', n);
+  if (s.flags.exonerado && s.player.mandate?.office === 'secretario') {
+    delete s.flags.exonerado;
+    s.player.careerHistory.forEach((h) => { if (h.to === null) h.to = `${s.month.year}-${String(s.month.month).padStart(2, '0')}`; });
+    s.player.mandate = null;
+    s.player.job = 'profissao';
+    s.finances.monthlyIncome = PROFESSIONS[s.character.profession].income;
+  }
+  mark('Secretaria: programas, indicadores e crises');
+
+  // 2c) Mandato: avaliação do público.
   const m = s.player.mandate;
   if (m) {
-    for (const p of m.projects) {
-      if (p.status !== 'tramitando') continue;
-      p.monthsLeft -= 1;
-      if (p.monthsLeft > 0) continue;
-      const a = s.character.attributes;
-      const bancada = s.government.councilSeatsByParty[s.player.partyId!] ?? 1;
-      const chance = clamp(15 + a.articulation * 0.35 + a.negotiation * 0.25 + bancada * 1.5 + (m.stance === 'base' ? 12 : m.stance === 'oposicao' ? -12 : 0) + (m.councilPresident ? 15 : 0), 5, 90) / 100;
-      if (next(rng) < chance) {
-        const veto = next(rng) < (m.stance === 'oposicao' ? 0.45 : m.stance === 'base' ? 0.08 : 0.2);
-        p.status = veto ? 'vetado' : 'sancionado';
-        if (veto) log(s, 'mandato', `${p.title}: aprovado na Câmara, mas vetado pelo prefeito.`);
-        else {
-          m.approval = clamp(m.approval + 4);
-          s.player.recognition = grow(s.player.recognition, 3);
-          log(s, 'mandato', `${p.title}: aprovado e sancionado! Agora é lei municipal.`);
-        }
-      } else {
-        p.status = 'rejeitado';
-        log(s, 'mandato', `${p.title}: rejeitado em plenário.`);
-      }
-    }
     if (m.office === 'prefeito') {
+      m.councilBase = blocCounts(s).base;
       const drift = (50 - m.approval) * 0.03 + normal(rng, 0, 1.2) + (m.priorityArea ? 0.6 + s.character.attributes.management / 120 : -0.4) + (m.councilBase < 28 ? -0.8 : 0.3);
       m.approval = clamp(m.approval + drift);
-    } else {
+    } else if (!m.secretariat) {
       m.approval = clamp(m.approval + (50 - m.approval) * 0.02 + normal(rng, 0, 0.6));
     }
     s.character.attributes.popularity = clamp(s.character.attributes.popularity + (m.approval - 50) / 80);
   }
 
-  mark('Mandato: tramitação de projetos e avaliação do público');
+  mark('Mandato: avaliação do público');
 
   // 3) Decaimentos naturais.
   s.player.recognition = clamp(s.player.recognition - (s.player.recognition > 15 ? 0.6 : 0.2));
@@ -131,8 +133,8 @@ export function advanceMonth(state: GameState): GameState {
   if (t === mi(2028, 11)) handleRunoffAndAftermath(s);
   if (t === mi(2028, 12)) log(s, 'eleicao', 'Diplomação dos eleitos pela Justiça Eleitoral.');
   if (t === mi(2029, 1)) handlePosse(s);
-  for (const y of [2028, 2030, 2031, 2032]) if (t === mi(y, 1) && !s.flags[`mesa_${y}`]) log(s, 'mandato', aiElectMesa(s, y, rng));
-  if (t === mi(2029, 2) && !s.flags.mesa_2029) log(s, 'mandato', aiElectMesa(s, 2029, rng));
+  if (t === mi(2029, 1) && playerIsCouncillor(s)) log(s, 'camara', 'Eleição da Mesa Diretora para 2029 neste mês: use "Lançar candidatura à Mesa" e negocie com as bancadas. O resultado sai no fechamento do mês.');
+  if (s.month.month === 12 && s.month.year >= 2029 && s.month.year <= 2031 && playerIsCouncillor(s)) log(s, 'camara', `Eleição da Mesa para ${s.month.year + 1} neste mês.`);
   // Pesquisas eleitorais (institutos fictícios), de março a setembro de 2028; 2º turno em outubro.
   if (t === mi(2028, 3) && !s.mayorRace) {
     s.mayorRace = createMayorRace(s, rng);
@@ -285,13 +287,19 @@ function handleRunoffAndAftermath(s: GameState) {
     rec.runoffPending = null;
     log(s, 'eleicao', w.isPlayer ? 'VOCÊ VENCEU O 2º TURNO E FOI ELEITO(A) PREFEITO(A) DE SÃO PAULO!' : `${w.name} venceu o 2º turno. Você não foi eleito(a).`);
   }
-  // Convite para secretaria: perdeu (ou não concorreu), mas o partido está com o vencedor.
+  // Convite para secretaria: só se houver relação política (mesma chapa, apoio) ou proximidade ideológica forte.
   const winnerParty = rec.mayorWinner?.partyId;
   if (!rec.playerElected && s.player.partyId && winnerParty && !rec.mayorWinner?.isPlayer) {
-    const sameSide = listIdForParty(winnerParty) === listIdForParty(s.player.partyId) || next(rng) < 0.15;
-    if (sameSide && s.player.recognition >= 12 && s.character.attributes.management >= 35) {
+    const aff = inviteAffinity(s, winnerParty);
+    const a = s.character.attributes;
+    const competent = s.player.recognition >= 12 && (a.management >= 35 || a.politicalKnowledge >= 45);
+    const loyalOk = s.player.partyRel.leadershipTrust >= 15;
+    s.flags.conviteMotivo = aff.reason;
+    if (aff.ok && competent && loyalOk && next(rng) < 0.85) {
       s.government.mayor = { personId: rec.mayorWinner!.id, name: rec.mayorWinner!.name, partyId: winnerParty, real: false };
       s.pendingEvents.push({ templateId: 'convite_secretaria', vars: {} });
+    } else if (competent && !aff.ok) {
+      log(s, 'eleicao', `Sem convite para o governo eleito: ${aff.reason}`);
     }
   }
 }
@@ -346,16 +354,20 @@ function handlePosse(s: GameState) {
     s.government.mayorCoalition = coalition;
   } else if (typeof s.flags.secretariaAceita === 'string') {
     s.player.mandate = newMandate('secretario', '2029-01-01', '2032-12-31');
-    s.player.mandate.portfolio = String(s.flags.secretariaAceita);
+    const sec = createSecretariat(String(s.flags.secretariaAceita));
+    s.player.mandate.portfolio = sec.name;
+    s.player.mandate.secretariat = sec;
     s.player.mandate.stance = 'base';
+    s.player.mandate.relationExecutive = 60;
     s.player.job = null;
     s.player.careerHistory.forEach((h) => { if (h.to === null) h.to = '2028-12'; });
-    s.player.careerHistory.push({ office: `Secretário(a) municipal de ${s.flags.secretariaAceita}`, from: '2029-01', to: null, note: 'Cargo de nomeação' });
-    log(s, 'mandato', `Você assumiu a Secretaria Municipal de ${s.flags.secretariaAceita}.`);
+    s.player.careerHistory.push({ office: `Secretário(a) municipal de ${sec.name}`, from: '2029-01', to: null, note: 'Cargo de nomeação' });
+    log(s, 'mandato', `Você assumiu a Secretaria Municipal de ${sec.name}. Orçamento (ordem de grandeza simulada): R$ ${sec.budget.toLocaleString('pt-BR')} mi/ano.`);
   }
   if (s.player.candidacy) s.player.candidacy = null;
-  if (s.player.mandate?.office !== 'vereador') log(s, 'mandato', aiElectMesa(s, 2029, s.rng));
-  else log(s, 'mandato', 'A Mesa Diretora de 2029 será eleita este mês. Você pode disputar a presidência.');
+  // Nova legislatura: blocos, comissões (proporcionais) e Mesa.
+  initLegislature(s, s.rng);
+  if (s.player.mandate?.office === 'prefeito') s.player.mandate.councilBase = blocCounts(s).base;
 }
 
 export function currentPhaseLabel(s: GameState): string {

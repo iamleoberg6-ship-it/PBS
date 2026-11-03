@@ -25,3 +25,5 @@ export * from './game/fatigue';
 export * from './game/relations';
 export * from './game/actors';
 export * from './game/partyorg';
+export * from './game/legislature';
+export * from './game/secretariat';

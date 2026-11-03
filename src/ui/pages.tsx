@@ -82,6 +82,8 @@ export function Gabinete({ s, act }: Props) {
         {party && <Meter label={`Confiança da direção (${party.acronym})`} value={p.partyRel.leadershipTrust} color="blue" onWhy={() => setWhy('leadershipTrust')} />}
         {party && <Meter label="Influência no partido" value={p.partyRel.influence} color="gold" onWhy={() => setWhy('partyInfluence')} />}
         {m && <Meter label={m.office === 'prefeito' ? 'Aprovação do governo' : 'Aprovação do mandato'} value={m.approval} onWhy={() => setWhy('approval')} />}
+        {m && m.office !== 'prefeito' && <Meter label="Relação com a prefeitura" value={m.relationExecutive} color="blue" />}
+        {m?.secretariat && <Meter label="Relação com a Câmara" value={m.secretariat.relationCouncil} color="gold" />}
         {m?.office === 'prefeito' && <Meter label="Base na Câmara" value={(m.councilBase / 55) * 100} note={`${m.councilBase}/55`} color={m.councilBase >= 28 ? '' : 'red'} />}
         {p.candidacy?.status === 'registrada' && <Meter label="Força de campanha" value={playerElectoralScore(s)} color="gold" note={p.candidacy.office === 'vereador' ? `~${num(estimateVereadorVotes(playerElectoralScore(s)))} votos` : ''} />}
       </div>
@@ -459,7 +461,6 @@ export function Cidade({ s }: { s: GameState }) {
   const seats = Object.entries(g.councilSeatsByParty).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
   const dots = seats.flatMap(([id, n]) => Array.from({ length: n }, () => id));
   const realOf = (id: string) => REAL_FIGURES.find((f) => f.id === id);
-  const m = s.player.mandate;
   return (
     <>
       <div className="page-head"><div><h2>São Paulo</h2><p>Prefeitura e Câmara Municipal · mandato atual até {formatIsoPt(g.mandateUntil)}</p></div></div>
@@ -483,7 +484,7 @@ export function Cidade({ s }: { s: GameState }) {
                 <b style={{ fontSize: 16 }}>{g.councilPresident.name}</b><span className="small">{partyById(g.councilPresident.partyId)?.acronym}</span>
                 {g.councilPresident.simulated ? <span className="tag proposta">eleição simulada</span> : <span className="tag ok">você</span>}
               </div>
-              <div className="small muted">Mesa com mandato de 1 ano. Na vida real, Ricardo Teixeira (UNIÃO) presidiu a Câmara em 2025 e 2026.</div>
+              <div className="small muted">Mesa com mandato de 1 ano. Na vida real, Ricardo Teixeira (UNIÃO) presidiu a Câmara em 2025 e 2026. Comissões, projetos e votações estão na página Câmara Municipal.</div>
             </div>
           )}
         </div>
@@ -516,15 +517,6 @@ export function Cidade({ s }: { s: GameState }) {
           ? 'Vereadores eleitos em 2024, com o partido pelo qual se elegeram. Trocas de partido, licenças e suplências posteriores não estão refletidas.'
           : 'Composição eleita na simulação de 2028. Figuras reais aparecem com o resultado simulado; nada aqui é previsão.'}</p>
       </div>
-      {m && m.projects.length > 0 && (
-        <div className="card" style={{ marginTop: 16 }}>
-          <h3>Seus projetos</h3>
-          <table>
-            <thead><tr><th>Projeto</th><th>Situação</th></tr></thead>
-            <tbody>{m.projects.map((p) => <tr key={p.id}><td>{p.title}</td><td><span className={`tag ${p.status === 'sancionado' ? 'ok' : p.status === 'tramitando' ? '' : 'no'}`}>{p.status === 'tramitando' ? `tramitando · ~${p.monthsLeft} mês(es)` : p.status}</span></td></tr>)}</tbody>
-          </table>
-        </div>
-      )}
     </>
   );
 }
