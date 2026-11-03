@@ -19,6 +19,7 @@ export function Creation({ onStart, onBack }: { onStart: (s: GameState) => void;
   const [bio, setBio] = useState('');
   const [bonus, setBonus] = useState<Partial<Record<AttributeKey, number>>>({});
   const [seed, setSeed] = useState('');
+  const [guide, setGuide] = useState(true);
   const [homeRegion, setHomeRegion] = useState('sul2');
   const [ideo, setIdeo] = useState<Record<string, number>>({ economia: 0, social: 0, seguranca: 0, ambiente: 0 });
   const ideology = { ...ideo, fiscal: ideo.economia, trabalho: ideo.economia, desenvolvimento: ideo.economia };
@@ -48,6 +49,7 @@ export function Creation({ onStart, onBack }: { onStart: (s: GameState) => void;
       startPartyId: startStatus === 'independente' ? null : partyId, bio, attributeBonus: bonus, ideology, homeRegion,
       seed: seed.trim() ? Number(seed) || undefined : undefined,
     });
+    s.tutorial = { enabled: guide, seen: [] };
     onStart(s);
   };
 
@@ -84,6 +86,8 @@ export function Creation({ onStart, onBack }: { onStart: (s: GameState) => void;
                   <span className="hint">Cidades médias e pequenas entram nas próximas versões.</span></div>
                 <div className="field"><label>Seed da partida (opcional)</label><input value={seed} onChange={(e) => setSeed(e.target.value.replace(/\D/g, ''))} placeholder="Aleatória" />
                   <span className="hint">Mesma seed + mesmas escolhas = mesmos resultados.</span></div>
+                <div className="field"><label style={{ display: 'flex', gap: 8, alignItems: 'center' }}><input type="checkbox" checked={guide} onChange={(e) => setGuide(e.target.checked)} style={{ width: 'auto' }} /> Guia para iniciantes</label>
+                  <span className="hint">Dicas curtas na hora certa: primeira campanha, primeiro mandato, primeira crise. Dá para desligar depois.</span></div>
               </div>
               <div className="field"><label>Biografia</label><textarea value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Opcional" /></div>
             </div>

@@ -3,6 +3,7 @@
 // Erros fatais (sem personagem, sem calendário, pacote de regras desconhecido) recusam o save com mensagem clara.
 
 import { refreshPool, teamOffice } from './team';
+import { TIPS } from './tutorial';
 import { GAMEPLAY, RULEPACK_BR_2028_MUN } from '../data/rulepack';
 import { initStateWorld } from './general';
 import { initOutlets } from './livingworld';
@@ -294,6 +295,11 @@ function upgradeWithinV8(s: Raw, report: LoadReport) {
     report.repairs.push('Vereadores reais eleitos deputados em 2026 deixam a Câmara; suplentes fictícios do mesmo partido assumem.');
   }
   s.floorVotes ??= [];
+  // Guia (Fase 6): partidas já em andamento não reveem a introdução; só as dicas de recursos novos.
+  if (!s.tutorial) {
+    const elapsed = ((s.month?.year ?? 2027) - 2027) * 12 + (s.month?.month ?? 1) - 1;
+    s.tutorial = { enabled: true, seen: elapsed >= 3 ? TIPS.map((x) => x.id).filter((id) => id !== 'equipe' && id !== 'intro_porque') : [] };
+  }
   // Equipe do gabinete (ajuste pós-Fase 5): currículos disponíveis já no mês do carregamento.
   if (teamOffice(s as GameState) && !s.player.team?.pool?.length && s.rng) refreshPool(s as GameState, s.rng);
   // Cotas de emendas com valores reais de 2026 (ajuste pós-Fase 5).

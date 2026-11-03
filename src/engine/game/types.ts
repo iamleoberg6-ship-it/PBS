@@ -219,6 +219,8 @@ export interface PlayerState {
   regionalGoodwill?: Record<string, number>;
   /** Credibilidade pessoal diante da imprensa (Fase 5): cai quando o jogador nega algo verdadeiro e é desmentido. */
   credibility?: number;
+  /** Piso de reconhecimento: votos recebidos e cargos exercidos não se apagam (Fase 6, PROPOSTA). */
+  recognitionFloor?: number;
   /** Equipe do gabinete nomeada pelo jogador (pós-Fase 5). */
   team?: import('./team').TeamState;
 }
@@ -743,6 +745,10 @@ export interface GameState {
   actionPoints: number;
   /** Agenda do cargo (Fase 5): compromissos só para o trabalho do mandato/gabinete. */
   officePoints?: number;
+  /** Guia do jogador (Fase 6): dicas já vistas e se o guia está ligado. */
+  tutorial?: { enabled: boolean; seen: string[] };
+  /** Resumo do último mês (Fase 6): o que mudou e por quê. */
+  monthReport?: import('./ledger').MonthReportItem[];
   character: Character;
   finances: Finances;
   player: PlayerState;

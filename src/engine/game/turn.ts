@@ -22,7 +22,7 @@ import { monthlySocialGrowth, digitalScore } from './social';
 import { backgroundNews, newsFromContests, newsFromLog, newsFromPoll } from './news';
 import { grow, officePointsFor } from './actions';
 import { closePersonalMonth, recomputeNetWorth } from './finance';
-import { snapshot, recordDiff } from './ledger';
+import { buildMonthReport, snapshot, recordDiff } from './ledger';
 import { partyMonthlyStep } from './partyorg';
 import { decayRelations } from './relations';
 import { LAST_YEAR, councilLegislatureNumber, genCycle, isGenYear, isMunYear, munCycle, munTerm, nextElection } from './cycle';
@@ -32,7 +32,7 @@ import { UPPER_LABEL, UPPER_SALARIES, schemeInvestigation, upperMonthlyStep } fr
 import { generateFloorVotes, resolveFloorVotes } from './pauta';
 import { councillorWindowSwitches, crisisMonthlyStep, lapseCampaignPromises, promisesMonthlyStep } from './livingworld';
 import { checkAchievements, computeEnding } from './endings';
-import { endMandate, isMunicipalMandate, mandateExpired, newMandate, startUpperMandate, vacateCouncilSeat } from './careers';
+import { endMandate, rememberVotes, isMunicipalMandate, mandateExpired, newMandate, startUpperMandate, vacateCouncilSeat } from './careers';
 import type { ElectionRecord, GameState, LogEntry } from './types';
 
 const clamp = (v: number, a = 0, b = 100) => Math.max(a, Math.min(b, v));
@@ -49,6 +49,12 @@ function log(s: GameState, kind: LogEntry['kind'], text: string) {
 }
 
 export function advanceMonth(state: GameState): GameState {
+  const out = advanceMonthInner(state);
+  if (out !== state) out.monthReport = buildMonthReport(out, state.month);
+  return out;
+}
+
+function advanceMonthInner(state: GameState): GameState {
   if (state.gameOver || state.pendingEvents.length > 0) return state;
   const s: GameState = structuredClone(state);
   const rng = s.rng;
@@ -124,16 +130,21 @@ export function advanceMonth(state: GameState): GameState {
     if (j) log(s, 'eleicao', j);
     if (s.flags.cassado && s.player.mandate && !s.flags[`cassadoAplicado_${ly}`]) { s.flags[`cassadoAplicado_${ly}`] = true; cassate(s); }
   }
+  mark('Campanha territorial e trabalho de assessoria');
   for (const n of upperMonthlyStep(s, rng)) log(s, 'mandato', n);
+  mark('Mandato estadual/federal: emendas, projetos e relação com o governo');
   for (const n of schemeInvestigation(s, rng)) log(s, 'mandato', n);
+  mark('Investigação de esquema com emendas');
   for (const n of teamMonthlyStep(s, rng)) log(s, 'mandato', n);
+  mark('Equipe do gabinete: tarefas, devoluções e denúncias');
   if (s.flags.perdaMandatoEsquema && s.player.mandate) { delete s.flags.perdaMandatoEsquema; endMandate(s, 'Você perdeu o mandato por quebra de decoro parlamentar.'); }
   if (s.flags.exoneradoEstadual && s.player.mandate?.office === 'secretario_estadual') { delete s.flags.exoneradoEstadual; endMandate(s, 'Você deixou a secretaria estadual.'); }
   stateWorldMonthly(s, rng);
-  mark('Campanha e gabinete');
+  mark('Mundo estadual, desligamentos e posses');
 
   // 3) Decaimentos naturais.
-  s.player.recognition = clamp(s.player.recognition - (s.player.recognition > 15 ? 0.6 : 0.2));
+  const recFloor = s.player.recognitionFloor ?? 0;
+  if (s.player.recognition > recFloor) s.player.recognition = Math.max(recFloor, clamp(s.player.recognition - (s.player.recognition > 15 ? 0.6 : 0.2)));
   s.player.base = clamp(s.player.base - (s.player.base > 15 ? 0.4 : 0.1));
   if (s.player.job === 'assessor') {
     s.character.attributes.politicalKnowledge = clamp(s.character.attributes.politicalKnowledge + 0.5);
@@ -478,7 +489,7 @@ function handleElectionDay(s: GameState, Y: number) {
   };
   s.flags.lastElectionYear = Y;
   for (const cand of mayor.field) record.candidatePartyById[cand.id] = cand.partyId;
-  if (record.playerVotes && c?.status === 'registrada') record.playerVotesByRegion = distributeVotes(s, record.playerVotes);
+  if (record.playerVotes && c?.status === 'registrada') { record.playerVotesByRegion = distributeVotes(s, record.playerVotes); rememberVotes(s, record.playerVotes, 'cidade'); }
   const totalMayor = mayor.field.reduce((a, x) => a + x.votes, 0) || 1;
   record.mayorByRegion = mayorRegionalShares(s, mayor.field.map((x) => ({ id: x.id, name: x.isPlayer ? s.character.name : x.name, share: x.votes / totalMayor, partyId: x.partyId })));
   if (playerInRunoff) {

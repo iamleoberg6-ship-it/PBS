@@ -12,6 +12,9 @@ import { Secretaria } from './secretaria';
 import { Governo } from './governo';
 import { Campanha, GabineteParlamentar } from './campanha';
 import { Equipe } from './equipe';
+import { GuideCard } from './guide';
+import { CausesModal } from './causes';
+import { exportSave, isDesktop, mirrorToFile } from './desktop';
 import { Conquistas, EleicoesGerais, EstadoUniao, Imagem, MeuMandato } from './estado';
 
 const PAGE_IDS = ['gabinete', 'mandato', 'personagem', 'meupartido', 'partidos', 'redes', 'noticias', 'campanha', 'eleicoes', 'gerais', 'estado', 'imagem', 'gabparl', 'governo', 'camara', 'secretaria', 'cidade', 'conquistas', 'historico', 'regras', 'equipe'] as const;
@@ -71,9 +74,10 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
   const [s, setS] = useState<GameState>(initial);
   const [page, setPage] = useState<PageId>('gabinete');
   const [toast, setToast] = useState('');
+  const [whyCash, setWhyCash] = useState(false);
   const [exporting, setExporting] = useState(false);
 
-  useEffect(() => { saveLocal(s); }, [s]);
+  useEffect(() => { saveLocal(s); void mirrorToFile(s); }, [s]);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(''), 3200); return () => clearTimeout(t); }, [toast]);
 
   const act = (id: string, param?: string) => {
@@ -119,7 +123,7 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
             {Array.from({ length: officePointsFor(s) }, (_, i) => <span key={i} className={`ap-dot ${i < (s.officePoints ?? 0) ? 'on' : ''}`} style={{ borderRadius: 2, transform: 'rotate(45deg)' }} />)}
           </div>
         )}
-        <div className="top-stat"><b>{brl(s.finances.cash)}</b><small>caixa pessoal</small></div>
+        <button className="top-stat top-stat-btn" onClick={() => setWhyCash(true)} title="Por que o caixa mudou?" aria-label={`Caixa pessoal: ${brl(s.finances.cash)}. Ver por que mudou`}><b>{brl(s.finances.cash)}</b><small>caixa pessoal</small></button>
         <button className="btn btn-gold" onClick={advance} disabled={s.gameOver || !!ev}>
           {s.gameOver ? 'Fim da partida' : ev ? 'Responda o evento' : 'Avançar mês →'}
         </button>
@@ -134,11 +138,12 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
           </div>
         ))}
         <div className="nav-sep" />
-        <button className="nav-item" onClick={() => setExporting(true)}>Exportar save</button>
+        <button className="nav-item" onClick={() => setExporting(true)}>Salvar / exportar partida</button>
         <button className="nav-item" onClick={onExit}>Menu inicial</button>
-        <div className="side-foot">Salvo automaticamente neste navegador.</div>
+        <div className="side-foot">{isDesktop ? "Salvo automaticamente em Documentos › Political Brazilian Simulator." : "Salvo automaticamente neste navegador. Use \"Salvar / exportar\" para guardar um arquivo."}</div>
       </nav>
       <main className="main"><PageBoundary resetKey={`${page}-${s.month.year}-${s.month.month}`}>
+        <GuideCard s={s} setS={setS} go={(p) => { if ((PAGE_IDS as readonly string[]).includes(p)) setPage(p as PageId); }} />
         {page === 'gabinete' && <Gabinete s={s} act={act} voteBill={(id, c) => setS(setPlayerVote(s, id, c))} voteFloor={(id, c) => setS(setFloorVote(s, id, c))} />}
         {page === 'personagem' && <Personagem s={s} />}
         {page === 'meupartido' && <MeuPartido s={s} />}
@@ -159,7 +164,7 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
         {page === 'secretaria' && <Secretaria s={s} />}
         {page === 'cidade' && <Cidade s={s} />}
         {page === 'historico' && <Historico s={s} />}
-        {page === 'regras' && <Regras s={s} />}
+        {page === 'regras' && <Regras s={s} setS={setS} />}
       </PageBoundary></main>
 
       {ev && tpl && (
@@ -183,16 +188,18 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
         <div className="overlay" onClick={() => setExporting(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h2>Exportar save</h2>
-            <p>Copie e guarde este texto para continuar em outro navegador ou computador.</p>
+            <p>{isDesktop ? 'A partida já é salva sozinha em arquivo (pasta Documentos › Political Brazilian Simulator), com uma cópia por ano de jogo. Você também pode gravar uma cópia agora ou copiar o texto.' : 'Baixe um arquivo .json da partida (recomendado) ou copie o texto para continuar em outro navegador ou computador.'}</p>
             <textarea readOnly value={serialize(s)} onFocus={(e) => e.currentTarget.select()} />
             <div className="modal-options" style={{ flexDirection: 'row' }}>
+              <button className="btn btn-gold" onClick={() => { exportSave(s).then(setToast); }}>{isDesktop ? 'Salvar cópia em arquivo' : 'Baixar arquivo .json'}</button>
               <button className="btn btn-primary" onClick={() => { navigator.clipboard?.writeText(serialize(s)).then(() => setToast('Save copiado.'), () => setToast('Não deu para copiar automaticamente: selecione o texto e copie.')); }}>Copiar</button>
               <button className="btn" onClick={() => setExporting(false)}>Fechar</button>
             </div>
           </div>
         </div>
       )}
-      {toast && <div className="toast">{toast}</div>}
+      {whyCash && <CausesModal s={s} indicator="cash" onClose={() => setWhyCash(false)} />}
+      {toast && <div className="toast" role="status" aria-live="polite">{toast}</div>}
     </div>
   );
 }

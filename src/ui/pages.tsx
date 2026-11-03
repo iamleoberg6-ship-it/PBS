@@ -1,3 +1,4 @@
+import { TIPS, resetTutorial, setTutorial, tutorialOn } from '../engine';
 import { useState } from 'react';
 import {
   ATTRIBUTE_LABELS, FEDERATIONS, GAMEPLAY, PARTIES, PROFESSIONS, REAL_FIGURES, RULEPACK_BR_2028_MUN as RP, SAO_PAULO, UPPER_LABEL, LAST_YEAR, munCycle, munRulepack, genRulepack,
@@ -7,7 +8,7 @@ import {
 } from '../engine';
 import { brl, listColor, num, partyColor, pct } from './format';
 import { Headlines, compact } from './media';
-import { CausesModal } from './causes';
+import { CausesModal, MonthReport } from './causes';
 import { Votacoes } from './votacoes';
 
 type Props = { s: GameState; act: (id: string, param?: string) => void };
@@ -15,7 +16,8 @@ type Props = { s: GameState; act: (id: string, param?: string) => void };
 export const OFFICE_PT: Record<string, string> = { vereador: 'vereador(a)', prefeito: 'prefeito(a)', deputado_estadual: 'deputado(a) estadual', deputado_federal: 'deputado(a) federal', senador: 'senador(a)', governador: 'governador(a)' };
 
 const Meter = ({ label, value, color = '', note, onWhy }: { label: string; value: number; color?: string; note?: string; onWhy?: () => void }) => (
-  <div className="meter" onClick={onWhy} style={onWhy ? { cursor: 'pointer' } : undefined} title={onWhy ? 'Clique para ver por que mudou' : undefined}>
+  <div className="meter" onClick={onWhy} style={onWhy ? { cursor: 'pointer' } : undefined} title={onWhy ? 'Clique para ver por que mudou' : undefined}
+    {...(onWhy ? { role: 'button', tabIndex: 0, 'aria-label': `${label}: ${Math.round(value)} de 100. Ver por que mudou`, onKeyDown: (e: { key: string; preventDefault: () => void }) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onWhy(); } } } : {})}>
     <div className="meter-label"><span>{label}</span>{note && <span>{note}</span>}</div>
     <div className="meter-value">{Math.round(value)}</div>
     <div className={`bar ${color}`}><i style={{ width: `${Math.max(0, Math.min(100, value))}%` }} /></div>
@@ -79,6 +81,7 @@ export function Gabinete({ s, act, voteBill, voteFloor }: Props & { voteBill: (i
         </div>
       </div>
       <Votacoes s={s} voteBill={voteBill} voteFloor={voteFloor} compact />
+      <MonthReport s={s} onWhy={setWhy} />
       <div className="meters">
         <Meter label="Reconhecimento" value={p.recognition} note="cidade" onWhy={() => setWhy('recognition')} />
         <Meter label="Base social" value={p.base} color="gold" onWhy={() => setWhy('base')} />
@@ -86,11 +89,11 @@ export function Gabinete({ s, act, voteBill, voteFloor }: Props & { voteBill: (i
         {party && <Meter label={`Confiança da direção (${party.acronym})`} value={p.partyRel.leadershipTrust} color="blue" onWhy={() => setWhy('leadershipTrust')} />}
         {party && <Meter label="Influência no partido" value={p.partyRel.influence} color="gold" onWhy={() => setWhy('partyInfluence')} />}
         {m && <Meter label={m.office === 'prefeito' ? 'Aprovação do governo' : 'Aprovação do mandato'} value={m.approval} onWhy={() => setWhy('approval')} />}
-        {m && !m.upper && m.office !== 'prefeito' && <Meter label="Relação com a prefeitura" value={m.relationExecutive} color="blue" />}
+        {m && !m.upper && m.office !== 'prefeito' && <Meter label="Relação com a prefeitura" value={m.relationExecutive} color="blue" onWhy={() => setWhy('relationExec')} />}
         {m?.secretariat && <Meter label="Relação com a Câmara" value={m.secretariat.relationCouncil} color="gold" />}
         {m?.office === 'governador' && <Meter label="Base na Alesp" value={((m.upper?.assemblyBase ?? 0) / 94) * 100} note={`${m.upper?.assemblyBase ?? 0}/94`} color={(m.upper?.assemblyBase ?? 0) >= 48 ? '' : 'red'} />}
-        {m?.upper && m.office !== 'governador' && <Meter label="Relação com o governo" value={m.upper.relationGov} />}
-        <Meter label="Credibilidade pessoal" value={p.credibility ?? 60} color={(p.credibility ?? 60) < 40 ? 'red' : ''} />
+        {m?.upper && m.office !== 'governador' && <Meter label="Relação com o governo" value={m.upper.relationGov} onWhy={() => setWhy('relationExec')} />}
+        <Meter label="Credibilidade pessoal" value={p.credibility ?? 60} color={(p.credibility ?? 60) < 40 ? 'red' : ''} onWhy={() => setWhy('credibility')} />
         {m?.office === 'prefeito' && <Meter label="Base na Câmara" value={(m.councilBase / 55) * 100} note={`${m.councilBase}/55`} color={m.councilBase >= 28 ? '' : 'red'} />}
         {p.candidacy?.status === 'registrada' && <Meter label="Força de campanha" value={playerElectoralScore(s)} color="gold" note={p.candidacy.office === 'vereador' ? `~${num(estimateVereadorVotes(playerElectoralScore(s)))} votos` : ''} />}
       </div>
@@ -585,7 +588,7 @@ export function Historico({ s }: { s: GameState }) {
   );
 }
 
-export function Regras({ s }: { s: GameState }) {
+export function Regras({ s, setS }: { s: GameState; setS?: (n: GameState) => void }) {
   const G = genRulepack(2030);
   const statusTag = (x: Sourced<unknown>) => <span className={`tag ${x.status === 'REGRA_REAL' ? 'real' : x.status === 'DERIVADA' ? 'derivada' : 'proposta'}`}>{x.status === 'REGRA_REAL' ? 'regra real' : x.status === 'DERIVADA' ? 'derivada da lei' : 'mecânica de jogo'}</span>;
   const show = (v: unknown) => (typeof v === 'object' && v !== null ? Object.values(v as object).join(' · ') : typeof v === 'boolean' ? (v ? 'sim' : 'não') : typeof v === 'number' && v < 1 ? pct(v, 0) : typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? formatIsoPt(v) : String(v));
@@ -607,6 +610,15 @@ export function Regras({ s }: { s: GameState }) {
   return (
     <>
       <div className="page-head"><div><h2>Regras desta partida</h2><p>Pacote <span className="mono">{s.rulepackId}</span> · dados reais de {formatIsoPt(s.dataSnapshot)} · seed <span className="mono">{String(s.flags.seed)}</span></p></div></div>
+      {setS && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="card-title"><h3>Guia do jogador</h3><span className="small muted">{tutorialOn(s) ? 'ligado' : 'desligado'} · {s.tutorial?.seen.length ?? 0} de {TIPS.length} dicas vistas</span></div>
+          <div className="pill-row">
+            <button className="btn btn-sm" onClick={() => setS(setTutorial(s, !tutorialOn(s)))}>{tutorialOn(s) ? 'Desligar o guia' : 'Ligar o guia'}</button>
+            <button className="btn btn-sm" onClick={() => setS(resetTutorial(s))}>Ver todas as dicas de novo</button>
+          </div>
+        </div>
+      )}
       <div className="card">
         <div className="table-wrap" style={{ maxHeight: 'none' }}>
           <table>

@@ -39,12 +39,14 @@ function play(seed: number, input: Partial<NewGameInput>) {
   let guard = 0;
   while (!s.gameOver && guard++ < 200) {
     while (s.pendingEvents.length) s = resolveEvent(s, 0);
+    // Equipe do gabinete: nomeia os currículos mais confiáveis que couberem (tarefa sugerida na ficha).
+    for (const c of [...(s.player.team?.pool ?? [])].sort((x, y) => y.honestyEstimate - x.honestyEstimate)) s = performAction(s, 'eq_nomear', `${c.id}|ativo`);
     const done = new Set<string>();
     let g = 0;
     while (s.actionPoints > 0 && g++ < 12) {
       const avail = availableActions(s).filter((a) => a.status === null && a.def.cost <= s.actionPoints && a.def.id !== 'encerrar_carreira');
       const openP = s.communityPromises.filter((p) => p.status === 'aberta' || p.status === 'em_andamento').length;
-      const a = PREFS.map((id) => avail.find((x) => x.def.id === id)).find((x) => x && !(ONCE.has(x.def.id) && done.has(x.def.id)) && !(x.def.id === 'promessa_comunidade' && (openP >= 2 || s.month.month < 8 || s.month.month > 9)));
+      const a = PREFS.map((id) => avail.find((x) => x.def.id === id)).find((x) => x && !((ONCE.has(x.def.id) || x.def.cost === 0) && done.has(x.def.id)) && !(x.def.id === 'promessa_comunidade' && (openP >= 2 || s.month.month < 8 || s.month.month > 9)));
       if (!a) break;
       const opts = a.def.params?.(s) ?? [];
       const before = s.actionPoints;

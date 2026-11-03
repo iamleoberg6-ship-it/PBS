@@ -65,7 +65,7 @@ export function estimateVereadorVotes(score: number): number {
 export function resolveConvention(state: GameState, rng: RngState): { approved: boolean; text: string } {
   const c = state.player.candidacy;
   if (!c || !state.player.partyId) return { approved: false, text: '' };
-  return conventionVote(state, rng, c.office === 'prefeito' ? 'prefeito' : 'vereador');
+  return conventionVote(state, rng, c.office);
 }
 
 export function runEligibility(state: GameState) {

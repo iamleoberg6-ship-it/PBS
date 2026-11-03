@@ -8,6 +8,7 @@
 // SIMPLIFICAÇÃO/FICÇÃO: a partir de 2030 todos os candidatos majoritários são personagens fictícios — o jogo
 // não decide se pessoas reais vão concorrer, nem quem venceria. Os votos são gerados por modelo de gameplay.
 
+import { rememberVotes } from './careers';
 import { GAMEPLAY, genRulepack } from '../data/rulepack';
 import { PARTIES, allListIds, listIdForParty, listMembers, listName, partyById } from '../data/parties';
 import { allocateProportional, type PropList } from '../rules/proportional';
@@ -335,6 +336,7 @@ export function runGeneralElection(s: GameState, rng: RngState, runs: Councillor
   record.candidatePartyById = Object.fromEntries(Object.entries(candidatePartyById).filter(([id]) => keep.has(id)));
   const runsElected = record.councillorRuns.filter((r) => r.elected);
   if (runsElected.length) notes.push(`${runsElected.length} vereador(es) de SP foram eleitos deputados: ${runsElected.map((r) => `${r.name} (${r.office === 'deputado_estadual' ? 'Alesp' : 'Câmara'})`).join(', ')}. Os suplentes assumem as vagas na Câmara Municipal na posse.`);
+  if (record.playerVotes) rememberVotes(s, record.playerVotes, 'estado');
   return { record, notes };
 }
 

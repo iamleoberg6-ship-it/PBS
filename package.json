@@ -1,7 +1,7 @@
 {
   "name": "political-brazilian-simulator",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.6.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,6 +14,7 @@
     "balance": "vitest run --config tools/vitest.config.ts --reporter=verbose tools/"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2.12.4",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },

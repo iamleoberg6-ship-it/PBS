@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { causesFor, labelOf, monthLabel, type GameState } from '../engine';
+import { brl } from './format';
 
 export function CausesModal({ s, indicator, onClose }: { s: GameState; indicator: string; onClose: () => void }) {
   const items = [...causesFor(s, indicator, 3)].reverse();
@@ -20,6 +22,36 @@ export function CausesModal({ s, indicator, onClose }: { s: GameState; indicator
         </div>
         <div className="modal-options" style={{ flexDirection: 'row' }}><button className="btn" onClick={onClose}>Fechar</button></div>
       </div>
+    </div>
+  );
+}
+
+const fmt = (money: boolean, key: string, v: number) => (money ? brl(v) : key === 'followers' ? Math.round(v).toLocaleString('pt-BR') : v.toFixed(1));
+
+/** Resumo do último mês: cada indicador que mudou, quanto e as principais causas. */
+export function MonthReport({ s, onWhy }: { s: GameState; onWhy: (key: string) => void }) {
+  const [open, setOpen] = useState(true);
+  const r = s.monthReport;
+  if (!r || !r.length) return null;
+  return (
+    <div className="card month-report" style={{ marginBottom: 16 }}>
+      <div className="card-title">
+        <h3>O que mudou no último mês</h3>
+        <button className="btn btn-sm btn-ghost" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? 'Recolher' : 'Mostrar'}</button>
+      </div>
+      {open && (
+        <ul className="report-list">
+          {r.map((it) => (
+            <li key={it.key}>
+              <button className="report-head" onClick={() => onWhy(it.key)} title="Ver o histórico de causas">
+                <span>{it.label}</span>
+                <b className="mono" style={{ color: it.total >= 0 ? 'var(--accent)' : 'var(--red)' }}>{it.total > 0 ? '+' : ''}{fmt(it.money, it.key, it.total)}</b>
+              </button>
+              <span className="small muted">{it.causes.map((c) => `${c.cause} (${c.delta > 0 ? '+' : ''}${fmt(it.money, it.key, c.delta)})`).join(' · ')}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

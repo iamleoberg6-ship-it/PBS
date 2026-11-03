@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissões mínimas: o jogo não acessa arquivos nem rede pelo backend nativo.",
+  "description": "Permissões mínimas: sem rede; arquivos só pelos comandos próprios de save, restritos à pasta Documentos/Political Brazilian Simulator.",
   "windows": ["main"],
   "permissions": ["core:default"]
 }

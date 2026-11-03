@@ -140,6 +140,7 @@ export function createGame(input: NewGameInput): GameState {
     month: { year: 2027, month: 1 },
     actionPoints: GAMEPLAY.actionPointsPerMonth.value,
     officePoints: 0,
+    tutorial: { enabled: true, seen: [] },
     character,
     finances: {
       cash: prof.cash * (input.startStatus === 'herdeiro' ? 2 : 1),

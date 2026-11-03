@@ -19,7 +19,24 @@ export function newMandate(office: Mandate['office'], since: string, until: stri
 }
 
 /** Encerra o mandato atual do jogador (fim de prazo, renúncia, exoneração, cassação). */
+/**
+ * Memória do eleitor (Fase 6, PROPOSTA): quem já disputou eleição ou exerceu mandato não volta ao anonimato.
+ * Os votos recebidos e os cargos exercidos criam um piso de reconhecimento, abaixo do qual o esquecimento natural não leva.
+ * scope 'estado': só parte dos votos estaduais vem da capital (o reconhecimento do jogo é medido na cidade).
+ */
+export function rememberVotes(s: GameState, votes: number, scope: 'cidade' | 'estado' = 'cidade') {
+  if (!votes || votes <= 0) return;
+  const cityVotes = scope === 'estado' ? votes * 0.45 : votes;
+  const floor = Math.min(40, 6 + (cityVotes / 1000) * 1.2);
+  s.player.recognitionFloor = Math.max(s.player.recognitionFloor ?? 0, Math.round(floor * 10) / 10);
+  s.player.recognition = Math.min(100, Math.max(s.player.recognition, s.player.recognitionFloor) + Math.min(5, cityVotes / 6000));
+}
+
+const OFFICE_FLOOR: Record<string, number> = { assessor: 10, vereador: 28, secretario: 26, deputado_estadual: 32, deputado_federal: 36, secretario_estadual: 30, senador: 45, prefeito: 50, governador: 55 };
+
 export function endMandate(s: GameState, text: string) {
+  const prev = s.player.mandate?.office;
+  if (prev) s.player.recognitionFloor = Math.max(s.player.recognitionFloor ?? 0, OFFICE_FLOOR[prev] ?? 0);
   s.player.careerHistory.forEach((h) => { if (h.to === null) h.to = ym(s); });
   s.player.mandate = null;
   s.player.job = 'profissao';
