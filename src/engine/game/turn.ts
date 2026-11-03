@@ -27,6 +27,7 @@ import { partyMonthlyStep } from './partyorg';
 import { decayRelations } from './relations';
 import { LAST_YEAR, councilLegislatureNumber, genCycle, isGenYear, isMunYear, munCycle, munTerm, nextElection } from './cycle';
 import { applyGeneralResults, createStateRace, generalTermEnd, pickCouncillorCandidates, resolveGovernorRunoff, runGeneralElection, stateRaceShares, stateStrength, stateWorldMonthly } from './general';
+import { refreshPool, teamMonthlyStep } from './team';
 import { UPPER_LABEL, UPPER_SALARIES, schemeInvestigation, upperMonthlyStep } from './upper';
 import { generateFloorVotes, resolveFloorVotes } from './pauta';
 import { councillorWindowSwitches, crisisMonthlyStep, lapseCampaignPromises, promisesMonthlyStep } from './livingworld';
@@ -125,6 +126,7 @@ export function advanceMonth(state: GameState): GameState {
   }
   for (const n of upperMonthlyStep(s, rng)) log(s, 'mandato', n);
   for (const n of schemeInvestigation(s, rng)) log(s, 'mandato', n);
+  for (const n of teamMonthlyStep(s, rng)) log(s, 'mandato', n);
   if (s.flags.perdaMandatoEsquema && s.player.mandate) { delete s.flags.perdaMandatoEsquema; endMandate(s, 'Você perdeu o mandato por quebra de decoro parlamentar.'); }
   if (s.flags.exoneradoEstadual && s.player.mandate?.office === 'secretario_estadual') { delete s.flags.exoneradoEstadual; endMandate(s, 'Você deixou a secretaria estadual.'); }
   stateWorldMonthly(s, rng);
@@ -183,6 +185,7 @@ export function advanceMonth(state: GameState): GameState {
   ensureMonthlyFloorVote(s, rng);
   // 7) Agenda do cargo (depois das posses do mês).
   s.officePoints = officePointsFor(s);
+  refreshPool(s, rng);
   // 7b) Salário de mandato / emprego.
   const office = s.player.mandate?.office;
   if (office === 'vereador' || office === 'prefeito' || office === 'secretario') s.finances.monthlyIncome = SALARIES[office];

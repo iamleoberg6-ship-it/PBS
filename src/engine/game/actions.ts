@@ -26,13 +26,14 @@ import { cityAlignment } from './general';
 import { AMENDMENT_BUDGET, STATE_AREAS, UPPER_THEMES, amendmentYearTotals, healthShareRequired, amendmentScheme, claimBancada, claimCommission, requestIndication, voteWithGov, yearKindTotal, articulateGov, isLegislatorUpper, oversight, seekCommittee, startStateProgram, transferToCity, upperAmendment, upperBill, visitBase } from './upper';
 import { RESPONSE_LABEL, lapseCampaignPromises, makePromise, promiseCapacity, respondCrisis, workOnPromise } from './livingworld';
 import { computeEnding } from './endings';
+import { TASK_LABEL, assignTask, fireMember, hireMember, proposeRachadinha, regularizeGhost, stopRachadinha, teamOffice, themeOptionsForTeam, type TeamTask } from './team';
 import { resignForCandidacy } from './careers';
 import type { AttributeKey, Bill, CrisisResponse, GameState } from './types';
 
-export type ActionCategory = 'Vida e carreira' | 'Assessoria' | 'Partido' | 'Pré-candidatura' | 'Campanha' | 'Mandato de vereador' | 'Prefeitura' | 'Secretaria' | 'Mandato estadual/federal' | 'Governo do Estado' | 'Imagem e compromissos';
+export type ActionCategory = 'Vida e carreira' | 'Assessoria' | 'Partido' | 'Pré-candidatura' | 'Campanha' | 'Mandato de vereador' | 'Prefeitura' | 'Secretaria' | 'Mandato estadual/federal' | 'Governo do Estado' | 'Imagem e compromissos' | 'Gabinete';
 
 /** Trabalho de cargo (gabinete, mandato, gestão) não sofre desgaste por repetição: é a rotina do cargo. */
-export const WORK_CATEGORIES: ActionCategory[] = ['Assessoria', 'Mandato de vereador', 'Prefeitura', 'Secretaria', 'Mandato estadual/federal', 'Governo do Estado'];
+export const WORK_CATEGORIES: ActionCategory[] = ['Assessoria', 'Mandato de vereador', 'Prefeitura', 'Secretaria', 'Mandato estadual/federal', 'Governo do Estado', 'Gabinete'];
 /** Aprovação vinda de ações num mesmo mês antes de saturar (PROPOSTA). */
 export const APPROVAL_ACTION_CAP = 1.5;
 /** Compromissos de cargo do mês, conforme o cargo atual (0 sem cargo). */
@@ -70,6 +71,8 @@ export interface ActionDef {
   apply: (s: GameState, rng: RngState, param?: string) => string;
   /** false = ação de decisão/configuração, sem desgaste por repetição. */
   fatigue?: boolean;
+  /** true = operada por um painel próprio (ex.: equipe do gabinete), fora da lista geral de ações. */
+  panel?: boolean;
 }
 
 const clamp = (v: number, a = 0, b = 100) => Math.max(a, Math.min(b, v));
@@ -1012,6 +1015,57 @@ export const ACTIONS: ActionDef[] = [
     paramLabel: 'Região e área', params: () => REGIONS.flatMap((r) => ['saúde', 'educação', 'infraestrutura'].map((a) => ({ value: `${r.id}|${a}`, label: `${r.name} — ${a}` }))),
     apply: (s, rng, param) => claimCommission(s, rng, param!),
   },
+  // ---------------- Equipe do gabinete (assessores do jogador) ----------------
+  {
+    id: 'eq_nomear', panel: true, fatigue: false, label: 'Nomear assessor(a)', category: 'Gabinete', cost: 0,
+    description: 'Escolha um currículo do mês. Ficha com atributos e avaliação de honestidade (estimativa).',
+    availability: (s) => (teamOffice(s) ? null : 'hidden'),
+    params: (s) => (s.player.team?.pool ?? []).flatMap((c) => [{ value: `${c.id}|ativo`, label: c.name }, { value: `${c.id}|fantasma`, label: `${c.name} (fantasma)` }]),
+    apply: (s, rng, param) => hireMember(s, rng, param!),
+  },
+  {
+    id: 'eq_exonerar', panel: true, fatigue: false, label: 'Exonerar assessor(a)', category: 'Gabinete', cost: 0,
+    description: 'Livre exoneração. Quem participou de rachadinha sai sabendo demais.',
+    availability: (s) => (teamOffice(s) && s.player.team?.members.length ? null : 'hidden'),
+    params: (s) => (s.player.team?.members ?? []).map((m) => ({ value: m.id, label: m.name })),
+    apply: (s, rng, param) => fireMember(s, rng, param!),
+  },
+  {
+    id: 'eq_tarefa', panel: true, fatigue: false, label: 'Definir tarefa', category: 'Gabinete', cost: 0,
+    description: 'A tarefa roda todo mês, sem gastar sua agenda.',
+    availability: (s) => (teamOffice(s) && s.player.team?.members.length ? null : 'hidden'),
+    params: (s) => {
+      const tasks: TeamTask[] = ['redes', 'imprensa', 'base', 'atendimento', 'articulacao', 'legislativo'];
+      return (s.player.team?.members ?? []).flatMap((m) => [
+        ...(m.role === 'chefe' ? [{ value: `${m.id}|gestao`, label: TASK_LABEL.gestao }] : []),
+        ...tasks.flatMap((t) => (t === 'base' ? REGIONS.map((r) => ({ value: `${m.id}|base|${r.id}`, label: `${TASK_LABEL.base} — ${r.name}` }))
+          : t === 'legislativo' ? themeOptionsForTeam(s).map((o) => ({ value: `${m.id}|legislativo|${o.value}`, label: `${TASK_LABEL.legislativo} — ${o.label}` }))
+          : [{ value: `${m.id}|${t}`, label: TASK_LABEL[t] }])),
+      ]);
+    },
+    apply: (s, _rng, param) => assignTask(s, param!),
+  },
+  {
+    id: 'eq_rachadinha', panel: true, fatigue: false, label: 'Propor "rachadinha"', category: 'Gabinete', cost: 1,
+    description: 'ILEGAL (peculato). Pedir que o assessor devolva parte do salário. Quem é honesto recusa — e pode denunciar.',
+    availability: (s) => (teamOffice(s) && s.player.team?.members.some((m) => !m.rachadinha) ? null : 'hidden'),
+    params: (s) => (s.player.team?.members ?? []).filter((m) => !m.rachadinha).flatMap((m) => ['0.3', '0.5', '0.8'].map((sh) => ({ value: `${m.id}|${sh}`, label: `${m.name} — ${Math.round(Number(sh) * 100)}%` }))),
+    apply: (s, rng, param) => proposeRachadinha(s, rng, param!),
+  },
+  {
+    id: 'eq_parar_rachadinha', panel: true, fatigue: false, label: 'Parar de cobrar devolução', category: 'Gabinete', cost: 0,
+    description: 'Encerra a devolução daqui para frente. Não apaga o passado.',
+    availability: (s) => (s.player.team?.members.some((m) => m.rachadinha > 0) ? null : 'hidden'),
+    params: (s) => (s.player.team?.members ?? []).filter((m) => m.rachadinha > 0).map((m) => ({ value: m.id, label: m.name })),
+    apply: (s, _rng, param) => stopRachadinha(s, param!),
+  },
+  {
+    id: 'eq_regularizar', panel: true, fatigue: false, label: 'Exigir expediente', category: 'Gabinete', cost: 0,
+    description: 'Fantasma ou relapso volta a trabalhar.',
+    availability: (s) => (s.player.team?.members.some((m) => m.status !== 'ativo') ? null : 'hidden'),
+    params: (s) => (s.player.team?.members ?? []).filter((m) => m.status !== 'ativo').map((m) => ({ value: m.id, label: m.name })),
+    apply: (s, _rng, param) => regularizeGhost(s, param!),
+  },
   {
     id: 'up_esquema', fatigue: false, label: 'Cobrar "retorno" de quem recebe suas emendas', category: 'Mandato estadual/federal', cost: 1,
     description: 'ILEGAL. Combinar com prefeitura, ONG ou empreiteira beneficiada que parte do dinheiro volte para você. É corrupção passiva e peculato: cada vez aumenta o risco de operação policial, crise de imagem verdadeira, perda do mandato por quebra de decoro e inelegibilidade.',
@@ -1304,7 +1358,7 @@ function runningPrograms(s: GameState) {
 
 
 export function availableActions(s: GameState) {
-  return ACTIONS.map((a) => ({ def: a, status: a.availability(s) })).filter((x) => x.status !== 'hidden');
+  return ACTIONS.filter((a) => !a.panel).map((a) => ({ def: a, status: a.availability(s) })).filter((x) => x.status !== 'hidden');
 }
 
 export function performAction(state: GameState, actionId: string, param?: string): GameState {

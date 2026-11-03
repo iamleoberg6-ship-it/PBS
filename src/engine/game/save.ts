@@ -2,6 +2,7 @@
 // Carregar = parse → migração por formato (v1 → v2 → v3) → validação estrutural com reparo do que é seguro reparar.
 // Erros fatais (sem personagem, sem calendário, pacote de regras desconhecido) recusam o save com mensagem clara.
 
+import { refreshPool, teamOffice } from './team';
 import { GAMEPLAY, RULEPACK_BR_2028_MUN } from '../data/rulepack';
 import { initStateWorld } from './general';
 import { initOutlets } from './livingworld';
@@ -293,6 +294,8 @@ function upgradeWithinV8(s: Raw, report: LoadReport) {
     report.repairs.push('Vereadores reais eleitos deputados em 2026 deixam a Câmara; suplentes fictícios do mesmo partido assumem.');
   }
   s.floorVotes ??= [];
+  // Equipe do gabinete (ajuste pós-Fase 5): currículos disponíveis já no mês do carregamento.
+  if (teamOffice(s as GameState) && !s.player.team?.pool?.length && s.rng) refreshPool(s as GameState, s.rng);
   // Cotas de emendas com valores reais de 2026 (ajuste pós-Fase 5).
   const um = s.player?.mandate?.upper;
   if (um && !s.flags.cotaEmendas2026) {

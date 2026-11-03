@@ -1,6 +1,6 @@
 import { Component, useEffect, useState, type ReactNode } from 'react';
 import {
-  GAMEPLAY, setFloorVote, officePointsFor, nextElection, munCycle, genCycle, monthIndex, advanceMonth, setPlayerVote, openDraft, adjustDraft, changeParty, setSocialFocus, currentPhaseLabel, eventById, monthLabel, performAction, resolveEvent, saveLocal, serialize,
+  GAMEPLAY, TEAM_LIMITS, setFloorVote, officePointsFor, nextElection, munCycle, genCycle, monthIndex, advanceMonth, setPlayerVote, openDraft, adjustDraft, changeParty, setSocialFocus, currentPhaseLabel, eventById, monthLabel, performAction, resolveEvent, saveLocal, serialize,
   type GameState,
 } from '../engine';
 import { brl } from './format';
@@ -11,9 +11,10 @@ import { Camara } from './camara';
 import { Secretaria } from './secretaria';
 import { Governo } from './governo';
 import { Campanha, GabineteParlamentar } from './campanha';
+import { Equipe } from './equipe';
 import { Conquistas, EleicoesGerais, EstadoUniao, Imagem, MeuMandato } from './estado';
 
-const PAGE_IDS = ['gabinete', 'mandato', 'personagem', 'meupartido', 'partidos', 'redes', 'noticias', 'campanha', 'eleicoes', 'gerais', 'estado', 'imagem', 'gabparl', 'governo', 'camara', 'secretaria', 'cidade', 'conquistas', 'historico', 'regras'] as const;
+const PAGE_IDS = ['gabinete', 'mandato', 'personagem', 'meupartido', 'partidos', 'redes', 'noticias', 'campanha', 'eleicoes', 'gerais', 'estado', 'imagem', 'gabparl', 'governo', 'camara', 'secretaria', 'cidade', 'conquistas', 'historico', 'regras', 'equipe'] as const;
 type PageId = (typeof PAGE_IDS)[number];
 type NavGroup = { title: string; items: [PageId, string][] };
 
@@ -35,6 +36,7 @@ function navGroups(s: GameState): NavGroup[] {
   const cargo: [PageId, string][] = [];
   if (m && MANDATE_PAGE[m.office]) cargo.push(MANDATE_PAGE[m.office]);
   if (s.player.staff) cargo.push(['gabparl', 'Gabinete parlamentar (assessoria)']);
+  if (m && TEAM_LIMITS[m.office]) cargo.push(['equipe', `Minha equipe de gabinete (${s.player.team?.members.length ?? 0})`]);
   if (cargo.length) groups.push({ title: 'Meu cargo', items: cargo });
   const ne = nextElection(monthIndex(s.month));
   const munY = munCycle(monthIndex(s.month));
@@ -151,6 +153,7 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
         {page === 'conquistas' && <Conquistas s={s} />}
         {page === 'campanha' && <Campanha s={s} act={act} />}
         {page === 'gabparl' && <GabineteParlamentar s={s} act={act} />}
+        {page === 'equipe' && <Equipe s={s} act={act} />}
         {page === 'governo' && <Governo s={s} openDraft={() => setS(openDraft(s))} adjust={(k, p) => setS(adjustDraft(s, k, p))} />}
         {page === 'camara' && <Camara s={s} vote={(id, c) => setS(setPlayerVote(s, id, c))} />}
         {page === 'secretaria' && <Secretaria s={s} />}

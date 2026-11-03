@@ -36,6 +36,7 @@ export * from './game/assessor';
 export * from './game/cycle';
 export * from './game/general';
 export * from './game/upper';
+export * from './game/team';
 export * from './game/livingworld';
 export * from './game/endings';
 export * from './game/careers';

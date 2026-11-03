@@ -329,7 +329,62 @@ Todo mês, quem tem mandato legislativo recebe matérias para votar. Votar é de
 - Quem não vota segue a orientação da bancada automaticamente.
 - Votações de grande repercussão viram notícia.
 
-## 17. Pendências conhecidas
+## 17. Equipe do gabinete: assessores do jogador (ajuste pós-fase)
+
+Quem exerce mandato de vereador(a), deputado(a) estadual, deputado(a) federal ou senador(a) ganha a página **"Minha equipe de gabinete"** (grupo "Meu cargo"). Lá o jogador nomeia, exonera e dá tarefas aos próprios assessores. Módulo: `game/team.ts`.
+
+**Regras reais (REGRA REAL)**
+- Cargos de gabinete são em comissão, de livre nomeação e exoneração.
+- Limites de lotação por gabinete:
+  - Câmara Municipal de SP: até 18 cargos (1 chefe + 17 assessores), Lei 16.972/2018;
+  - Alesp: de 16 a 32 cargos em comissão, LC estadual 1.136/2011, art. 7º;
+  - Câmara dos Deputados: 5 a 25 secretários parlamentares, verba de R$ 165.806,07/mês em 2026 (Ato da Mesa 243/2026), salários-base de R$ 1.710,83 a R$ 12.979,45;
+  - Senado: até 50 cargos comissionados.
+- Rachadinha e funcionário fantasma são tratados como peculato (CP art. 312) e improbidade. Podem levar à perda do mandato (CF art. 55) e à inelegibilidade (LC 64/90).
+
+**SIMPLIFICAÇÃO**: o jogador nomeia só a **equipe-chave** (5 vagas para vereador, 6 para deputado, 7 para senador). O resto da lotação real fica abstrato. Assim o jogo evita dezenas de fichas sem perder o essencial: quem faz o quê, com que qualidade e com que caráter.
+
+**Como funciona (PROPOSTA)**
+- **Currículos do mês**: 5 ou 6 candidatos fictícios, renovados todo mês. Enquanto não houver chefe de gabinete, dois deles são para chefia. Cada ficha mostra:
+  - quatro atributos: comunicação, técnica legislativa, articulação e organização;
+  - salário pedido;
+  - origem: profissional de mercado, indicação do partido, cabo eleitoral ou militante;
+  - **avaliação de honestidade**, uma estimativa por referências que pode errar em ±10.
+- **Origem pesa**: indicação do partido agrada a direção; cabo eleitoral traz base; militante agrada a militância e tende a ser mais honesto.
+- **Verba da equipe-chave**: R$ 45 mil (vereador), 55 mil (estadual), 60 mil (federal) e 75 mil (senador). O salário é pago pela Casa, não pelo jogador.
+- **Tarefas mensais**: rodam sozinhas, sem gastar agenda. São as mesmas frentes do trabalho de assessor:
+  - redes sociais: seguidores na rede em foco;
+  - imprensa e crises: reconhecimento, credibilidade e redução da gravidade de crises ativas;
+  - agenda na base: boa vontade na região escolhida, base e menos distância da base;
+  - atendimento ao público: aprovação, até +0,6 por mês somando a equipe;
+  - articulação política: confiança da direção e relação com o Executivo;
+  - minutas e pareceres: a minuta avança e, ao completar, vira projeto protocolado.
+- **Chefe de gabinete** coordena a equipe: produção +10% a +24%, conforme a organização dele(a), e menos chance de alguém virar relapso.
+- O rendimento de cada tarefa depende do atributo correspondente.
+
+**Rachadinha (ILEGAL)**
+- Ação "Propor rachadinha" com devolução de 30%, 50% ou 80%. Custa 1 compromisso.
+- A chance de aceitar depende da honestidade real (oculta), da lealdade e do tamanho da devolução. Fantasmas aceitam mais.
+- Quem recusa perde lealdade. Uma pessoa honesta pode pedir exoneração ou **denunciar ao MP**.
+- Quem aceita devolve parte do salário todo mês para o caixa do jogador.
+- Cada mês há risco de investigação (Coaf/MP). O risco cresce com o número de participantes, a deslealdade e a fama do jogador.
+- Ex-participantes exonerados ficam ressentidos e podem denunciar por até 3 anos, mesmo depois do mandato.
+- Se for descoberta:
+  - crise de imagem verdadeira;
+  - queda de popularidade, aprovação e credibilidade;
+  - registro de vantagem indevida;
+  - chance de perda do mandato;
+  - pesa no final ("Escândalo" ou "Cassado").
+
+**Funcionário fantasma**
+- O jogador pode nomear alguém "como fantasma" (ILEGAL). A pessoa não trabalha, mas o cabo eleitoral rende base e a indicação do partido rende confiança.
+- Assessores com honestidade baixa podem **virar relapsos por conta própria**: param de produzir ("frequência irregular").
+- Nos dois casos a imprensa pode descobrir. Como é o parlamentar quem atesta a frequência (REGRA REAL na Câmara dos Deputados), a cobrança cai sobre o mandato. O efeito é mais leve quando o jogador não sabia.
+- "Exigir expediente" põe a pessoa para trabalhar.
+
+**Fim do mandato**: a equipe é exonerada. Quem participou de rachadinha continua sendo um risco.
+
+## 18. Pendências conhecidas
 
 1. **Tramitação completa na Alesp e no Congresso**: já há votação mensal em plenário, mas sem comissões nem autoria de projetos pelo motor da Fase 2. Seria uma extensão futura.
 2. **Secretário estadual**: o mandato é abstrato. O orçamento estadual detalhado não está modelado.

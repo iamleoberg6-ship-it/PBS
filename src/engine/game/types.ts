@@ -219,6 +219,8 @@ export interface PlayerState {
   regionalGoodwill?: Record<string, number>;
   /** Credibilidade pessoal diante da imprensa (Fase 5): cai quando o jogador nega algo verdadeiro e é desmentido. */
   credibility?: number;
+  /** Equipe do gabinete nomeada pelo jogador (pós-Fase 5). */
+  team?: import('./team').TeamState;
 }
 
 export type Stance = 'base' | 'independente' | 'oposicao' | 'oposicao_radical';
