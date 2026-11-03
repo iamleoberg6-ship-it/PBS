@@ -92,7 +92,7 @@ export const RULEPACK_BR_2028_MUN: MunicipalRulePack = {
 
 // Parâmetros de gameplay (fictícios) usados pelo simulador nesta versão.
 export const GAMEPLAY = {
-  actionPointsPerMonth: proposal(3),
+  actionPointsPerMonth: proposal(5, 'Compromissos de agenda por mês (parâmetro de jogo; era 3 até a v0.5)'),
   validVoteRateProportional: proposal(0.62, 'Calibrado com SP 2024 (~5,8 mi votos válidos para ~9,3 mi eleitores)'),
   validVoteRateMajoritarian: proposal(0.6),
   legendVoteShare: proposal(0.08, 'Fração aproximada de votos de legenda; ajustável'),

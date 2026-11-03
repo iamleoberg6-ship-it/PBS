@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "desktop:dev": "tauri dev",
-    "desktop:build": "tauri build"
+    "desktop:build": "tauri build",
+    "balance": "vitest run --config tools/vitest.config.ts --reporter=verbose"
   },
   "dependencies": {
     "react": "^19.3.1",

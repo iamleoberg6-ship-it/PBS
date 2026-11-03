@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  advanceMonth, changeParty, setSocialFocus, currentPhaseLabel, eventById, monthLabel, performAction, resolveEvent, saveLocal, serialize,
+  GAMEPLAY, advanceMonth, changeParty, setSocialFocus, currentPhaseLabel, eventById, monthLabel, performAction, resolveEvent, saveLocal, serialize,
   type GameState,
 } from '../engine';
 import { brl } from './format';
@@ -60,7 +60,7 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
         </div>
         <div className="top-spacer" />
         <div className="ap" title="Compromissos livres na agenda deste mês">
-          {Array.from({ length: 3 }, (_, i) => <span key={i} className={`ap-dot ${i < s.actionPoints ? 'on' : ''}`} />)}
+          {Array.from({ length: GAMEPLAY.actionPointsPerMonth.value }, (_, i) => <span key={i} className={`ap-dot ${i < s.actionPoints ? 'on' : ''}`} />)}
         </div>
         <div className="top-stat"><b>{brl(s.finances.cash)}</b><small>caixa pessoal</small></div>
         <button className="btn btn-gold" onClick={advance} disabled={s.gameOver || !!ev}>

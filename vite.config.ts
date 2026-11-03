@@ -4,5 +4,5 @@ import { viteSingleFile } from 'vite-plugin-singlefile';
 
 export default defineConfig({
   plugins: [react(), viteSingleFile()],
-  test: { exclude: ['node_modules', 'dist'] },
+  test: { exclude: ['node_modules', 'dist', 'tools/**', 'src-tauri/**'] },
 } as never);

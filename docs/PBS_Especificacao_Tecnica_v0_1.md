@@ -7,7 +7,7 @@ Data: 30/10/2026 · Complementa o *Documento Mestre v0.1* · Status: protótipo 
 | Tema (seção 13 do doc mestre) | Decisão | Origem |
 |---|---|---|
 | Plataforma | Jogo de PC. Interface em TypeScript + React, empacotada como app desktop (Tauri) para Windows/Steam. Durante o desenvolvimento roda no navegador. | DECIDIDO pelo criador ("primeiro caminho") |
-| Tempo | Turnos mensais. 3 compromissos de agenda por mês (parâmetro de gameplay). | DECIDIDO |
+| Tempo | Turnos mensais. 5 compromissos de agenda por mês (parâmetro de gameplay; eram 3 até a v0.5, ampliado com a chegada das atividades partidárias). | DECIDIDO |
 | Partidos reais | Desde o protótipo: 30 partidos e 5 federações do TSE (retrato de 30/10/2026). | DECIDIDO |
 | Personagens reais | Sim, vários. Política: só dados de registro público; nada de escândalos, crimes ou falas inventadas sobre pessoas reais; atributos de jogo por metodologia única para todos; sem fotos reais. | DECIDIDO (criador) + PROPOSTA (salvaguardas) |
 | Primeira cidade | São Paulo. Depois: cidades grandes, médias, pequenas e do interior. | DECIDIDO |

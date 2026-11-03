@@ -1,6 +1,6 @@
 import { createRng } from '../rng';
 import { PARTIES } from '../data/parties';
-import { RULEPACK_BR_2028_MUN } from '../data/rulepack';
+import { GAMEPLAY, RULEPACK_BR_2028_MUN } from '../data/rulepack';
 import { REAL_FIGURES, SAO_PAULO } from '../data/world';
 import { fictionalName } from './names';
 import { aiElectMesa, initialCouncillors, seatsByParty } from './council';
@@ -128,7 +128,7 @@ export function createGame(input: NewGameInput): GameState {
     createdAt: new Date().toISOString(),
     rng,
     month: { year: 2027, month: 1 },
-    actionPoints: 3,
+    actionPoints: GAMEPLAY.actionPointsPerMonth.value,
     character,
     finances: {
       cash: prof.cash * (input.startStatus === 'herdeiro' ? 2 : 1),
