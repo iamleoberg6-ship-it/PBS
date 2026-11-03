@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import {
-  ACHIEVEMENTS, LAST_YEAR, REGIONS, RESPONSE_LABEL, STATE_AREAS, STATE_SOURCES, UPPER_LABEL, careerScore, cityAlignment, formatIsoPt, genCycle, genRulepack,
+  ACHIEVEMENTS, LAST_YEAR, availableActions, officePointsFor, REGIONS, RESPONSE_LABEL, STATE_AREAS, STATE_SOURCES, UPPER_LABEL, careerScore, cityAlignment, formatIsoPt, genCycle, genRulepack,
   monthIndex, monthLabel, outletById, partyById, previewEligibility, promiseCapacity, upperSummary,
   type CrisisResponse, type GameState, type GeneralElectionRecord, type MajRoundResult, type ProportionalResult,
 } from '../engine';
 import { num, partyColor, pct } from './format';
-import { Checks, Polls } from './pages';
+import { ActionCard, Checks, Polls } from './pages';
 
 type Act = (id: string, param?: string) => void;
 const acr = (id: string) => partyById(id)?.acronym ?? id;
@@ -126,12 +126,44 @@ function UpperPanel({ s }: { s: GameState }) {
 
 export function EstadoUniao({ s }: { s: GameState }) {
   const w = s.stateWorld;
+  const al = cityAlignment(s);
+  return (
+    <>
+      <div className="page-head"><div><h2>Governo de SP e Congresso</h2><p>Executivos, Senado e bancadas · {num(genRulepack(2030).stateElectorate.value)} eleitores no estado (TSE 2026)</p></div></div>
+      <div className="grid g-3" style={{ marginBottom: 16 }}>
+        <div className="card">
+          <h3>Governo do Estado</h3>
+          <div className="big-number">{w.governor.isPlayer ? `${w.governor.name} (você)` : w.governor.name}</div>
+          <p className="small">{acr(w.governor.partyId)} · {w.governor.since}–{w.governor.until} · {w.governor.consecutiveTerms}º mandato consecutivo {w.governor.real ? <span className="tag real">pessoa real · fato público</span> : <span className="tag proposta">personagem do jogo</span>}</p>
+          <p className="small">Avaliação (simulada): {Math.round(w.governorApproval)} · alinhamento com a prefeitura: {pct(al.governor, 0)}</p>
+          <p className="small">Base do governo: {w.governorCoalition.map(acr).join(', ')}</p>
+        </div>
+        <div className="card">
+          <h3>Presidência</h3>
+          <div className="big-number">{w.president.name}</div>
+          <p className="small">{acr(w.president.partyId)} · {w.president.since}–{w.president.until} {w.president.real ? <span className="tag real">pessoa real · fato público</span> : <span className="tag proposta">personagem do jogo</span>}</p>
+          <p className="small">Avaliação (simulada): {Math.round(w.presidentApproval)} · alinhamento com a prefeitura: {pct(al.president, 0)}</p>
+        </div>
+        <div className="card">
+          <h3>Senadores por SP</h3>
+          {w.senators.map((x) => <p key={x.id} className="small"><b>{x.isPlayer ? `${x.name} (você)` : x.name}</b> · {acr(x.partyId)} · até {x.until + 1} {x.real ? <span className="tag real">real</span> : <span className="tag proposta">fictício</span>}</p>)}
+        </div>
+      </div>
+      <p className="small muted" style={{ marginBottom: 12 }}>{STATE_SOURCES.executivos} {STATE_SOURCES.vereadores2026} A avaliação dos governos é um número do jogo, não pesquisa real. Alinhamento político pesa nos convênios da prefeitura (mecânica de jogo).</p>
+      <div className="grid g-2" style={{ marginBottom: 16 }}>
+        <Seats title="Alesp" seats={w.alespSeats} total={94} source={s.generalElections.length ? 'Composição resultante da simulação.' : STATE_SOURCES.alesp} />
+        <Seats title="Bancada paulista na Câmara" seats={w.camaraSeats} total={70} source={s.generalElections.length ? 'Composição resultante da simulação.' : STATE_SOURCES.camara} />
+      </div>
+    </>
+  );
+}
+
+export function EleicoesGerais({ s }: { s: GameState }) {
   const G = genCycle(monthIndex(s.month));
   const years = [...new Set([...s.generalElections.map((e) => e.year), ...(G <= LAST_YEAR ? [G] : [])])].sort();
   const [year, setYear] = useState(G);
   const rec = s.generalElections.find((e) => e.year === year);
   const rp = genRulepack(year);
-  const al = cityAlignment(s);
   const c = s.player.candidacy;
   const nowIso = `${s.month.year}-${String(s.month.month).padStart(2, '0')}-15`;
   const cal: [string, string][] = [
@@ -150,32 +182,7 @@ export function EstadoUniao({ s }: { s: GameState }) {
   const senPolls = s.polls.filter((p) => p.race === 'senador' && p.month.year === year);
   return (
     <>
-      <div className="page-head"><div><h2>Estado e União</h2><p>Governo de SP, bancadas e eleições gerais · {num(rp.stateElectorate.value)} eleitores no estado (TSE 2026)</p></div></div>
-      <UpperPanel s={s} />
-      <div className="grid g-3" style={{ marginBottom: 16 }}>
-        <div className="card">
-          <h3>Governo do Estado</h3>
-          <div className="big-number">{w.governor.isPlayer ? `${w.governor.name} (você)` : w.governor.name}</div>
-          <p className="small">{acr(w.governor.partyId)} · {w.governor.since}–{w.governor.until} · {w.governor.consecutiveTerms}º mandato consecutivo {w.governor.real ? <span className="tag real">pessoa real · fato público</span> : <span className="tag proposta">personagem do jogo</span>}</p>
-          <p className="small">Avaliação (simulada): {Math.round(w.governorApproval)} · alinhamento com a prefeitura: {pct(al.governor, 0)}</p>
-        </div>
-        <div className="card">
-          <h3>Presidência</h3>
-          <div className="big-number">{w.president.name}</div>
-          <p className="small">{acr(w.president.partyId)} · {w.president.since}–{w.president.until} {w.president.real ? <span className="tag real">pessoa real · fato público</span> : <span className="tag proposta">personagem do jogo</span>}</p>
-          <p className="small">Avaliação (simulada): {Math.round(w.presidentApproval)} · alinhamento com a prefeitura: {pct(al.president, 0)}</p>
-        </div>
-        <div className="card">
-          <h3>Senadores por SP</h3>
-          {w.senators.map((x) => <p key={x.id} className="small"><b>{x.isPlayer ? `${x.name} (você)` : x.name}</b> · {acr(x.partyId)} · até {x.until + 1} {x.real ? <span className="tag real">real</span> : <span className="tag proposta">fictício</span>}</p>)}
-        </div>
-      </div>
-      <p className="small muted" style={{ marginBottom: 12 }}>{STATE_SOURCES.executivos} {STATE_SOURCES.vereadores2026} A avaliação dos governos é um número do jogo, não pesquisa real. Alinhamento político pesa nos convênios da prefeitura (mecânica de jogo).</p>
-      <div className="grid g-2" style={{ marginBottom: 16 }}>
-        <Seats title="Alesp" seats={w.alespSeats} total={94} source={s.generalElections.length ? 'Composição resultante da simulação.' : STATE_SOURCES.alesp} />
-        <Seats title="Bancada paulista na Câmara" seats={w.camaraSeats} total={70} source={s.generalElections.length ? 'Composição resultante da simulação.' : STATE_SOURCES.camara} />
-      </div>
-      <h2 style={{ marginTop: 8 }}>Eleições gerais de {year}</h2>
+      <div className="page-head"><div><h2>Eleições gerais de {year}</h2><p>Presidente, governador(a), Senado, deputados federais e estaduais · {num(rp.stateElectorate.value)} eleitores no estado</p></div></div>
       {years.length > 1 && <div className="tabs">{years.map((y) => <button key={y} className={`tab ${y === year ? 'active' : ''}`} onClick={() => setYear(y)}>{y}</button>)}</div>}
       {rec ? <GeneralResult rec={rec} /> : (
         <>
@@ -188,8 +195,8 @@ export function EstadoUniao({ s }: { s: GameState }) {
               <p className="small muted">{rp.label}. Reformas eleitorais posteriores a 2026 não são modeladas.</p>
             </div>
             <div className="card">
-              <h3>Elegibilidade {c && c.year === year ? `(${UPPER_LABEL[c.office] ?? c.office})` : ''}</h3>
-              <Checks checks={c && c.year === year && c.checks.length ? c.checks : previewEligibility(s, c && c.year === year ? c.office : 'deputado_estadual')} />
+              <h3>Elegibilidade {c && c.year === year ? `(${UPPER_LABEL[c.office] ?? c.office})` : '(deputado estadual)'}</h3>
+              <Checks checks={c && c.year === year && c.checks.length ? c.checks : previewEligibility(s, c && c.year === year ? c.office : 'deputado_estadual', year)} />
             </div>
             <div className="card">
               <h3>Desincompatibilização</h3>
@@ -199,6 +206,44 @@ export function EstadoUniao({ s }: { s: GameState }) {
           </div>
         </>
       )}
+    </>
+  );
+}
+
+const HOUSE_OF: Record<string, { title: string; key: 'alespSeats' | 'camaraSeats' | null; total: number }> = {
+  deputado_estadual: { title: 'Assembleia Legislativa (Alesp)', key: 'alespSeats', total: 94 },
+  deputado_federal: { title: 'Câmara dos Deputados — bancada de SP', key: 'camaraSeats', total: 70 },
+  senador: { title: 'Senado Federal — bancada de SP', key: null, total: 3 },
+  governador: { title: 'Alesp (sua base de governo)', key: 'alespSeats', total: 94 },
+  secretario_estadual: { title: 'Alesp', key: 'alespSeats', total: 94 },
+};
+
+/** Página do mandato estadual/federal: painel, casa legislativa, ações do cargo e registro. */
+export function MeuMandato({ s, act }: { s: GameState; act: Act }) {
+  const m = s.player.mandate;
+  if (!m?.upper) return <div className="card"><p>Você não exerce mandato estadual ou federal.</p></div>;
+  const h = HOUSE_OF[m.office];
+  const acts = availableActions(s).filter((a) => a.def.category === 'Mandato estadual/federal' || a.def.category === 'Governo do Estado' || a.def.id === 'cumprir_promessa');
+  const mine = s.log.filter((l) => l.kind === 'mandato' || (l.kind === 'acao' && /Projeto|Emenda|emenda|comissão|Programa|Convênio|Alesp|governo/.test(l.text))).slice(-14).reverse();
+  return (
+    <>
+      <div className="page-head"><div><h2>{UPPER_LABEL[m.office]}</h2><p>Mandato {m.since.slice(0, 4)}–{m.until.slice(0, 4)} · agenda do cargo: {s.officePoints ?? 0} de {officePointsFor(s)} compromissos</p></div></div>
+      <UpperPanel s={s} />
+      <div className="grid g-main">
+        <div className="card">
+          <h3>Trabalho do cargo</h3>
+          <div className="actions">{acts.map((a) => <ActionCard key={a.def.id} def={a.def} status={a.status as string | null} s={s} act={act} />)}</div>
+        </div>
+        <div>
+          {h.key ? <Seats title={h.title} seats={s.stateWorld[h.key]} total={h.total} source={s.generalElections.length ? 'Composição resultante da simulação.' : h.key === 'alespSeats' ? STATE_SOURCES.alesp : STATE_SOURCES.camara} /> : (
+            <div className="card"><h3>{h.title}</h3>{s.stateWorld.senators.map((x) => <p key={x.id} className="small"><b>{x.isPlayer ? `${x.name} (você)` : x.name}</b> · {acr(x.partyId)} · até {x.until + 1}</p>)}</div>
+          )}
+          <div className="card" style={{ marginTop: 16 }}>
+            <h3>Registro do mandato</h3>
+            {mine.length ? mine.map((l, i) => <div key={i} className="small" style={{ marginBottom: 6 }}><span className="muted">{monthLabel(l.month)}</span> — {l.text}</div>) : <p className="small muted">Nada ainda.</p>}
+          </div>
+        </div>
+      </div>
     </>
   );
 }

@@ -718,6 +718,8 @@ export interface GameState {
   rng: RngState;
   month: GameMonth;
   actionPoints: number;
+  /** Agenda do cargo (Fase 5): compromissos só para o trabalho do mandato/gabinete. */
+  officePoints?: number;
   character: Character;
   finances: Finances;
   player: PlayerState;

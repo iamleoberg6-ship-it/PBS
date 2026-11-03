@@ -35,6 +35,21 @@ export type ActionCategory = 'Vida e carreira' | 'Assessoria' | 'Partido' | 'Pr�
 export const WORK_CATEGORIES: ActionCategory[] = ['Assessoria', 'Mandato de vereador', 'Prefeitura', 'Secretaria', 'Mandato estadual/federal', 'Governo do Estado'];
 /** Aprovação vinda de ações num mesmo mês antes de saturar (PROPOSTA). */
 export const APPROVAL_ACTION_CAP = 1.5;
+/** Compromissos de cargo do mês, conforme o cargo atual (0 sem cargo). */
+export function officePointsFor(s: GameState): number {
+  const o = s.player.mandate?.office ?? (s.player.staff ? 'assessor' : null);
+  return o ? GAMEPLAY.officePointsPerMonth.value[o] ?? 0 : 0;
+}
+export const isWorkAction = (def: ActionDef) => WORK_CATEGORIES.includes(def.category);
+/** Pode pagar a ação? Trabalho de cargo usa primeiro a agenda do cargo, depois a pessoal. */
+export function canAfford(s: GameState, def: ActionDef): boolean {
+  return (isWorkAction(def) ? (s.officePoints ?? 0) + s.actionPoints : s.actionPoints) >= def.cost;
+}
+function payAction(s: GameState, def: ActionDef) {
+  let c = def.cost;
+  if (isWorkAction(def)) { const o = Math.min(c, s.officePoints ?? 0); s.officePoints = (s.officePoints ?? 0) - o; c -= o; }
+  s.actionPoints -= c;
+}
 export const usesFatigue = (def: ActionDef) => def.fatigue !== false && !WORK_CATEGORIES.includes(def.category);
 
 export interface ActionParamOption {
@@ -905,11 +920,17 @@ export const ACTIONS: ActionDef[] = [
     apply: (s, rng, param) => makePromise(s, rng, param!),
   },
   {
-    id: 'cumprir_promessa', label: 'Trabalhar para cumprir uma promessa', category: 'Imagem e compromissos', cost: 1,
+    id: 'cumprir_promessa', fatigue: false, label: 'Trabalhar para cumprir uma promessa', category: 'Imagem e compromissos', cost: 1,
     description: 'O que dá para fazer depende do cargo: prefeito usa o caixa; secretário, o orçamento livre da pasta; vereador, indicações e emendas; deputado e senador, emendas individuais; governador, convênios.',
-    availability: (s) => (s.communityPromises.some((p) => p.status === 'aberta' || p.status === 'em_andamento') ? (s.player.mandate ? null : 'Sem cargo, não há como entregar.') : 'hidden'),
+    availability: (s) => {
+      const open = s.communityPromises.filter((p) => p.status === 'aberta' || p.status === 'em_andamento');
+      if (!open.length) return 'hidden';
+      if (!s.player.mandate) return 'Sem cargo, não há como entregar.';
+      const blocked = open.map((p) => promiseCapacity(s, p)).find((c) => c.block);
+      return open.some((p) => !promiseCapacity(s, p).block) ? null : blocked!.block;
+    },
     paramLabel: 'Promessa',
-    params: (s) => s.communityPromises.filter((p) => p.status === 'aberta' || p.status === 'em_andamento').map((p) => { const c = promiseCapacity(s, p); return { value: p.id, label: `${p.text} — ${p.progress}%${c.block ? ` (${c.block})` : ` (+~${c.gain}%: ${c.cost})`}` }; }),
+    params: (s) => s.communityPromises.filter((p) => (p.status === 'aberta' || p.status === 'em_andamento') && !promiseCapacity(s, p).block).map((p) => { const c = promiseCapacity(s, p); return { value: p.id, label: `${p.text} — ${p.progress}% (+~${c.gain}%: ${c.cost})` }; }),
     apply: (s, rng, param) => workOnPromise(s, rng, param!),
   },
   {
@@ -1240,13 +1261,13 @@ export function performAction(state: GameState, actionId: string, param?: string
     const opts = def.params(s);
     if (!opts.length || !opts.some((o) => o.value === param)) return state;
   }
-  if (s.actionPoints < def.cost) return state;
+  if (!canAfford(s, def)) return state;
   const fat = !usesFatigue(def) ? { mult: 1, reason: null } : fatigueMultiplier(s, def.id);
   const before = snapshot(s);
   let msg = def.apply(s, s.rng, param);
   const blockedBySpend = msg.startsWith('Saldo de campanha insuficiente');
   if (!blockedBySpend) {
-    s.actionPoints -= def.cost;
+    payAction(s, def);
     if (usesFatigue(def)) {
       dampenGains(s, state, fat.mult);
       registerUse(s, def.id);

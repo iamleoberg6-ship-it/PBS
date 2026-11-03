@@ -2,7 +2,7 @@
 // Carregar = parse → migração por formato (v1 → v2 → v3) → validação estrutural com reparo do que é seguro reparar.
 // Erros fatais (sem personagem, sem calendário, pacote de regras desconhecido) recusam o save com mensagem clara.
 
-import { RULEPACK_BR_2028_MUN } from '../data/rulepack';
+import { GAMEPLAY, RULEPACK_BR_2028_MUN } from '../data/rulepack';
 import { initStateWorld } from './general';
 import { initOutlets } from './livingworld';
 import { vacateCouncilSeat } from './careers';
@@ -158,12 +158,6 @@ export function migrate(raw: Raw, report: LoadReport): Raw {
     s.stateWorld.pendingDepartures = s.stateWorld.pendingDepartures.filter((x: Raw) => x.posseMonth > tNow);
     report.repairs.push('Fase 5: eleições gerais (Alesp, Câmara, Senado, governo), crises de imagem, promessas públicas e conquistas ativadas; a partida agora segue até 2036.');
   }
-  // Vereadores reais eleitos deputados em 2026 (saves v8 criados antes desta correção).
-  if (s.stateWorld && !s.flags?.saidas2026) {
-    s.flags.saidas2026 = true;
-    const t = (s.month?.year ?? 2027) * 12 + (s.month?.month ?? 1) - 1;
-    if (t < 2027 * 12 + 2) s.stateWorld.pendingDepartures = [...initStateWorld().pendingDepartures, ...s.stateWorld.pendingDepartures.filter((d: Raw) => !d.real2026)];
-  }
   s.saveVersion = SAVE_VERSION;
   return s;
 }
@@ -280,9 +274,29 @@ export function loadSave(text: string): { state: GameState; report: LoadReport }
   try { raw = JSON.parse(text); } catch { throw new Error('O texto não é um save válido (JSON corrompido).'); }
   if (typeof raw.saveVersion === 'number' && raw.saveVersion > SAVE_VERSION) throw new Error(`Save da versão ${raw.saveVersion}, mais nova que esta versão do jogo (${SAVE_VERSION}).`);
   const migrated = migrate(raw, report) as GameState;
+  upgradeWithinV8(migrated as Raw, report);
   validateState(migrated, report);
   if (report.fatal.length) throw new Error(report.fatal.join(' '));
   return { state: migrated, report };
+}
+
+
+/** Ajustes incrementais dentro da versão 8 (rodam em todo carregamento; são idempotentes). */
+function upgradeWithinV8(s: Raw, report: LoadReport) {
+  // Vereadores reais eleitos deputados em 2026 (saves v8 criados antes desta correção).
+  if (s.stateWorld && !s.flags?.saidas2026) {
+    s.flags.saidas2026 = true;
+    const t = (s.month?.year ?? 2027) * 12 + (s.month?.month ?? 1) - 1;
+    const real = initStateWorld().pendingDepartures;
+    s.stateWorld.pendingDepartures = [...real.filter((d) => d.posseMonth > t), ...s.stateWorld.pendingDepartures.filter((d: Raw) => !d.real2026)];
+    if (t < 2029 * 12) for (const d of real.filter((x) => x.posseMonth <= t)) if (s.government.councillors.some((c: Raw) => c.id === d.councillorId)) vacateCouncilSeat(s as GameState, d.councillorId, 'eleito(a) deputado(a) em 2026 — fato real');
+    report.repairs.push('Vereadores reais eleitos deputados em 2026 deixam a Câmara; suplentes fictícios do mesmo partido assumem.');
+  }
+  // Agenda do cargo (ajuste pós-Fase 5): saves antigos começam o mês com a agenda cheia.
+  if (s.officePoints === undefined) {
+    const o = s.player?.mandate?.office ?? (s.player?.staff ? 'assessor' : null);
+    s.officePoints = o ? GAMEPLAY.officePointsPerMonth.value[o] ?? 0 : 0;
+  }
 }
 
 /** Compatibilidade: devolve só o estado. */

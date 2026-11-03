@@ -2,7 +2,7 @@ import { useState } from 'react';
 import {
   ATTRIBUTE_LABELS, FEDERATIONS, GAMEPLAY, PARTIES, PROFESSIONS, REAL_FIGURES, RULEPACK_BR_2028_MUN as RP, SAO_PAULO, UPPER_LABEL, LAST_YEAR, munCycle, munRulepack, genRulepack,
   availableActions, formatIsoPt, listName, monthIndex, monthLabel, partyById, partyChangeBlock, previewEligibility,
-  estimateVereadorVotes, playerElectoralScore, councillorFacts, fatigueMultiplier, usesFatigue, EXPERT_SCALE, IDEOLOGY_SOURCE, AXES, categoryLabel, generalPosition,
+  estimateVereadorVotes, playerElectoralScore, councillorFacts, fatigueMultiplier, usesFatigue, canAfford, isWorkAction, officePointsFor, EXPERT_SCALE, IDEOLOGY_SOURCE, AXES, categoryLabel, generalPosition,
   REGIONS, type ActionDef, type AttributeKey, type ElectionRecord, type GameState, type Sourced,
 } from '../engine';
 import { brl, listColor, num, partyColor, pct } from './format';
@@ -36,14 +36,14 @@ export function LogList({ s, limit, kinds }: { s: GameState; limit?: number; kin
   );
 }
 
-function ActionCard({ def, status, s, act }: { def: ActionDef; status: string | null; s: GameState; act: Props['act'] }) {
+export function ActionCard({ def, status, s, act }: { def: ActionDef; status: string | null; s: GameState; act: Props['act'] }) {
   const opts = def.params?.(s) ?? [];
   const [param, setParam] = useState<string>('');
   const value = param || opts[0]?.value || '';
-  const disabled = status !== null || s.actionPoints < def.cost || s.pendingEvents.length > 0 || (def.params && opts.length === 0);
+  const disabled = status !== null || !canAfford(s, def) || s.pendingEvents.length > 0 || (def.params && opts.length === 0);
   return (
     <div className={`action ${status ? 'blocked' : ''}`}>
-      <div className="action-head"><b>{def.label}</b><span className="cost">{def.cost === 0 ? 'livre' : '●'.repeat(def.cost)}</span></div>
+      <div className="action-head"><b>{def.label}</b><span className="cost" title={isWorkAction(def) ? 'Usa primeiro a agenda do cargo' : 'Usa a agenda pessoal'}>{def.cost === 0 ? 'livre' : isWorkAction(def) ? '◆'.repeat(def.cost) : '●'.repeat(def.cost)}</span></div>
       <p>{def.description}</p>
       {status && <span className="why">{status}</span>}
       {!status && usesFatigue(def) && (() => { const f = fatigueMultiplier(s, def.id); return f.mult < 1 ? <span className="small" style={{ color: '#8a6516' }}>Rendimento {Math.round(f.mult * 100)}%: {f.reason}</span> : null; })()}
@@ -84,7 +84,7 @@ export function Gabinete({ s, act }: Props) {
         {party && <Meter label={`Confiança da direção (${party.acronym})`} value={p.partyRel.leadershipTrust} color="blue" onWhy={() => setWhy('leadershipTrust')} />}
         {party && <Meter label="Influência no partido" value={p.partyRel.influence} color="gold" onWhy={() => setWhy('partyInfluence')} />}
         {m && <Meter label={m.office === 'prefeito' ? 'Aprovação do governo' : 'Aprovação do mandato'} value={m.approval} onWhy={() => setWhy('approval')} />}
-        {m && m.office !== 'prefeito' && <Meter label="Relação com a prefeitura" value={m.relationExecutive} color="blue" />}
+        {m && !m.upper && m.office !== 'prefeito' && <Meter label="Relação com a prefeitura" value={m.relationExecutive} color="blue" />}
         {m?.secretariat && <Meter label="Relação com a Câmara" value={m.secretariat.relationCouncil} color="gold" />}
         {m?.office === 'governador' && <Meter label="Base na Alesp" value={((m.upper?.assemblyBase ?? 0) / 94) * 100} note={`${m.upper?.assemblyBase ?? 0}/94`} color={(m.upper?.assemblyBase ?? 0) >= 48 ? '' : 'red'} />}
         {m?.upper && m.office !== 'governador' && <Meter label="Relação com o governo" value={m.upper.relationGov} />}
@@ -94,7 +94,8 @@ export function Gabinete({ s, act }: Props) {
       </div>
       <div className="grid g-main">
         <div className="card">
-          <div className="card-title"><h3>Agenda do mês</h3><span className="small muted">{s.actionPoints} de {GAMEPLAY.actionPointsPerMonth.value} compromissos livres</span></div>
+          <div className="card-title"><h3>Agenda do mês</h3><span className="small muted">● pessoal: {s.actionPoints} de {GAMEPLAY.actionPointsPerMonth.value}{officePointsFor(s) > 0 ? ` · ◆ cargo: ${s.officePoints ?? 0} de ${officePointsFor(s)}` : ''}</span></div>
+          {officePointsFor(s) > 0 && <p className="small muted">Ações do cargo (◆) usam primeiro a agenda do cargo; quando ela acaba, usam a pessoal. As outras ações (●) só usam a agenda pessoal.</p>}
           {groups.map((g) => (
             <div className="action-group" key={g}>
               <h4>{g}</h4>

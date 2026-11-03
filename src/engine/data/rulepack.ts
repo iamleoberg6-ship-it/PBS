@@ -195,6 +195,7 @@ export function genRulepack(year: number): GeneralRulePack {
 // Parâmetros de gameplay (fictícios) usados pelo simulador nesta versão.
 export const GAMEPLAY = {
   actionPointsPerMonth: proposal(5, 'Compromissos de agenda por mês (parâmetro de jogo; era 3 até a v0.5)'),
+  officePointsPerMonth: proposal({ assessor: 3, vereador: 4, secretario: 4, deputado_estadual: 4, deputado_federal: 4, senador: 4, secretario_estadual: 4, prefeito: 5, governador: 5 } as Record<string, number>, 'Agenda do cargo: compromissos extras só para ações do próprio cargo (os 5 compromissos pessoais ficam livres para o resto)'),
   validVoteRateProportional: proposal(0.62, 'Calibrado com SP 2024 (~5,8 mi votos válidos para ~9,3 mi eleitores)'),
   validVoteRateMajoritarian: proposal(0.6),
   legendVoteShare: proposal(0.08, 'Fração aproximada de votos de legenda; ajustável'),

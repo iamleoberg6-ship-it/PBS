@@ -125,7 +125,7 @@ export function GabineteParlamentar({ s, act }: { s: GameState; act: Act }) {
             <div key={d.id} style={{ borderTop: '1px solid var(--line)', padding: '8px 0' }}>
               <b>{d.label}</b>
               <div className="small muted">Exige {d.attr === 'politicalKnowledge' ? 'conhecimento político' : d.attr === 'communication' ? 'comunicação' : d.attr === 'articulation' ? 'articulação' : 'liderança'} · dificuldade {d.difficulty} · chance {Math.round(demandChance(s, d) * 100)}% · {d.monthsLeft > 1 ? `prazo de ${d.monthsLeft} meses` : 'vence no fim do mês'}</div>
-              <button className="btn btn-sm btn-primary" style={{ marginTop: 4 }} disabled={s.actionPoints < 1 || s.pendingEvents.length > 0} onClick={() => act('cumprir_demanda', d.id)}>Fazer (1 compromisso)</button>
+              <button className="btn btn-sm btn-primary" style={{ marginTop: 4 }} disabled={(s.officePoints ?? 0) + s.actionPoints < 1 || s.pendingEvents.length > 0} onClick={() => act('cumprir_demanda', d.id)}>Fazer (1 compromisso)</button>
             </div>
           ))}
           <p className="small muted" style={{ marginTop: 8 }}>Demanda não entregue derruba a confiança (−6). Confiança abaixo de 20 pode levar à exoneração.</p>

@@ -20,14 +20,14 @@ import { makeMayorPoll, makeRacePoll, makeRunoffPoll } from './polls';
 import { createMayorRace } from './elections';
 import { monthlySocialGrowth, digitalScore } from './social';
 import { backgroundNews, newsFromContests, newsFromLog, newsFromPoll } from './news';
-import { grow } from './actions';
+import { grow, officePointsFor } from './actions';
 import { closePersonalMonth, recomputeNetWorth } from './finance';
 import { snapshot, recordDiff } from './ledger';
 import { partyMonthlyStep } from './partyorg';
 import { decayRelations } from './relations';
 import { LAST_YEAR, councilLegislatureNumber, genCycle, isGenYear, isMunYear, munCycle, munTerm, nextElection } from './cycle';
 import { applyGeneralResults, createStateRace, generalTermEnd, pickCouncillorCandidates, resolveGovernorRunoff, runGeneralElection, stateRaceShares, stateStrength, stateWorldMonthly } from './general';
-import { UPPER_SALARIES, upperMonthlyStep } from './upper';
+import { UPPER_LABEL, UPPER_SALARIES, upperMonthlyStep } from './upper';
 import { councillorWindowSwitches, crisisMonthlyStep, lapseCampaignPromises, promisesMonthlyStep } from './livingworld';
 import { checkAchievements, computeEnding } from './endings';
 import { endMandate, isMunicipalMandate, mandateExpired, newMandate, startUpperMandate, vacateCouncilSeat } from './careers';
@@ -173,7 +173,9 @@ export function advanceMonth(state: GameState): GameState {
     return s;
   }
 
-  // 7) Salário de mandato / emprego.
+  // 7) Agenda do cargo (depois das posses do mês).
+  s.officePoints = officePointsFor(s);
+  // 7b) Salário de mandato / emprego.
   const office = s.player.mandate?.office;
   if (office === 'vereador' || office === 'prefeito' || office === 'secretario') s.finances.monthlyIncome = SALARIES[office];
   else if (office && office in UPPER_SALARIES) s.finances.monthlyIncome = UPPER_SALARIES[office as keyof typeof UPPER_SALARIES].value;
@@ -646,6 +648,8 @@ export function currentPhaseLabel(s: GameState): string {
   if (inElectionYear && t === mi(recentY, 7)) return 'Convenções partidárias';
   if (inElectionYear && t < mi(recentY, 4)) return `Pré-eleitoral ${recentY} — prazo de filiação no início de abril`;
   if (inElectionYear && t < mi(recentY, 7)) return 'Pré-campanha';
+  const m = s.player.mandate;
+  if (m && m.upper) return `Seu mandato: ${UPPER_LABEL[m.office] ?? m.office} ${m.since.slice(0, 4)}–${m.until.slice(0, 4)} · próximas eleições ${kind}: ${Y}`;
   const term = munTerm(t);
   return `Mandatos municipais ${term.from}–${term.to} · próximas eleições ${kind}: ${Y} — ${monthLabel(s.month)}`;
 }

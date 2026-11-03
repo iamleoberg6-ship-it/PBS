@@ -226,7 +226,35 @@ A arrecadação também foi escalada por cargo: a de governador e a de senador s
   - prefeito(a), entre 72 e 77.
   - As duas faixas ficam dentro do que foi calibrado na Fase 4.
 
-## 13. Pendências conhecidas
+## 13. Navegação por esfera e agenda do cargo (ajuste pós-fase)
+
+**Menu lateral em grupos**, que mudam conforme o cargo do jogador:
+- *Você*: agenda, personagem, imagem.
+- *Meu cargo*: página do mandato atual. Exemplos: "Alesp — meu mandato", "Câmara Municipal — meu mandato", "Prefeitura — meu governo", gabinete de assessor.
+- *Eleições*: a próxima eleição aparece primeiro (municipal ou geral), junto com a campanha.
+- *Estado e União* e *Cidade de São Paulo*: a esfera em que o jogador atua vem antes da outra.
+- *Partido e mídia*.
+- *Trajetória*.
+
+Outras mudanças de navegação:
+- A eleição geral ganhou página própria, separada da composição do governo e das bancadas.
+- Mandatos estaduais e federais ganharam a página **Meu mandato**, com:
+  - painel do mandato;
+  - ações do cargo;
+  - composição da casa legislativa;
+  - registro do mandato.
+- O topo da tela mostra o mandato do jogador quando ele não é municipal.
+
+**Agenda do cargo** (PROPOSTA):
+- Quem exerce cargo recebe compromissos extras só para o trabalho do cargo:
+  - assessor: 3;
+  - vereador, secretário, deputado, senador e secretário estadual: 4;
+  - prefeito e governador: 5.
+- Os 5 compromissos pessoais ficam livres para partido, redes e campanha.
+- As ações do cargo (◆) gastam primeiro a agenda do cargo e, quando ela acaba, a pessoal.
+- Balanço conferido: com 9 ações de pasta por mês, o secretário da Saúde termina com aprovação entre 70 e 76.
+
+## 14. Pendências conhecidas
 
 1. **Votação nominal na Alesp e no Congresso**: hoje o mandato estadual/federal é abstrato. Seria uma extensão futura usando o motor da Fase 2.
 2. **Secretário estadual**: o mandato é abstrato. O orçamento estadual detalhado não está modelado.

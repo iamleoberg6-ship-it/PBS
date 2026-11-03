@@ -1,6 +1,6 @@
 import { Component, useEffect, useState, type ReactNode } from 'react';
 import {
-  GAMEPLAY, advanceMonth, setPlayerVote, openDraft, adjustDraft, changeParty, setSocialFocus, currentPhaseLabel, eventById, monthLabel, performAction, resolveEvent, saveLocal, serialize,
+  GAMEPLAY, officePointsFor, nextElection, munCycle, genCycle, monthIndex, advanceMonth, setPlayerVote, openDraft, adjustDraft, changeParty, setSocialFocus, currentPhaseLabel, eventById, monthLabel, performAction, resolveEvent, saveLocal, serialize,
   type GameState,
 } from '../engine';
 import { brl } from './format';
@@ -11,29 +11,48 @@ import { Camara } from './camara';
 import { Secretaria } from './secretaria';
 import { Governo } from './governo';
 import { Campanha, GabineteParlamentar } from './campanha';
-import { Conquistas, EstadoUniao, Imagem } from './estado';
+import { Conquistas, EleicoesGerais, EstadoUniao, Imagem, MeuMandato } from './estado';
 
-const PAGES = [
-  ['gabinete', 'Gabinete'],
-  ['personagem', 'Personagem'],
-  ['meupartido', 'Meu partido'],
-  ['partidos', 'Partidos'],
-  ['redes', 'Redes sociais'],
-  ['noticias', 'Notícias'],
-  ['campanha', 'Campanha'],
-  ['eleicoes', 'Eleições municipais'],
-  ['estado', 'Estado e União'],
-  ['imagem', 'Imagem e promessas'],
-  ['gabparl', 'Gabinete parlamentar'],
-  ['governo', 'Prefeitura'],
-  ['camara', 'Câmara Municipal'],
-  ['secretaria', 'Minha secretaria'],
-  ['cidade', 'Vereadores e cidade'],
-  ['conquistas', 'Conquistas'],
-  ['historico', 'Histórico'],
-  ['regras', 'Regras'],
-] as const;
-type PageId = (typeof PAGES)[number][0];
+const PAGE_IDS = ['gabinete', 'mandato', 'personagem', 'meupartido', 'partidos', 'redes', 'noticias', 'campanha', 'eleicoes', 'gerais', 'estado', 'imagem', 'gabparl', 'governo', 'camara', 'secretaria', 'cidade', 'conquistas', 'historico', 'regras'] as const;
+type PageId = (typeof PAGE_IDS)[number];
+type NavGroup = { title: string; items: [PageId, string][] };
+
+const MANDATE_PAGE: Record<string, [PageId, string]> = {
+  vereador: ['camara', 'Câmara Municipal — meu mandato'],
+  prefeito: ['governo', 'Prefeitura — meu governo'],
+  secretario: ['secretaria', 'Minha secretaria'],
+  deputado_estadual: ['mandato', 'Alesp — meu mandato'],
+  deputado_federal: ['mandato', 'Câmara dos Deputados — meu mandato'],
+  senador: ['mandato', 'Senado — meu mandato'],
+  governador: ['mandato', 'Governo do Estado — meu governo'],
+  secretario_estadual: ['mandato', 'Secretaria estadual'],
+};
+
+/** Navegação por esferas: o cargo atual vem primeiro, depois a eleição mais próxima e a esfera onde você atua. */
+function navGroups(s: GameState): NavGroup[] {
+  const m = s.player.mandate;
+  const groups: NavGroup[] = [{ title: 'Você', items: [['gabinete', 'Agenda e ações'], ['personagem', 'Personagem'], ['imagem', 'Imagem e promessas']] }];
+  const cargo: [PageId, string][] = [];
+  if (m && MANDATE_PAGE[m.office]) cargo.push(MANDATE_PAGE[m.office]);
+  if (s.player.staff) cargo.push(['gabparl', 'Gabinete parlamentar (assessoria)']);
+  if (cargo.length) groups.push({ title: 'Meu cargo', items: cargo });
+  const ne = nextElection(monthIndex(s.month));
+  const munY = munCycle(monthIndex(s.month));
+  const genY = genCycle(monthIndex(s.month));
+  const el: [PageId, string][] = [];
+  if (s.player.candidacy) el.push(['campanha', `Minha campanha ${s.player.candidacy.year ?? 2028}`]);
+  const mun: [PageId, string] = ['eleicoes', `Eleições municipais ${munY}`];
+  const gen: [PageId, string] = ['gerais', `Eleições gerais ${genY}`];
+  el.push(...(ne.kind === 'geral' ? [gen, mun] : [mun, gen]));
+  groups.push({ title: 'Eleições', items: el });
+  const upper = !!m && ['deputado_estadual', 'deputado_federal', 'senador', 'governador', 'secretario_estadual'].includes(m.office);
+  const state: NavGroup = { title: 'Estado e União', items: [['estado', 'Governo de SP e Congresso']] };
+  const city: NavGroup = { title: 'Cidade de São Paulo', items: ([['governo', 'Prefeitura'], ['camara', 'Câmara Municipal'], ['cidade', 'Vereadores e cidade']] as [PageId, string][]).filter(([id]) => !cargo.some(([c]) => c === id)) };
+  groups.push(...(upper ? [state, city] : [city, state]));
+  groups.push({ title: 'Partido e mídia', items: [['meupartido', 'Meu partido'], ['partidos', 'Partidos'], ['redes', 'Redes sociais'], ['noticias', 'Notícias']] });
+  groups.push({ title: 'Trajetória', items: [['conquistas', 'Conquistas'], ['historico', 'Histórico'], ['regras', 'Regras']] });
+  return groups;
+}
 
 /** Se uma página quebrar, só ela mostra o erro: a barra do topo e o botão de avançar continuam funcionando. */
 class PageBoundary extends Component<{ children: ReactNode; resetKey: string }, { error: string | null }> {
@@ -68,7 +87,9 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
     setS(next);
     const fresh = next.log.slice(before).filter((l) => l.kind === 'eleicao' || l.kind === 'mandato');
     if (fresh.some((l) => l.kind === 'eleicao') && next.elections.length > s.elections.length) setPage('eleicoes');
-    if (next.generalElections.length > s.generalElections.length) setPage('estado');
+    if (next.generalElections.length > s.generalElections.length) setPage('gerais');
+    const om = s.player.mandate?.office, nm = next.player.mandate?.office;
+    if (nm && nm !== om && MANDATE_PAGE[nm]) setPage(MANDATE_PAGE[nm][0]);
     if (next.gameOver) setPage('conquistas');
     setToast(fresh[fresh.length - 1]?.text ?? `Avançou para ${monthLabel(next.month)}.`);
     if (next.crises.some((c) => c.status === 'ativa' && c.targetId === 'character_player') && !s.crises.some((c) => c.status === 'ativa' && c.targetId === 'character_player')) setToast('Crise de imagem: veja a aba Imagem e promessas.');
@@ -87,17 +108,28 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
           <div className="top-phase">{currentPhaseLabel(s)}</div>
         </div>
         <div className="top-spacer" />
-        <div className="ap" title="Compromissos livres na agenda deste mês">
+        <div className="ap" title="Agenda pessoal: compromissos livres deste mês">
           {Array.from({ length: GAMEPLAY.actionPointsPerMonth.value }, (_, i) => <span key={i} className={`ap-dot ${i < s.actionPoints ? 'on' : ''}`} />)}
         </div>
+        {officePointsFor(s) > 0 && (
+          <div className="ap" title="Agenda do cargo: compromissos só para o trabalho do cargo" style={{ marginLeft: 8 }}>
+            <span className="small" style={{ color: 'var(--paper-2, #ddd)', marginRight: 4 }}>cargo</span>
+            {Array.from({ length: officePointsFor(s) }, (_, i) => <span key={i} className={`ap-dot ${i < (s.officePoints ?? 0) ? 'on' : ''}`} style={{ borderRadius: 2, transform: 'rotate(45deg)' }} />)}
+          </div>
+        )}
         <div className="top-stat"><b>{brl(s.finances.cash)}</b><small>caixa pessoal</small></div>
         <button className="btn btn-gold" onClick={advance} disabled={s.gameOver || !!ev}>
           {s.gameOver ? 'Fim da partida' : ev ? 'Responda o evento' : 'Avançar mês →'}
         </button>
       </header>
       <nav className="sidebar">
-        {PAGES.filter(([id]) => (id !== 'secretaria' || !!s.player.mandate?.secretariat) && (id !== 'gabparl' || !!s.player.staff)).map(([id, label]) => (
-          <button key={id} className={`nav-item ${page === id ? 'active' : ''}`} onClick={() => setPage(id)}>{label}</button>
+        {navGroups(s).map((g) => (
+          <div key={g.title}>
+            <div className="nav-group">{g.title}</div>
+            {g.items.map(([id, label]) => (
+              <button key={id + label} className={`nav-item ${page === id ? 'active' : ''}`} onClick={() => setPage(id)}>{label}</button>
+            ))}
+          </div>
         ))}
         <div className="nav-sep" />
         <button className="nav-item" onClick={() => setExporting(true)}>Exportar save</button>
@@ -113,6 +145,8 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
         {page === 'noticias' && <Noticias s={s} />}
         {page === 'eleicoes' && <Eleicoes s={s} />}
         {page === 'estado' && <EstadoUniao s={s} />}
+        {page === 'gerais' && <EleicoesGerais s={s} />}
+        {page === 'mandato' && <MeuMandato s={s} act={act} />}
         {page === 'imagem' && <Imagem s={s} act={act} />}
         {page === 'conquistas' && <Conquistas s={s} />}
         {page === 'campanha' && <Campanha s={s} act={act} />}
