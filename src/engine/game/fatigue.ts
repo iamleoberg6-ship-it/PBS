@@ -4,6 +4,7 @@
 //  - em meses seguidos: os dois primeiros meses rendem cheio; depois cai 12% por mês, até o piso de 55%;
 //  - pular um mês zera a sequência.
 // Só os GANHOS são reduzidos (custos e perdas continuam inteiros).
+// Não se aplica ao trabalho de cargo (assessoria, mandatos, prefeitura, secretarias, governo): ver WORK_CATEGORIES em actions.ts.
 
 import { monthIndex } from '../calendar';
 import { TRACKED } from './ledger';

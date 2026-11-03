@@ -2,7 +2,7 @@ import { useState } from 'react';
 import {
   ATTRIBUTE_LABELS, FEDERATIONS, GAMEPLAY, PARTIES, PROFESSIONS, REAL_FIGURES, RULEPACK_BR_2028_MUN as RP, SAO_PAULO, UPPER_LABEL, LAST_YEAR, munCycle, munRulepack, genRulepack,
   availableActions, formatIsoPt, listName, monthIndex, monthLabel, partyById, partyChangeBlock, previewEligibility,
-  estimateVereadorVotes, playerElectoralScore, councillorFacts, fatigueMultiplier, EXPERT_SCALE, IDEOLOGY_SOURCE, AXES, categoryLabel, generalPosition,
+  estimateVereadorVotes, playerElectoralScore, councillorFacts, fatigueMultiplier, usesFatigue, EXPERT_SCALE, IDEOLOGY_SOURCE, AXES, categoryLabel, generalPosition,
   REGIONS, type ActionDef, type AttributeKey, type ElectionRecord, type GameState, type Sourced,
 } from '../engine';
 import { brl, listColor, num, partyColor, pct } from './format';
@@ -46,7 +46,7 @@ function ActionCard({ def, status, s, act }: { def: ActionDef; status: string | 
       <div className="action-head"><b>{def.label}</b><span className="cost">{def.cost === 0 ? 'livre' : '●'.repeat(def.cost)}</span></div>
       <p>{def.description}</p>
       {status && <span className="why">{status}</span>}
-      {!status && def.fatigue !== false && (() => { const f = fatigueMultiplier(s, def.id); return f.mult < 1 ? <span className="small" style={{ color: '#8a6516' }}>Rendimento {Math.round(f.mult * 100)}%: {f.reason}</span> : null; })()}
+      {!status && usesFatigue(def) && (() => { const f = fatigueMultiplier(s, def.id); return f.mult < 1 ? <span className="small" style={{ color: '#8a6516' }}>Rendimento {Math.round(f.mult * 100)}%: {f.reason}</span> : null; })()}
       <div className="action-row">
         {def.params && opts.length > 0 && (
           <select value={value} onChange={(e) => setParam(e.target.value)} disabled={status !== null} aria-label={def.paramLabel}>

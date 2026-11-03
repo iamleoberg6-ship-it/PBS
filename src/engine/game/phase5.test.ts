@@ -251,3 +251,12 @@ describe('Correções pós-Fase 5', () => {
     expect(s.player.candidacy!.irregularities).toBe(1);
   });
 });
+
+describe('Trabalho de cargo sem desgaste', () => {
+  it('ações de assessoria e de mandato não perdem rendimento ao repetir; ações de vida/campanha continuam perdendo', async () => {
+    const { ACTIONS, usesFatigue } = await import('./actions');
+    const byId = (id: string) => ACTIONS.find((a) => a.id === id)!;
+    for (const id of ['cumprir_demanda', 'iniciativa_gabinete', 'atender_base', 'projeto_lei', 'zeladoria', 'acompanhar_programa', 'up_emenda', 'gov_programa']) expect(usesFatigue(byId(id)), id).toBe(false);
+    for (const id of ['comunidade', 'redes', 'corpo_a_corpo', 'pre_campanha']) expect(usesFatigue(byId(id)), id).toBe(true);
+  });
+});

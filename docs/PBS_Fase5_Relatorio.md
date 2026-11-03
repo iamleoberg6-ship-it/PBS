@@ -213,7 +213,20 @@ Ações novas:
 
 A arrecadação também foi escalada por cargo: a de governador e a de senador são próximas à de prefeito, e a de deputado é duas vezes a de vereador.
 
-## 12. Pendências conhecidas
+## 12. Trabalho de cargo sem desgaste (ajuste pós-fase)
+
+- Ações das categorias Assessoria, Mandato de vereador, Prefeitura, Secretaria, Mandato estadual/federal e Governo do Estado **não perdem mais rendimento quando repetidas**: é o trabalho do cargo.
+  - O desgaste por repetição continua nas ações de vida, partido, redes e campanha.
+- Para a aprovação não disparar, o que satura agora é a **atenção do público no mês** (PROPOSTA):
+  - até +1,5 de aprovação vinda de ações num mesmo mês conta inteiro;
+  - o que passar disso conta a 25%.
+  - Indicadores, programas, demandas e projetos rendem sempre 100%.
+- Balanço com jogo ativo, verificado depois do ajuste:
+  - secretário(a) da Saúde termina com aprovação entre 71 e 74;
+  - prefeito(a), entre 72 e 77.
+  - As duas faixas ficam dentro do que foi calibrado na Fase 4.
+
+## 13. Pendências conhecidas
 
 1. **Votação nominal na Alesp e no Congresso**: hoje o mandato estadual/federal é abstrato. Seria uma extensão futura usando o motor da Fase 2.
 2. **Secretário estadual**: o mandato é abstrato. O orçamento estadual detalhado não está modelado.

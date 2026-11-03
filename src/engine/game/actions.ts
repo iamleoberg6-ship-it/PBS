@@ -31,6 +31,12 @@ import type { AttributeKey, Bill, CrisisResponse, GameState } from './types';
 
 export type ActionCategory = 'Vida e carreira' | 'Assessoria' | 'Partido' | 'Pré-candidatura' | 'Campanha' | 'Mandato de vereador' | 'Prefeitura' | 'Secretaria' | 'Mandato estadual/federal' | 'Governo do Estado' | 'Imagem e compromissos';
 
+/** Trabalho de cargo (gabinete, mandato, gestão) não sofre desgaste por repetição: é a rotina do cargo. */
+export const WORK_CATEGORIES: ActionCategory[] = ['Assessoria', 'Mandato de vereador', 'Prefeitura', 'Secretaria', 'Mandato estadual/federal', 'Governo do Estado'];
+/** Aprovação vinda de ações num mesmo mês antes de saturar (PROPOSTA). */
+export const APPROVAL_ACTION_CAP = 1.5;
+export const usesFatigue = (def: ActionDef) => def.fatigue !== false && !WORK_CATEGORIES.includes(def.category);
+
 export interface ActionParamOption {
   value: string;
   label: string;
@@ -1235,16 +1241,30 @@ export function performAction(state: GameState, actionId: string, param?: string
     if (!opts.length || !opts.some((o) => o.value === param)) return state;
   }
   if (s.actionPoints < def.cost) return state;
-  const fat = def.fatigue === false ? { mult: 1, reason: null } : fatigueMultiplier(s, def.id);
+  const fat = !usesFatigue(def) ? { mult: 1, reason: null } : fatigueMultiplier(s, def.id);
   const before = snapshot(s);
   let msg = def.apply(s, s.rng, param);
   const blockedBySpend = msg.startsWith('Saldo de campanha insuficiente');
   if (!blockedBySpend) {
     s.actionPoints -= def.cost;
-    if (def.fatigue !== false) {
+    if (usesFatigue(def)) {
       dampenGains(s, state, fat.mult);
       registerUse(s, def.id);
       if (fat.mult < 1) msg += ` Ganhos reduzidos a ${Math.round(fat.mult * 100)}% (${fat.reason}).`;
+    } else if (WORK_CATEGORIES.includes(def.category) && s.player.mandate && state.player.mandate) {
+      // O trabalho rende inteiro; o que satura é a atenção do público no mês (PROPOSTA): passado
+      // +1,5 de aprovação vindos de ações no mesmo mês, o excedente conta a 25%.
+      const gain = s.player.mandate.approval - state.player.mandate.approval;
+      if (gain > 0) {
+        const key = `aprovAcoes_${now(s)}`;
+        const used = Number(s.flags[key] ?? 0);
+        const full = Math.max(0, Math.min(gain, APPROVAL_ACTION_CAP - used));
+        const adj = full + (gain - full) * 0.25;
+        s.player.mandate.approval = state.player.mandate.approval + adj;
+        s.flags[key] = used + adj;
+        if (adj < gain - 0.05) msg += ' (A imprensa já deu bastante espaço a você este mês: o efeito na aprovação foi menor.)';
+        for (const k of Object.keys(s.flags)) if (k.startsWith('aprovAcoes_') && k !== key) delete s.flags[k];
+      }
     }
   }
   recomputeNetWorth(s);
