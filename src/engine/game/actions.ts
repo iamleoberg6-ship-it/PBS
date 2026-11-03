@@ -1229,6 +1229,11 @@ export function performAction(state: GameState, actionId: string, param?: string
   if (!def || s.gameOver) return state;
   const status = def.availability(s);
   if (status !== null) return state;
+  // Ação com lista de opções: o parâmetro precisa ser uma das opções válidas agora (evita travar com escolha vazia).
+  if (def.params && def.id !== 'autofinanciar') {
+    const opts = def.params(s);
+    if (!opts.length || !opts.some((o) => o.value === param)) return state;
+  }
   if (s.actionPoints < def.cost) return state;
   const fat = def.fatigue === false ? { mult: 1, reason: null } : fatigueMultiplier(s, def.id);
   const before = snapshot(s);

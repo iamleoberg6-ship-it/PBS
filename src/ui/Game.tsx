@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Component, useEffect, useState, type ReactNode } from 'react';
 import {
   GAMEPLAY, advanceMonth, setPlayerVote, openDraft, adjustDraft, changeParty, setSocialFocus, currentPhaseLabel, eventById, monthLabel, performAction, resolveEvent, saveLocal, serialize,
   type GameState,
@@ -34,6 +34,17 @@ const PAGES = [
   ['regras', 'Regras'],
 ] as const;
 type PageId = (typeof PAGES)[number][0];
+
+/** Se uma página quebrar, só ela mostra o erro: a barra do topo e o botão de avançar continuam funcionando. */
+class PageBoundary extends Component<{ children: ReactNode; resetKey: string }, { error: string | null }> {
+  state = { error: null as string | null };
+  static getDerivedStateFromError(e: Error) { return { error: e.message }; }
+  componentDidUpdate(prev: { resetKey: string }) { if (prev.resetKey !== this.props.resetKey && this.state.error) this.setState({ error: null }); }
+  render() {
+    if (this.state.error) return <div className="card"><h3>Esta página encontrou um erro</h3><p className="small">A partida continua: troque de página ou avance o mês. Se o erro se repetir, exporte o save e mande para correção.</p><p className="small mono muted">{this.state.error}</p></div>;
+    return this.props.children;
+  }
+}
 
 export function Game({ initial, onExit }: { initial: GameState; onExit: () => void }) {
   const [s, setS] = useState<GameState>(initial);
@@ -93,7 +104,7 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
         <button className="nav-item" onClick={onExit}>Menu inicial</button>
         <div className="side-foot">Salvo automaticamente neste navegador.</div>
       </nav>
-      <main className="main">
+      <main className="main"><PageBoundary resetKey={`${page}-${s.month.year}-${s.month.month}`}>
         {page === 'gabinete' && <Gabinete s={s} act={act} />}
         {page === 'personagem' && <Personagem s={s} />}
         {page === 'meupartido' && <MeuPartido s={s} />}
@@ -112,7 +123,7 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
         {page === 'cidade' && <Cidade s={s} />}
         {page === 'historico' && <Historico s={s} />}
         {page === 'regras' && <Regras s={s} />}
-      </main>
+      </PageBoundary></main>
 
       {ev && tpl && (
         <div className="overlay">

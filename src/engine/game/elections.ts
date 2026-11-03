@@ -2,7 +2,7 @@
 // a geração dos votos é um modelo de gameplay (PROPOSTA), agregado e fictício.
 
 import { GAMEPLAY, RULEPACK_BR_2028_MUN as RP, genRulepack, munRulepack } from '../data/rulepack';
-import { isGenYear, nextElection } from './cycle';
+import { genCycle, isGenYear, munCycle } from './cycle';
 import type { ElectiveOffice } from '../rules/eligibility';
 import { PARTIES, allListIds, listIdForParty, listMembers, listName, partyById } from '../data/parties';
 import { SAO_PAULO } from '../data/world';
@@ -88,8 +88,12 @@ export function runEligibility(state: GameState) {
   }, general ? genRulepack(y) : munRulepack(y));
 }
 
-export function previewEligibility(state: GameState, office: ElectiveOffice) {
-  const ne = nextElection(state.month.year * 12 + state.month.month - 1);
+export function previewEligibility(state: GameState, office: ElectiveOffice, year?: number) {
+  // O pacote depende do tipo do cargo (municipal × geral), não da próxima eleição do calendário:
+  // em out/2028 a próxima eleição é a geral de 2030, mas a tela municipal ainda pede vereador/prefeito.
+  const t = state.month.year * 12 + state.month.month - 1;
+  const municipal = office === 'vereador' || office === 'prefeito' || office === 'vice_prefeito';
+  const y = year ?? (municipal ? munCycle(t) : genCycle(t));
   return checkEligibility({
     office,
     birthDate: state.character.birthDate,
@@ -101,7 +105,7 @@ export function previewEligibility(state: GameState, office: ElectiveOffice) {
     filiationDate: state.player.filiationDate,
     consecutiveTermsSameOffice: office === 'prefeito' ? state.player.consecutiveTermsPrefeito : 0,
     chosenInConvention: true,
-  }, ne.kind === 'geral' ? genRulepack(ne.year) : munRulepack(ne.year)).filter((c) => c.id !== 'convencao');
+  }, municipal ? munRulepack(y) : genRulepack(y)).filter((c) => c.id !== 'convencao');
 }
 
 export { isEligible };
