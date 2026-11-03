@@ -1,11 +1,20 @@
 import { useState } from 'react';
-import { loadSave, type GameState } from '../engine';
+import { backupText, listBackups, loadSave, localSaveStatus, type GameState } from '../engine';
 
 export function Start({ hasSave, onNew, onContinue, onImport }: { hasSave: boolean; onNew: () => void; onContinue: () => void; onImport: (s: GameState) => void }) {
   const [importing, setImporting] = useState(false);
   const [text, setText] = useState('');
   const [err, setErr] = useState('');
   const [pending, setPending] = useState<{ state: GameState; repairs: string[]; from: number | null } | null>(null);
+  const status = localSaveStatus();
+  const backups = listBackups();
+  const [copied, setCopied] = useState('');
+  const restore = (text: string) => {
+    try {
+      const { state } = loadSave(text);
+      onImport(state);
+    } catch (e) { setErr((e as Error).message); setImporting(true); }
+  };
   return (
     <div className="start">
       <div className="start-inner">
@@ -18,6 +27,25 @@ export function Start({ hasSave, onNew, onContinue, onImport }: { hasSave: boole
           {hasSave && <button className="btn" onClick={onContinue}>Continuar partida salva</button>}
           <button className="btn" onClick={() => setImporting(true)}>Importar save</button>
         </div>
+        {status.exists && status.error && (
+          <div className="callout" style={{ marginTop: 16, color: 'var(--ink)' }}>
+            <b>Há uma partida salva, mas ela não carregou nesta versão.</b> Ela NÃO foi apagada. Erro: <span className="mono small">{status.error}</span>
+            <div style={{ marginTop: 8 }}><button className="btn btn-sm" onClick={() => { navigator.clipboard?.writeText(status.raw ?? '').then(() => setCopied('Save copiado: mande para correção.'), () => setCopied('Não deu para copiar automaticamente.')); }}>Copiar save</button> <span className="small">{copied}</span></div>
+            <p className="small" style={{ marginTop: 6 }}>Atenção: "Nova carreira" guarda esta partida nas cópias de segurança abaixo antes de começar outra.</p>
+          </div>
+        )}
+        {backups.length > 0 && (
+          <div className="callout" style={{ marginTop: 16, color: 'var(--ink)' }}>
+            <b>Cópias de segurança</b> (partidas substituídas por outra neste navegador):
+            {backups.map((b) => (
+              <div key={b.key} style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6 }}>
+                <span className="small">{b.name} · {b.month} · guardada em {new Date(b.savedAt).toLocaleString('pt-BR')}</span>
+                <button className="btn btn-sm" onClick={() => { const t = backupText(b.key); if (t) restore(t); }}>Restaurar</button>
+                <button className="btn btn-sm" onClick={() => { const t = backupText(b.key); if (t) navigator.clipboard?.writeText(t).then(() => setCopied('Cópia copiada.')); }}>Copiar</button>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="start-foot">
           Partidos e federações reais conforme o TSE em 30/10/2026. Figuras públicas aparecem só com dados de registro público. Candidatos e eventos gerados pelo jogo são fictícios.
         </div>

@@ -314,13 +314,52 @@ export function deserialize(text: string): GameState {
   return loadSave(text).state;
 }
 
+const BACKUP_KEY = 'pbs_save_backups';
+export interface SaveBackup { key: string; name: string; month: string; createdAt: string; savedAt: string; text: string }
+
+function readBackups(): SaveBackup[] {
+  try { return JSON.parse(localStorage.getItem(BACKUP_KEY) ?? '[]'); } catch { return []; }
+}
+
+/** Grava a partida. Se o espaço guardava OUTRA partida, ela vai para as cópias de segurança (até 3) em vez de ser apagada. */
 export function saveLocal(state: GameState): boolean {
   try {
+    const prev = localStorage.getItem(KEY);
+    if (prev) {
+      try {
+        const head = JSON.parse(prev);
+        if (head.createdAt && head.createdAt !== state.createdAt) {
+          const list = readBackups().filter((b) => b.createdAt !== head.createdAt);
+          list.unshift({ key: `bk_${Date.now()}`, name: head.character?.name ?? '—', month: `${String(head.month?.month ?? '').padStart(2, '0')}/${head.month?.year ?? ''}`, createdAt: head.createdAt, savedAt: new Date().toISOString(), text: prev });
+          localStorage.setItem(BACKUP_KEY, JSON.stringify(list.slice(0, 3)));
+        }
+      } catch { /* save anterior ilegível: guarda como cópia bruta */
+        const list = readBackups();
+        list.unshift({ key: `bk_${Date.now()}`, name: 'save ilegível', month: '—', createdAt: `raw_${Date.now()}`, savedAt: new Date().toISOString(), text: prev });
+        localStorage.setItem(BACKUP_KEY, JSON.stringify(list.slice(0, 3)));
+      }
+    }
     localStorage.setItem(KEY, serialize(state));
     return true;
   } catch {
     return false;
   }
+}
+
+export function listBackups(): Omit<SaveBackup, 'text'>[] {
+  return readBackups().map(({ text: _t, ...rest }) => rest);
+}
+export function backupText(key: string): string | null {
+  return readBackups().find((b) => b.key === key)?.text ?? null;
+}
+
+/** Diagnóstico do espaço de save: existe? carrega? qual erro? (para não "sumir" com uma partida que falhou ao carregar). */
+export function localSaveStatus(): { exists: boolean; error: string | null; raw: string | null } {
+  try {
+    const t = localStorage.getItem(KEY);
+    if (!t) return { exists: false, error: null, raw: null };
+    try { loadSave(t); return { exists: true, error: null, raw: t }; } catch (e) { return { exists: true, error: (e as Error).message, raw: t }; }
+  } catch { return { exists: false, error: null, raw: null }; }
 }
 
 export function loadLocal(): GameState | null {
