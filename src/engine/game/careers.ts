@@ -7,6 +7,7 @@ import { partyById } from '../data/parties';
 import { PLAYER } from './relations';
 import { initLegislature } from './legislature';
 import { newUpper, UPPER_LABEL, UPPER_SALARIES } from './upper';
+import { startFederalProjection } from './national';
 import type { GameState, Mandate } from './types';
 
 const ym = (s: GameState) => `${s.month.year}-${String(s.month.month).padStart(2, '0')}`;
@@ -106,6 +107,10 @@ export function startUpperMandate(s: GameState, office: Mandate['office'], since
   s.finances.monthlyIncome = UPPER_SALARIES[office as keyof typeof UPPER_SALARIES]?.value ?? s.finances.monthlyIncome;
   s.player.careerHistory.push({ office: UPPER_LABEL[office] ?? office, from: ym(s), to: null, note });
   s.log.push({ month: { ...s.month }, kind: 'mandato', text: `Você tomou posse como ${UPPER_LABEL[office] ?? office} (${since.split('-').reverse().join('/')} a ${until.split('-').reverse().join('/')}).` });
+  if (office === 'deputado_federal' || office === 'senador') {
+    startFederalProjection(s);
+    s.log.push({ month: { ...s.month }, kind: 'mandato', text: 'Agora você vota e destina recursos para o Brasil inteiro. Seu mandato continua sendo de SP (é o eleitorado paulista que reelege), mas sua projeção nacional passa a ser acompanhada por região na página "Brasil".' });
+  }
 }
 
 /** Mandatos que vencem nesta data (comparação por mês). */

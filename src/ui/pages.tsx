@@ -1,4 +1,4 @@
-import { TIPS, resetTutorial, setTutorial, tutorialOn } from '../engine';
+import { TIPS, nationalIndex, resetTutorial, setTutorial, tutorialOn } from '../engine';
 import { useState } from 'react';
 import {
   ATTRIBUTE_LABELS, FEDERATIONS, GAMEPLAY, PARTIES, PROFESSIONS, REAL_FIGURES, RULEPACK_BR_2028_MUN as RP, SAO_PAULO, UPPER_LABEL, LAST_YEAR, munCycle, munRulepack, genRulepack,
@@ -88,7 +88,9 @@ export function Gabinete({ s, act, voteBill, voteFloor }: Props & { voteBill: (i
         <Meter label="Popularidade" value={s.character.attributes.popularity} color="blue" onWhy={() => setWhy('popularity')} />
         {party && <Meter label={`Confiança da direção (${party.acronym})`} value={p.partyRel.leadershipTrust} color="blue" onWhy={() => setWhy('leadershipTrust')} />}
         {party && <Meter label="Influência no partido" value={p.partyRel.influence} color="gold" onWhy={() => setWhy('partyInfluence')} />}
-        {m && <Meter label={m.office === 'prefeito' ? 'Aprovação do governo' : 'Aprovação do mandato'} value={m.approval} onWhy={() => setWhy('approval')} />}
+        {m && <Meter label={m.office === 'prefeito' ? 'Aprovação do governo' : m.office === 'deputado_federal' || m.office === 'senador' ? 'Aprovação do mandato em SP' : 'Aprovação do mandato'} value={m.approval} onWhy={() => setWhy('approval')} />}
+        {(m?.office === 'deputado_federal' || m?.office === 'senador') && <Meter label="Aprovação nacional" note="média das regiões" value={nationalIndex(s, 'approval')} color="blue" onWhy={() => setWhy('nationalApproval')} />}
+        {(m?.office === 'deputado_federal' || m?.office === 'senador') && <Meter label="Projeção nacional" note="média das regiões" value={nationalIndex(s, 'recognition')} color="gold" onWhy={() => setWhy('nationalRecognition')} />}
         {m && !m.upper && m.office !== 'prefeito' && <Meter label="Relação com a prefeitura" value={m.relationExecutive} color="blue" onWhy={() => setWhy('relationExec')} />}
         {m?.secretariat && <Meter label="Relação com a Câmara" value={m.secretariat.relationCouncil} color="gold" />}
         {m?.office === 'governador' && <Meter label="Base na Alesp" value={((m.upper?.assemblyBase ?? 0) / 94) * 100} note={`${m.upper?.assemblyBase ?? 0}/94`} color={(m.upper?.assemblyBase ?? 0) >= 48 ? '' : 'red'} />}

@@ -1,3 +1,4 @@
+import { BR_REGIONS } from '../engine';
 import { useState } from 'react';
 import {
   ACHIEVEMENTS, FUNDING_KIND_LABEL, AMENDMENT_BUDGET, AMENDMENT_SOURCES, amendmentYearTotals, healthShareRequired, LAST_YEAR, availableActions, officePointsFor, REGIONS, RESPONSE_LABEL, STATE_AREAS, STATE_SOURCES, UPPER_LABEL, careerScore, cityAlignment, formatIsoPt, genCycle, genRulepack,
@@ -244,6 +245,14 @@ export function MeuMandato({ s, act, voteFloor }: { s: GameState; act: Act; vote
       <div className="page-head"><div><h2>{UPPER_LABEL[m.office]}</h2><p>Mandato {m.since.slice(0, 4)}–{m.until.slice(0, 4)} · agenda do cargo: {s.officePoints ?? 0} de {officePointsFor(s)} compromissos</p></div></div>
       <Votacoes s={s} voteBill={() => undefined} voteFloor={voteFloor} />
       <UpperPanel s={s} />
+      {(m.office === 'deputado_federal' || m.office === 'senador') && s.national && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="card-title"><h3>Projeção no Brasil</h3><span className="small muted">detalhes em "Brasil — minha projeção"</span></div>
+          <div className="pill-row">
+            {BR_REGIONS.map((r) => <span key={r} className="tag">{s.national!.regions[r].name}: projeção {Math.round(s.national!.player[r].recognition)} · aprovação {Math.round(s.national!.player[r].approval)}</span>)}
+          </div>
+        </div>
+      )}
       <div className="grid g-main">
         <div className="card">
           <h3>Trabalho do cargo</h3>

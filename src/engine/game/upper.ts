@@ -10,6 +10,7 @@
 
 import { next, normal, pick, type RngState } from '../rng';
 import { REGIONS } from '../data/regions';
+import { brName, isBrRegion, nationalAmendmentPaid } from './national';
 import { partyById } from '../data/parties';
 import { addGoodwill } from './campaign';
 import { partyAlignment } from './general';
@@ -116,6 +117,7 @@ export function upperAmendment(s: GameState, rng: RngState, param: string): stri
   u.amendments.push({ region, theme, value, month: { ...s.month }, paid: false, kind: 'individual' });
   void rng;
   const r = REGIONS.find((x) => x.id === region);
+  if (isBrRegion(region)) return `Emenda individual de R$ ${value} mi indicada para ${theme} em municípios do ${brName(region)}. Rende projeção nacional nessa região, mas não votos em SP.`;
   return `Emenda individual de R$ ${value} mi indicada para ${theme} na região ${r?.name ?? region}. O pagamento depende da execução pelo Executivo (emendas individuais são impositivas, mas o ritmo de pagamento varia).`;
 }
 
@@ -328,6 +330,11 @@ export function upperMonthlyStep(s: GameState, rng: RngState): string[] {
     const kindBoost = a.kind === 'indicacao' ? 0.1 : a.kind === 'comissao' ? -0.03 + upperAlignment(s) * 0.1 : 0;
     if (next(rng) < 0.1 + u.relationGov / 300 + kindBoost) {
       a.paid = true;
+      if (isBrRegion(a.region)) {
+        nationalAmendmentPaid(s, a.region, a.value);
+        notes.push(`${KIND_LABEL[a.kind ?? 'individual'][0].toUpperCase()}${KIND_LABEL[a.kind ?? 'individual'].slice(1)} paga: R$ ${a.value} mi chegaram a municípios do ${brName(a.region)}.`);
+        continue;
+      }
       addGoodwill(s, a.region, Math.min(12, 2 + a.value / 3));
       s.player.base = clamp(s.player.base + Math.min(3, a.value / 6));
       notes.push(`${KIND_LABEL[a.kind ?? 'individual'][0].toUpperCase()}${KIND_LABEL[a.kind ?? 'individual'].slice(1)} paga: R$ ${a.value} mi chegaram à região ${REGIONS.find((r) => r.id === a.region)?.name ?? a.region}.`);

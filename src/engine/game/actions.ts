@@ -26,6 +26,7 @@ import { cityAlignment } from './general';
 import { AMENDMENT_BUDGET, STATE_AREAS, UPPER_THEMES, amendmentYearTotals, healthShareRequired, amendmentScheme, claimBancada, claimCommission, requestIndication, voteWithGov, yearKindTotal, articulateGov, isLegislatorUpper, oversight, seekCommittee, startStateProgram, transferToCity, upperAmendment, upperBill, visitBase } from './upper';
 import { RESPONSE_LABEL, lapseCampaignPromises, makePromise, promiseCapacity, respondCrisis, workOnPromise } from './livingworld';
 import { computeEnding } from './endings';
+import { BR_REGIONS, brName, isFederal, nationalAgenda } from './national';
 import { TASK_LABEL, assignTask, fireMember, hireMember, proposeRachadinha, regularizeGhost, stopRachadinha, teamOffice, themeOptionsForTeam, type TeamTask } from './team';
 import { resignForCandidacy } from './careers';
 import type { AttributeKey, Bill, CrisisResponse, GameState } from './types';
@@ -974,7 +975,9 @@ export const ACTIONS: ActionDef[] = [
       const t = s.player.mandate?.upper ? amendmentYearTotals(s.player.mandate.upper, s.month.year) : { total: 0, health: 0 };
       const nonHealthLeft = healthShareRequired(office) ? AMENDMENT_BUDGET[office] / 2 - (t.total - t.health) : Infinity;
       const vals = [...new Set([1, 2, 5, 10, 20, left].filter((v) => v > 0 && v <= left))].sort((a, b) => a - b);
-      return REGIONS.flatMap((r) => ['saúde', 'educação', 'infraestrutura', 'assistência social'].flatMap((a) => vals.filter((v) => a === 'saúde' || v <= nonHealthLeft).map((v) => ({ value: `${r.id}|${a}|${v}`, label: `${r.name} — ${a} — R$ ${v} mi` }))));
+      const fed = office === 'deputado_federal' || office === 'senador';
+      const dests = [...REGIONS.map((r) => ({ id: r.id, name: `SP capital: ${r.name}` })), ...(fed ? BR_REGIONS.map((r) => ({ id: `br_${r}`, name: `Brasil: ${brName(r)}` })) : [])];
+      return dests.flatMap((r) => ['saúde', 'educação', 'infraestrutura', 'assistência social'].flatMap((a) => vals.filter((v) => a === 'saúde' || v <= nonHealthLeft).map((v) => ({ value: `${r.id}|${a}|${v}`, label: `${r.name} — ${a} — R$ ${v} mi` }))));
     },
     apply: (s, rng, param) => upperAmendment(s, rng, param!),
   },
@@ -1078,6 +1081,14 @@ export const ACTIONS: ActionDef[] = [
     paramLabel: 'Destino do dinheiro',
     params: () => [{ value: 'bolso', label: 'Para o seu bolso' }, { value: 'caixa', label: 'Guardar para a próxima campanha (caixa dois)' }],
     apply: (s, rng, param) => { s.flags[`esquema_${s.month.year}_${s.month.month}`] = true; return amendmentScheme(s, rng, param!); },
+  },
+  {
+    id: 'up_agenda_nacional', label: 'Agenda nacional (viagem a uma região)', category: 'Mandato estadual/federal', cost: 1,
+    description: 'Audiências, visitas e imprensa regional fora de SP. Aumenta sua projeção nacional naquela região — mas quem reelege você é SP, e cada viagem afasta da base.',
+    availability: (s) => (isFederal(s) ? null : 'hidden'),
+    paramLabel: 'Região do Brasil',
+    params: () => BR_REGIONS.map((r) => ({ value: `br_${r}`, label: brName(r) })),
+    apply: (s, rng, param) => nationalAgenda(s, rng, param!),
   },
   {
     id: 'up_articular', label: 'Articular com o governo', category: 'Mandato estadual/federal', cost: 1,

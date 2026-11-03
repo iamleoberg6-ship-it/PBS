@@ -2,6 +2,7 @@
 // com o motivo, para o jogador consultar "por que mudou?". Funciona por fotografia antes/depois.
 
 import { monthIndex } from '../calendar';
+import { nationalIndex } from './national';
 import type { GameState } from './types';
 
 export const TRACKED: { key: string; label: string; get: (s: GameState) => number; set: (s: GameState, v: number) => void; money?: boolean }[] = [
@@ -16,6 +17,8 @@ export const TRACKED: { key: string; label: string; get: (s: GameState) => numbe
   { key: 'approval', label: 'Aprovação do mandato', get: (s) => s.player.mandate?.approval ?? 0, set: (s, v) => { if (s.player.mandate) s.player.mandate.approval = v; } },
   { key: 'credibility', label: 'Credibilidade pessoal', get: (s) => s.player.credibility ?? 60, set: (s, v) => (s.player.credibility = v) },
   { key: 'relationExec', label: 'Relação com o Executivo', get: (s) => (s.player.mandate?.upper ? s.player.mandate.upper.relationGov : s.player.mandate?.relationExecutive ?? 0), set: (s, v) => { const m = s.player.mandate; if (!m) return; if (m.upper) m.upper.relationGov = v; else m.relationExecutive = v; } },
+  { key: 'nationalApproval', label: 'Aprovação nacional (média das regiões)', get: (s) => nationalIndex(s, 'approval'), set: () => undefined },
+  { key: 'nationalRecognition', label: 'Projeção nacional (média das regiões)', get: (s) => nationalIndex(s, 'recognition'), set: () => undefined },
   { key: 'communication', label: 'Comunicação', get: (s) => s.character.attributes.communication, set: (s, v) => (s.character.attributes.communication = v) },
   { key: 'charisma', label: 'Carisma', get: (s) => s.character.attributes.charisma, set: (s, v) => (s.character.attributes.charisma = v) },
   { key: 'negotiation', label: 'Negociação', get: (s) => s.character.attributes.negotiation, set: (s, v) => (s.character.attributes.negotiation = v) },

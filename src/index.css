@@ -255,3 +255,9 @@ td.num, th.num { text-align: right; font-family: var(--font-mono); }
 /* ---------- Acessibilidade (Fase 6) ---------- */
 :focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+
+/* ---------- Brasil por regiões ---------- */
+.br-map { display: grid; gap: 10px; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-areas: "n n ne" "co se ne" "co s s"; }
+.br-cell { background: var(--card); border: 1px solid var(--line); border-top: 5px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
+.br-name { font-family: var(--font-display, inherit); font-size: 18px; font-weight: 600; }
+@media (max-width: 900px) { .br-map { grid-template-columns: 1fr; grid-template-areas: "n" "ne" "co" "se" "s"; } }

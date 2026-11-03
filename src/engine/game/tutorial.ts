@@ -104,6 +104,13 @@ export const TIPS: Tip[] = [
     when: (s) => ['vereador', 'deputado_estadual', 'deputado_federal', 'senador'].includes(s.player.mandate?.office ?? ''),
   },
   {
+    id: 'brasil', order: 32.5,
+    title: 'Agora o seu trabalho é nacional',
+    body: 'Em Brasília você vota e destina recursos para o país inteiro. Cada matéria afeta regiões diferentes, e sua projeção e aprovação passam a ser acompanhadas no Norte, Nordeste, Centro-Oeste, Sudeste e Sul. Emendas podem ir para qualquer região. Mas atenção: quem reelege você continua sendo o eleitorado de SP.',
+    page: 'brasil', pageLabel: 'Brasil — minha projeção',
+    when: (s) => s.player.mandate?.office === 'deputado_federal' || s.player.mandate?.office === 'senador',
+  },
+  {
     id: 'equipe', order: 33,
     title: 'Monte sua equipe de gabinete',
     body: 'Você pode nomear assessores. Cada ficha mostra atributos e uma avaliação de honestidade. Eles trabalham todo mês na tarefa que você der (redes, imprensa, base, atendimento, articulação, minutas), sem gastar sua agenda.',

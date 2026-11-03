@@ -2,7 +2,7 @@
 
 Critério do plano v0.4: **jogo apresentável, estável e instalável**. Esta fase entregou o aplicativo de desktop com saves em arquivo, o guia do jogador, uma rodada de balanceamento de carreira longa e melhorias de interface, acessibilidade e transparência dos indicadores.
 
-Versão: 0.6.0. Save: versão 8 (ajustes automáticos ao carregar). Testes: 135 passando, 9 deles em `phase6.test.ts`.
+Versão: 0.6.0. Save: versão 8 (ajustes automáticos ao carregar). Testes: 140 passando (9 em `phase6.test.ts`, 5 em `national.test.ts`).
 
 ---
 
@@ -105,16 +105,51 @@ Pedido: vereador eleito deputado federal deveria ter prazo para deixar o cargo.
 - Entre a eleição e a posse, o topo da tela mostra o cargo atual e o cargo para o qual o jogador foi eleito. Exemplo: "Vereador(a) · eleito(a) Deputado(a) federal por SP — posse em 01/02/2031".
 - A posse foi testada de ponta a ponta: em 1º/02 o vereador deixa a Câmara Municipal, o suplente assume, e o menu, as ações, o salário e as votações passam a ser os de deputado federal.
 
-## 6. Regra real × mecânica de jogo
+## 6. Brasil por grandes regiões: a esfera federal (ajuste pós-fase) — `game/national.ts`, página **Brasil**
+
+Pedido: quando o jogador vira deputado federal (ou senador), o trabalho passa a ser nacional, e as políticas e os indicadores devem ser vistos pelas cinco regiões do país.
+
+**Dados reais**
+
+| Região | População (Censo 2022) | Eleitorado 2026 (TSE) | Desocupação (PNAD 4º tri/2025) |
+|---|---|---|---|
+| Norte | 17,3 mi | 13,1 mi | 5,8% |
+| Nordeste | 54,6 mi | 43,5 mi | 7,1% |
+| Centro-Oeste | 16,3 mi | 12,0 mi | 3,9% |
+| Sudeste | 84,8 mi | 66,3 mi | 4,8% |
+| Sul | 29,9 mi | 22,9 mi | 3,1% |
+
+- O rendimento médio real também vem da PNAD Contínua. Os trimestres usados estão indicados na página.
+- REGRA REAL: emendas individuais de parlamentares federais podem ir para entes de qualquer região do país.
+
+**O que o jogo representa**
+- O mandato **continua sendo de SP**: quem reelege o jogador é o eleitorado paulista. A esfera nacional é a sua **projeção**: reconhecimento e aprovação por região.
+- Na posse em Brasília, o jogador parte com alguma projeção no Sudeste, proporcional ao reconhecimento em SP, e quase nenhuma nas outras regiões.
+- **Votos na pauta federal**: cada matéria fictícia tem um impacto regional, isto é, quem é afetado por ela. Votar a favor ou contra muda a aprovação nas regiões afetadas. Matérias aprovadas mexem devagar na desocupação e na renda das regiões beneficiadas.
+- Entraram 6 matérias novas de alcance regional: Zona Franca, obras hídricas no semiárido, dívidas rurais, saneamento, ferrovias de carga e reconstrução após enchentes.
+- **Emendas** de deputado federal e senador podem ir para municípios de qualquer região. Quando pagas, rendem projeção ali e um pequeno efeito no indicador local, mas nenhum voto em SP.
+- **Agenda nacional**: nova ação (1 compromisso) de viagem a uma região. Aumenta a projeção ali, mas afasta da base.
+- **Indicadores**: partem dos dados reais e oscilam mês a mês.
+- **Página "Brasil"**: mapa esquemático das 5 regiões e tabela com população, eleitorado, desocupação, renda, projeção, aprovação e emendas pagas. Para quem tem mandato federal, a página fica em "Meu cargo"; para os demais, em "Estado e União".
+- **Agenda**: novos indicadores "Aprovação nacional" e "Projeção nacional", com o histórico "por que mudou". A aprovação do mandato passa a se chamar "Aprovação do mandato em SP".
+- Nova conquista "Liderança nacional" (projeção média de 40) e nova dica no guia.
+
+**Cuidados**
+- O jogo **não atribui ideologia às regiões**. A reação a cada voto vem do impacto econômico ou social da matéria, e nenhuma região é tratada como bloco homogêneo de eleitores.
+- Impactos regionais, pesos e efeitos são PROPOSTA.
+
+## 7. Regra real × mecânica de jogo
 
 | Elemento | Classificação |
 |---|---|
 | Prazo de filiação, datas de convenção e de campanha, LRF art. 42 citados no guia | REGRA REAL (já referenciadas no pacote de regras) |
 | Parlamentar sem desincompatibilização; saída do mandato na posse (CF art. 54, II, "d") | REGRA REAL |
+| População, eleitorado, desocupação e renda por região; emenda federal para qualquer região | REGRA REAL / dado real |
+| Projeção e aprovação por região, impacto regional das matérias, efeitos de emendas e viagens | PROPOSTA |
 | Piso de reconhecimento por votos e cargos | PROPOSTA |
 | Textos do guia | Explicação de mecânicas de jogo |
 
-## 7. Pendências
+## 8. Pendências
 
 1. **Tramitação completa na Alesp e no Congresso** (comissões e relatorias).
 2. **Orçamento estadual detalhado** para o governador.

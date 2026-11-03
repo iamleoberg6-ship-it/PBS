@@ -1,5 +1,6 @@
 // Conquistas e finais (Fase 5.7). Tudo aqui é FICÇÃO de gameplay: avalia a trajetória do personagem.
 
+import { nationalIndex } from './national';
 import { monthIndex } from '../calendar';
 import type { Ending, GameState } from './types';
 
@@ -36,6 +37,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'ficha_limpa_campanha', title: 'Contas aprovadas', description: 'Teve as contas de campanha aprovadas sem ressalvas.', check: (s) => s.flags.contasCampanha === 'aprovadas' },
   { id: 'cpi', title: 'Fiscal da cidade', description: 'Instalou uma CPI.', check: (s) => s.legislature.cpis.some((c) => c.proposer === 'character_player' && (c.status === 'instalada' || c.status === 'concluida')) },
   { id: 'virada', title: 'Virada no 2º turno', description: 'Venceu um 2º turno.', check: (s) => !!s.flags.venceuSegundoTurno },
+  { id: 'lideranca_nacional', title: 'Liderança nacional', description: 'Chegou a 40 de projeção nacional (média das regiões do Brasil, pesada pelo eleitorado).', check: (s) => nationalIndex(s, 'recognition') >= 40 },
   { id: 'longa_carreira', title: 'Carreira longa', description: 'Exerceu três ou mais cargos ao longo da partida.', check: (s) => s.player.careerHistory.length >= 3 },
 ];
 

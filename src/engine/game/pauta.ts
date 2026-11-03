@@ -10,6 +10,7 @@ import { PARTIES, partyById } from '../data/parties';
 import { generalPosition, partyIdeology } from '../data/ideology';
 import { partyAlignment } from './general';
 import { pushNews } from './news';
+import { nationalVoteEffects } from './national';
 import type { FloorVote, GameState, VoteChoice } from './types';
 
 const clamp = (v: number, a = 0, b = 100) => Math.max(a, Math.min(b, v));
@@ -37,6 +38,12 @@ const TEMPLATES: Template[] = [
   { title: 'Novo arcabouço de gastos para estados endividados', summary: 'Renegocia dívidas estaduais com contrapartidas de investimento.', theme: 'economia', slant: 0.1, support: 0.1, salience: 40, byGov: true, houses: ['camara', 'senado'] },
   { title: 'Licenciamento ambiental simplificado', summary: 'Cria licença por adesão para atividades de médio impacto.', theme: 'meioambiente', slant: 0.7, support: -0.2, salience: 50, byGov: false, houses: ['camara', 'senado'] },
   { title: 'Aprovação de indicação de autoridade (sabatina)', summary: 'Plenário vota a indicação feita pelo presidente para cargo que depende do Senado.', theme: 'instituicoes', slant: 0, support: 0, salience: 50, byGov: true, houses: ['senado'] },
+  { title: 'Prorrogação dos incentivos fiscais da Zona Franca de Manaus', summary: 'Estende benefícios tributários do polo industrial por mais dez anos.', theme: 'economia', slant: 0.1, support: 0.0, salience: 45, byGov: true, houses: ['camara', 'senado'] },
+  { title: 'Recursos para obras hídricas no semiárido', summary: 'Crédito extraordinário para adutoras, cisternas e barragens.', theme: 'infraestrutura', slant: -0.2, support: 0.4, salience: 45, byGov: true, houses: ['camara', 'senado'] },
+  { title: 'Renegociação de dívidas rurais após perdas climáticas', summary: 'Alonga prazos e reduz juros para produtores atingidos por seca ou enchente.', theme: 'economia', slant: 0.4, support: 0.2, salience: 45, byGov: false, houses: ['camara', 'senado'] },
+  { title: 'Fundo nacional de saneamento para municípios', summary: 'Repasses a cidades com baixa cobertura de esgoto, com metas de universalização.', theme: 'infraestrutura', slant: -0.2, support: 0.5, salience: 40, byGov: true, houses: ['camara', 'senado'] },
+  { title: 'Ferrovias para escoamento da produção', summary: 'Autoriza concessões e investimento público em ferrovias de carga.', theme: 'infraestrutura', slant: 0.4, support: 0.3, salience: 40, byGov: true, houses: ['camara', 'senado'] },
+  { title: 'Fundo de reconstrução após enchentes', summary: 'Recursos para moradia, estradas e crédito a empresas em áreas atingidas.', theme: 'social', slant: -0.1, support: 0.6, salience: 55, byGov: true, houses: ['camara', 'senado'] },
   { title: 'Piso nacional da enfermagem: fonte de custeio', summary: 'Define de onde sai o dinheiro para pagar o piso.', theme: 'saude', slant: -0.3, support: 0.7, salience: 55, byGov: false, houses: ['camara', 'senado'] },
 ];
 
@@ -163,6 +170,8 @@ export function resolveFloorVotes(s: GameState, rng: RngState): string[] {
       s.player.base = clamp(s.player.base + coherent * 0.8 * w);
       if (coherent < -0.5) fx.push('sua base estranhou o voto');
     } else if (v.salience > 55) { m.approval = clamp(m.approval - 0.4); fx.push('abstenção em tema importante foi criticada'); }
+    const reg = nationalVoteEffects(s, v.title, mine, v.publicSupport, v.salience, rc.outcome === 'aprovado');
+    if (reg) fx.push(reg);
     v.effects = fx.join('; ') || 'sem repercussão relevante';
     notes.push(`${HOUSE[m.office].label} ${rc.outcome === 'aprovado' ? 'aprovou' : 'rejeitou'} "${v.title}" (${rc.yes} sim, ${rc.no} não). Seu voto: ${mine === 'S' ? 'SIM' : mine === 'N' ? 'NÃO' : 'abstenção'}${auto ? ' (você não votou: seguiu a orientação da bancada)' : ''} — ${v.effects}.`);
     if (v.salience >= 60) pushNews(s, rng, { section: 'Brasil', headline: `${HOUSE[m.office].label} ${rc.outcome === 'aprovado' ? 'aprova' : 'rejeita'}: ${v.title.toLowerCase()} (simulação)`, lead: `Placar: ${rc.yes} a ${rc.no}. ${s.character.name} votou ${mine === 'S' ? 'a favor' : mine === 'N' ? 'contra' : 'pela abstenção'}.`, aboutPlayer: true, tone: 'neutro', outlets: ['canal24', 'diariopaulistano'] });

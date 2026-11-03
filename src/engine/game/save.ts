@@ -4,6 +4,7 @@
 
 import { refreshPool, teamOffice } from './team';
 import { TIPS } from './tutorial';
+import { initNational, startFederalProjection } from './national';
 import { GAMEPLAY, RULEPACK_BR_2028_MUN } from '../data/rulepack';
 import { initStateWorld } from './general';
 import { initOutlets } from './livingworld';
@@ -295,6 +296,8 @@ function upgradeWithinV8(s: Raw, report: LoadReport) {
     report.repairs.push('Vereadores reais eleitos deputados em 2026 deixam a Câmara; suplentes fictícios do mesmo partido assumem.');
   }
   s.floorVotes ??= [];
+  // Brasil por regiões (esfera federal): partidas antigas recebem os dados; quem já está em Brasília parte da projeção atual.
+  if (!s.national) { s.national = initNational(); const o = s.player?.mandate?.office; if (o === 'deputado_federal' || o === 'senador') startFederalProjection(s as GameState); }
   // Guia (Fase 6): partidas já em andamento não reveem a introdução; só as dicas de recursos novos.
   if (!s.tutorial) {
     const elapsed = ((s.month?.year ?? 2027) - 2027) * 12 + (s.month?.month ?? 1) - 1;

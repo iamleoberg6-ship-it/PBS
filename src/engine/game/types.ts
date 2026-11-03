@@ -747,6 +747,8 @@ export interface GameState {
   officePoints?: number;
   /** Guia do jogador (Fase 6): dicas já vistas e se o guia está ligado. */
   tutorial?: { enabled: boolean; seen: string[] };
+  /** Brasil por grandes regiões (esfera federal). */
+  national?: import('./national').NationalState;
   /** Resumo do último mês (Fase 6): o que mudou e por quê. */
   monthReport?: import('./ledger').MonthReportItem[];
   character: Character;
