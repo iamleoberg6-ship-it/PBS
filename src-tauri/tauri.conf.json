@@ -1,0 +1,25 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Political Brazilian Simulator",
+  "version": "0.4.0",
+  "identifier": "br.pbs.simulator",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      { "title": "Political Brazilian Simulator", "width": 1440, "height": 900, "minWidth": 1100, "minHeight": 700, "resizable": true }
+    ],
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "msi"],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico", "icons/icon.png"],
+    "shortDescription": "Simulador de carreira política brasileira",
+    "category": "SimulationGame"
+  }
+}

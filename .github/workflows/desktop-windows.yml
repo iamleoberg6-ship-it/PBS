@@ -1,0 +1,43 @@
+# Gera o instalador de Windows do PBS num computador Windows do GitHub (gratuito para repositórios públicos
+# e com cota mensal para privados). Rode em: Actions → "Instalador Windows" → Run workflow.
+# O .exe (NSIS) e o .msi ficam disponíveis para download em "Artifacts" no fim da execução.
+name: Instalador Windows
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Testes do motor
+        run: npx vitest run
+
+      - name: Gerar instalador
+        run: npm run desktop:build
+
+      - name: Publicar instaladores
+        uses: actions/upload-artifact@v4
+        with:
+          name: PBS-instalador-windows
+          path: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/msi/*.msi

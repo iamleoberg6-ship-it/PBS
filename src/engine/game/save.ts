@@ -1,0 +1,205 @@
+// Salvamento: versão, pacote de regras e estado do RNG ficam no save (regra de ouro do documento mestre).
+// Carregar = parse → migração por formato (v1 → v2 → v3) → validação estrutural com reparo do que é seguro reparar.
+// Erros fatais (sem personagem, sem calendário, pacote de regras desconhecido) recusam o save com mensagem clara.
+
+import { RULEPACK_BR_2028_MUN } from '../data/rulepack';
+import { PARTIES, partyById } from '../data/parties';
+import { neutralIdeology } from '../data/ideology';
+import { createRng } from '../rng';
+import { SAVE_VERSION, type GameState } from './types';
+import { initialCouncillors, seatsByParty } from './council';
+import { initialSocial } from './social';
+import { recomputeNetWorth } from './finance';
+import { PROFESSIONS } from './create';
+import { EVENTS } from './events';
+import { COUNCILLOR_BIRTHS } from '../data/world';
+import { councillorActors } from './actors';
+import { buildPartyOrgs, defaultPartyRel, seedPlayerPartyRelations } from './partyorg';
+
+const KEY = 'pbs_save_slot_1';
+
+export interface LoadReport {
+  migratedFrom: number | null;
+  repairs: string[];
+  fatal: string[];
+}
+
+export function serialize(state: GameState): string {
+  return JSON.stringify(state);
+}
+
+type Raw = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+/** Migração por formato: preenche o que versões antigas não tinham, de forma determinística. */
+export function migrate(raw: Raw, report: LoadReport): Raw {
+  const from = Number(raw.saveVersion ?? 0);
+  if (from === SAVE_VERSION) return raw;
+  report.migratedFrom = from;
+  const s = raw;
+  // v1 (protótipos 0.1/0.2) → v2: Câmara nominal, disputa de prefeito, pesquisas, ideologia, redes, notícias.
+  s.government ??= {};
+  if (!Array.isArray(s.government.councillors)) {
+    s.government.councillors = initialCouncillors();
+    report.repairs.push('Câmara nominal ausente: carregada a composição eleita em 2024.');
+  }
+  s.mayorRace ??= null;
+  s.polls ??= [];
+  s.news ??= [];
+  if (s.character && !s.character.ideology) s.character.ideology = neutralIdeology();
+  if (s.player && !s.player.social) {
+    s.player.social = initialSocial(s.character?.profession ?? 'autonomo', createRng((s.rng?.seed ?? 1) + 7));
+    report.repairs.push('Redes sociais ausentes: criadas a partir da profissão.');
+  }
+  // v2 → v3: bens pessoais e patrimônio derivado.
+  if (s.finances && typeof s.finances.assets !== 'number') {
+    const guess = Math.max(0, Number(s.finances.netWorth ?? 0) - Number(s.finances.cash ?? 0));
+    s.finances.assets = guess || (PROFESSIONS[s.character?.profession as keyof typeof PROFESSIONS]?.cash ?? 0) * 2;
+    report.repairs.push('Patrimônio: bens pessoais estimados a partir do save antigo.');
+  }
+  // v3 → v4: relação com o partido em cinco indicadores, atores, organizações partidárias, relações, livro de causas.
+  if (s.player && !s.player.partyRel) {
+    const st = Number(s.player.partyStanding ?? 0);
+    s.player.partyRel = s.player.partyId
+      ? { ...defaultPartyRel(), leadershipTrust: st, internalPopularity: Math.round(st * 0.8), influence: Math.round(st * 0.5), perceivedLoyalty: 55, mobilization: Math.round((s.player.base ?? 0) * 0.4) }
+      : defaultPartyRel();
+    delete s.player.partyStanding;
+    report.repairs.push('Relação com o partido convertida em cinco indicadores (confiança da direção, popularidade interna, influência, fidelidade percebida, mobilização).');
+  }
+  s.player && (s.player.actionUse ??= {});
+  for (const c of s.government?.councillors ?? []) {
+    if (c.birthDate === undefined) { const b = COUNCILLOR_BIRTHS[c.name]; c.birthDate = b?.date ?? null; c.birthPrecision = b?.precision ?? null; }
+  }
+  s.contests ??= [];
+  s.promises ??= [];
+  s.ledger ??= [];
+  s.relations ??= {};
+  if (!s.actors || !s.partyOrgs) {
+    s.actors = {};
+    s.partyOrgs = {};
+    const rng = createRng((s.rng?.seed ?? 1) + 11);
+    councillorActors(s as GameState, rng);
+    buildPartyOrgs(s as GameState, rng);
+    seedPlayerPartyRelations(s as GameState, rng);
+    report.repairs.push('Partidos ganharam diretório, executiva e facções (gerados para esta partida).');
+  }
+  s.saveVersion = SAVE_VERSION;
+  return s;
+}
+
+const clamp = (v: unknown, a = 0, b = 100) => Math.max(a, Math.min(b, Number.isFinite(v as number) ? (v as number) : a));
+
+/** Validação estrutural + reparos seguros. Retorna o relatório (vazio = íntegro). */
+export function validateState(s: GameState, report: LoadReport = { migratedFrom: null, repairs: [], fatal: [] }): LoadReport {
+  // Fatais
+  if (!s || typeof s !== 'object') { report.fatal.push('Arquivo vazio ou inválido.'); return report; }
+  if (!s.character?.name || !s.character.birthDate) report.fatal.push('Personagem ausente ou incompleto.');
+  if (!s.month || !Number.isInteger(s.month.year) || s.month.month < 1 || s.month.month > 12) report.fatal.push('Data da partida inválida.');
+  if (!s.rng || !Number.isFinite(s.rng.state)) report.fatal.push('Estado do gerador aleatório ausente (reprodutibilidade comprometida).');
+  if (s.rulepackId !== RULEPACK_BR_2028_MUN.id) report.fatal.push(`Pacote de regras ${s.rulepackId} não está disponível nesta versão.`);
+  if (report.fatal.length) return report;
+
+  // Atributos e indicadores dentro de 0..100
+  for (const [k, v] of Object.entries(s.character.attributes)) {
+    if (!Number.isFinite(v) || v < 0 || v > 100) { s.character.attributes[k as keyof typeof s.character.attributes] = clamp(v); report.repairs.push(`Atributo ${k} fora do intervalo foi ajustado.`); }
+  }
+  for (const k of ['recognition', 'base'] as const) {
+    const v = s.player[k];
+    if (!Number.isFinite(v) || v < 0 || v > 100) { s.player[k] = clamp(v); report.repairs.push(`Indicador ${k} fora do intervalo foi ajustado.`); }
+  }
+  for (const k of ['internalPopularity', 'leadershipTrust', 'influence', 'perceivedLoyalty', 'mobilization'] as const) {
+    const v = s.player.partyRel[k];
+    if (!Number.isFinite(v) || v < 0 || v > 100) { s.player.partyRel[k] = clamp(v); report.repairs.push(`Indicador partidário ${k} fora do intervalo foi ajustado.`); }
+  }
+  if (s.month.year < 2027 || s.month.year > 2033) report.repairs.push('Data fora do período do protótipo (2027–2032).');
+
+  // Finanças: valores finitos, caixa não negativo, patrimônio coerente
+  const f = s.finances;
+  for (const k of ['cash', 'assets', 'debts', 'monthlyIncome', 'monthlyExpenses'] as const) {
+    if (!Number.isFinite(f[k])) { f[k] = 0; report.repairs.push(`Finanças: ${k} inválido zerado.`); }
+  }
+  if (f.cash < 0) { f.debts += -f.cash; f.cash = 0; report.repairs.push('Caixa negativo convertido em dívida.'); }
+  const expected = Math.round(f.cash + f.assets - f.debts);
+  if (f.netWorth !== expected) { recomputeNetWorth(s); report.repairs.push('Patrimônio líquido recalculado (caixa + bens − dívidas).'); }
+
+  // Partido do jogador existe e histórico é coerente
+  if (s.player.partyId && !partyById(s.player.partyId)) { report.repairs.push(`Partido ${s.player.partyId} desconhecido: jogador ficou sem partido.`); s.player.partyId = null; s.player.filiationDate = null; }
+  const open = s.player.partyHistory.filter((h) => h.to === null);
+  if (open.length > 1) { open.slice(0, -1).forEach((h) => (h.to = h.from)); report.repairs.push('Histórico de filiação com mais de uma filiação aberta foi corrigido.'); }
+
+  // Câmara: 55 cadeiras, sem duplicidade, partidos válidos, bancadas coerentes
+  const ids = new Set<string>();
+  const before = s.government.councillors.length;
+  s.government.councillors = s.government.councillors.filter((c) => {
+    if (ids.has(c.id) || !partyById(c.partyId)) return false;
+    ids.add(c.id);
+    return true;
+  });
+  if (s.government.councillors.length !== before) report.repairs.push('Vereadores duplicados ou com partido inválido foram removidos.');
+  if (s.government.councillors.length !== 55) report.repairs.push(`Câmara com ${s.government.councillors.length} vereadores (esperado: 55).`);
+  const seats = seatsByParty(s.government.councillors);
+  if (JSON.stringify(seats) !== JSON.stringify(s.government.councilSeatsByParty)) { s.government.councilSeatsByParty = seats; report.repairs.push('Bancadas recalculadas a partir da lista de vereadores.'); }
+
+  // Partidos em tempo de execução para todos os partidos
+  for (const p of PARTIES) if (!s.parties[p.id]) { s.parties[p.id] = { momentum: 0, leaderName: 'Direção partidária' }; report.repairs.push(`Partido ${p.acronym} sem estado de simulação: criado.`); }
+
+  // Eventos pendentes com modelo existente
+  const valid = new Set(EVENTS.map((e) => e.id));
+  const pend = s.pendingEvents.length;
+  s.pendingEvents = s.pendingEvents.filter((e) => valid.has(e.templateId));
+  if (s.pendingEvents.length !== pend) report.repairs.push('Eventos pendentes desconhecidos foram descartados.');
+
+  // Organizações partidárias: atores referenciados existem; participação das facções soma 1.
+  for (const org of Object.values(s.partyOrgs)) {
+    const missing = [org.directorate.presidentId, ...org.directorate.executive.map((e) => e.actorId), ...org.factions.map((f) => f.leaderId)]
+      .filter((id) => id !== 'character_player' && !s.actors[id]);
+    if (missing.length) { report.repairs.push(`Diretório ${org.partyId}: ${missing.length} dirigente(s) inexistente(s) removido(s).`); org.directorate.executive = org.directorate.executive.filter((e) => e.actorId === 'character_player' || s.actors[e.actorId]); }
+    const sum = org.factions.reduce((a, f) => a + f.share, 0);
+    if (org.factions.length && Math.abs(sum - 1) > 0.01) { org.factions.forEach((f) => (f.share = f.share / sum)); report.repairs.push(`Facções do ${org.partyId} renormalizadas.`); }
+  }
+  for (const k of Object.keys(s.relations)) {
+    const [a, b] = k.split('|');
+    const ok = (id: string) => id === 'character_player' || !!s.actors[id];
+    if (!ok(a) || !ok(b)) { delete s.relations[k]; report.repairs.push('Relação com personagem inexistente descartada.'); }
+  }
+  if (s.player.partyId && s.partyOrgs[s.player.partyId] === undefined) report.repairs.push('Partido do jogador sem organização.');
+
+  // Redes sociais
+  for (const [k, v] of Object.entries(s.player.social.networks)) {
+    if (!Number.isFinite(v) || v < 0) { s.player.social.networks[k as keyof typeof s.player.social.networks] = 0; report.repairs.push(`Seguidores inválidos em ${k} foram zerados.`); }
+  }
+  return report;
+}
+
+export function loadSave(text: string): { state: GameState; report: LoadReport } {
+  const report: LoadReport = { migratedFrom: null, repairs: [], fatal: [] };
+  let raw: Raw;
+  try { raw = JSON.parse(text); } catch { throw new Error('O texto não é um save válido (JSON corrompido).'); }
+  if (typeof raw.saveVersion === 'number' && raw.saveVersion > SAVE_VERSION) throw new Error(`Save da versão ${raw.saveVersion}, mais nova que esta versão do jogo (${SAVE_VERSION}).`);
+  const migrated = migrate(raw, report) as GameState;
+  validateState(migrated, report);
+  if (report.fatal.length) throw new Error(report.fatal.join(' '));
+  return { state: migrated, report };
+}
+
+/** Compatibilidade: devolve só o estado. */
+export function deserialize(text: string): GameState {
+  return loadSave(text).state;
+}
+
+export function saveLocal(state: GameState): boolean {
+  try {
+    localStorage.setItem(KEY, serialize(state));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function loadLocal(): GameState | null {
+  try {
+    const t = localStorage.getItem(KEY);
+    return t ? loadSave(t).state : null;
+  } catch {
+    return null;
+  }
+}

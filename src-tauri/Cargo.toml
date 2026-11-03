@@ -1,0 +1,15 @@
+[package]
+name = "pbs"
+version = "0.4.0"
+description = "Political Brazilian Simulator"
+edition = "2021"
+
+[lib]
+name = "pbs_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
