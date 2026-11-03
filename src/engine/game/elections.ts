@@ -68,6 +68,21 @@ export function resolveConvention(state: GameState, rng: RngState): { approved: 
   return conventionVote(state, rng, c.office);
 }
 
+const LEGISLATIVE = ['vereador', 'deputado_estadual', 'deputado_federal', 'senador'];
+const OFFICE_NAME: Record<string, string> = { vereador: 'vereador(a)', deputado_estadual: 'deputado(a) estadual', deputado_federal: 'deputado(a) federal', senador: 'senador(a)', prefeito: 'prefeito(a)', governador: 'governador(a)' };
+
+/**
+ * REGRA REAL: parlamentar (vereador, deputado, senador) não precisa se desincompatibilizar para concorrer —
+ * o art. 14 §6º da CF só alcança chefes do Executivo, e a LC 64/90 não lista mandatos legislativos entre os
+ * afastamentos obrigatórios (TSE: vereador candidato a prefeito não precisa se afastar). Se eleito(a) para outro
+ * cargo, deixa o mandato atual na posse: CF art. 54, II, "d" (deputados e senadores) e art. 29, IX (vereadores).
+ */
+function legislatorNote(state: GameState, target: string) {
+  const cur = state.player.mandate?.office ?? '';
+  if (!LEGISLATIVE.includes(cur) || cur === target) return null;
+  return { ok: true, detail: `Não exigida: como ${OFFICE_NAME[cur] ?? cur}, você faz campanha sem deixar o mandato. Se eleito(a) ${OFFICE_NAME[target] ?? target}, deixa o cargo atual no dia da posse e o suplente assume.`, source: 'CF art. 14 §6º (só chefes do Executivo); CF art. 54, II, "d"; TSE, temas selecionados — parlamentar' };
+}
+
 export function runEligibility(state: GameState) {
   const c = state.player.candidacy!;
   const y = c.year ?? 2028;
@@ -75,7 +90,8 @@ export function runEligibility(state: GameState) {
   const held = String(state.flags[`cargoAbril_${y}`] ?? '');
   return checkEligibility({
     office: c.office,
-    desincompatibilizacao: general && held ? { ok: false, detail: `Você ainda exercia o cargo de ${held} seis meses antes da eleição: era preciso renunciar/afastar-se até o início de abril.`, source: 'CF art. 14 §6º; LC 64/90 art. 1º' } : null,
+    desincompatibilizacao: general && held ? { ok: false, detail: `Você ainda exercia o cargo de ${held} seis meses antes da eleição: era preciso renunciar/afastar-se até o início de abril.`, source: 'CF art. 14 §6º; LC 64/90 art. 1º' }
+      : legislatorNote(state, c.office),
     birthDate: state.character.birthDate,
     brazilian: true,
     politicalRightsOk: true,
@@ -94,8 +110,13 @@ export function previewEligibility(state: GameState, office: ElectiveOffice, yea
   const t = state.month.year * 12 + state.month.month - 1;
   const municipal = office === 'vereador' || office === 'prefeito' || office === 'vice_prefeito';
   const y = year ?? (municipal ? munCycle(t) : genCycle(t));
+  const cur = state.player.mandate?.office ?? '';
+  const exec = ['prefeito', 'governador', 'secretario', 'secretario_estadual'].includes(cur) && cur !== office && !municipal;
   return checkEligibility({
     office,
+    desincompatibilizacao: exec
+      ? { ok: false, detail: `Pendente: como ${OFFICE_NAME[cur] ?? cur.replace('_', ' ')}, você precisa deixar o cargo até seis meses antes da eleição (início de abril de ${y}) — ação "Renunciar/afastar-se para concorrer".`, source: 'CF art. 14 §6º; LC 64/90 art. 1º' }
+      : legislatorNote(state, office),
     birthDate: state.character.birthDate,
     brazilian: true,
     politicalRightsOk: true,

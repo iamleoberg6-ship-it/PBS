@@ -5,7 +5,8 @@ import { performAction } from './actions';
 import { newMandate, endMandate, rememberVotes } from './careers';
 import { loadSave, serialize } from './save';
 import { TIPS, dismissTip, pendingTip, resetTutorial, setTutorial } from './tutorial';
-import { resolveConvention } from './elections';
+import { previewEligibility, resolveConvention } from './elections';
+import { currentPhaseLabel } from './turn';
 import type { GameState } from './types';
 
 const base = { name: 'T', birthDate: '1985-01-01', gender: 'x', education: 's', bio: '', attributeBonus: {} };
@@ -79,5 +80,24 @@ describe('Fase 6 — balanceamento de carreira', () => {
     const s = mk();
     s.player.candidacy = { office: 'deputado_estadual', year: 2030, status: 'pretendida', checks: [], coalitionPartyIds: [], campaignPoints: 0, account: { fefc: 0, donations: 0, ownFunds: 0, spent: 0 } as never, irregularities: 0 };
     expect(resolveConvention(s, s.rng).text).toMatch(/deputado\(a\) estadual/);
+  });
+});
+
+describe('Fase 6 — vereador candidato a deputado', () => {
+  it('parlamentar não precisa se desincompatibilizar; executivo precisa', () => {
+    const s = mk();
+    s.player.mandate = newMandate('vereador', '2029-01-01', '2032-12-31');
+    const d = previewEligibility(s, 'deputado_federal', 2030).find((c) => c.id === 'desincompatibilizacao');
+    expect(d?.ok).toBe(true);
+    expect(d?.detail).toMatch(/Não exigida/);
+    s.player.mandate = newMandate('prefeito', '2029-01-01', '2032-12-31');
+    expect(previewEligibility(s, 'deputado_federal', 2030).find((c) => c.id === 'desincompatibilizacao')?.ok).toBe(false);
+  });
+  it('entre a eleição e a posse o topo mostra o cargo atual e a data da posse', () => {
+    const s = mk();
+    s.month = { year: 2031, month: 1 };
+    s.player.mandate = newMandate('vereador', '2029-01-01', '2032-12-31');
+    s.generalElections.push({ year: 2030, playerElected: true, playerOffice: 'deputado_federal', playerVotes: 90000 } as never);
+    expect(currentPhaseLabel(s)).toMatch(/Vereador\(a\) · eleito\(a\) Deputado\(a\) federal.*01\/02\/2031/);
   });
 });

@@ -337,6 +337,11 @@ export function runGeneralElection(s: GameState, rng: RngState, runs: Councillor
   const runsElected = record.councillorRuns.filter((r) => r.elected);
   if (runsElected.length) notes.push(`${runsElected.length} vereador(es) de SP foram eleitos deputados: ${runsElected.map((r) => `${r.name} (${r.office === 'deputado_estadual' ? 'Alesp' : 'Câmara'})`).join(', ')}. Os suplentes assumem as vagas na Câmara Municipal na posse.`);
   if (record.playerVotes) rememberVotes(s, record.playerVotes, 'estado');
+  const cur = s.player.mandate?.office;
+  if (record.playerElected && cur && cur !== office && office !== 'governador') {
+    const posse = office === 'deputado_estadual' ? `15/03/${s.month.year + 1}` : `01/02/${s.month.year + 1}`;
+    notes.push(`Até a posse (${posse}) você continua no cargo atual. No dia da posse deixa o mandato de ${cur.replace('_', ' ')}${cur === 'vereador' ? ' e o suplente assume a cadeira na Câmara Municipal' : ''} — não se pode exercer dois mandatos eletivos (CF art. 54, II, "d").`);
+  }
   return { record, notes };
 }
 

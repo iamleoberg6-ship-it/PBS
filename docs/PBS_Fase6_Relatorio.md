@@ -2,7 +2,7 @@
 
 Critério do plano v0.4: **jogo apresentável, estável e instalável**. Esta fase entregou o aplicativo de desktop com saves em arquivo, o guia do jogador, uma rodada de balanceamento de carreira longa e melhorias de interface, acessibilidade e transparência dos indicadores.
 
-Versão: 0.6.0. Save: versão 8 (ajustes automáticos ao carregar). Testes: 133 passando, 7 deles em `phase6.test.ts`.
+Versão: 0.6.0. Save: versão 8 (ajustes automáticos ao carregar). Testes: 135 passando, 9 deles em `phase6.test.ts`.
 
 ---
 
@@ -87,15 +87,34 @@ Se você criar uma tag `v*` no GitHub (por exemplo `v0.6.0`, em Releases → Dra
   - avisos (toast) anunciados por leitores de tela;
   - respeito à preferência "reduzir animações" do sistema.
 
-## 5. Regra real × mecânica de jogo
+## 5. Parlamentar candidato a outro cargo (ajuste pós-fase)
+
+Pedido: vereador eleito deputado federal deveria ter prazo para deixar o cargo.
+
+**O que diz a lei (REGRA REAL)**
+- Vereador, deputado e senador **não precisam se desincompatibilizar** para concorrer a outro cargo. O art. 14 §6º da CF alcança só os chefes do Executivo, e a LC 64/90 não lista mandatos legislativos entre os afastamentos obrigatórios. O TSE, por exemplo, decidiu que vereador candidato a prefeito não precisa se afastar.
+- O parlamentar faz a campanha no exercício do mandato. Se for eleito, deixa o cargo atual **no dia da posse**, porque deputados e senadores não podem exercer dois mandatos eletivos (CF art. 54, II, "d"). O suplente assume a cadeira.
+- Por isso o jogo **não** criou prazo de renúncia para vereador: seria inventar regra.
+
+**O que mudou no jogo**
+- Na lista de elegibilidade, a linha "Desincompatibilização" agora aparece para quem tem mandato:
+  - parlamentar: "Não exigida", com a explicação e a fonte;
+  - prefeito, governador ou secretário disputando eleição geral: "Pendente", com o prazo de abril e a ação para renunciar.
+- Ao ser eleito para outro cargo, o jogador recebe um aviso: até a posse continua no cargo atual, e no dia da posse deixa o mandato e o suplente assume.
+- Em janeiro há um lembrete da data da posse: 1º/02 para deputado federal e senador, 15/03 para a Alesp.
+- Entre a eleição e a posse, o topo da tela mostra o cargo atual e o cargo para o qual o jogador foi eleito. Exemplo: "Vereador(a) · eleito(a) Deputado(a) federal por SP — posse em 01/02/2031".
+- A posse foi testada de ponta a ponta: em 1º/02 o vereador deixa a Câmara Municipal, o suplente assume, e o menu, as ações, o salário e as votações passam a ser os de deputado federal.
+
+## 6. Regra real × mecânica de jogo
 
 | Elemento | Classificação |
 |---|---|
 | Prazo de filiação, datas de convenção e de campanha, LRF art. 42 citados no guia | REGRA REAL (já referenciadas no pacote de regras) |
+| Parlamentar sem desincompatibilização; saída do mandato na posse (CF art. 54, II, "d") | REGRA REAL |
 | Piso de reconhecimento por votos e cargos | PROPOSTA |
 | Textos do guia | Explicação de mecânicas de jogo |
 
-## 6. Pendências
+## 7. Pendências
 
 1. **Tramitação completa na Alesp e no Congresso** (comissões e relatorias).
 2. **Orçamento estadual detalhado** para o governador.

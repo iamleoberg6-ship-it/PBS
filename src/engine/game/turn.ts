@@ -353,6 +353,9 @@ function generalCalendar(s: GameState, t: number): string[] {
   const rec = s.generalElections.find((e) => e.year === G);
   if (rec && t === mi(G + 1, 1)) {
     applyGeneralResults(s, rec, 'executivos');
+    if (rec.playerElected && rec.playerOffice !== 'governador' && s.player.mandate && s.player.mandate.office !== rec.playerOffice) {
+      out.push(`Lembrete: sua posse como ${UPPER_LABEL[rec.playerOffice!] ?? rec.playerOffice} é em ${rec.playerOffice === 'deputado_estadual' ? '15 de março' : '1º de fevereiro'}. Até lá você segue exercendo o mandato de ${s.player.mandate.office.replace('_', ' ')}.`);
+    }
     out.push(`Posse do(a) presidente (05/01) e do(a) governador(a) (06/01) — EC 111/2021. Governo de SP: ${w.governor.isPlayer ? 'você' : w.governor.name} (${partyById(w.governor.partyId)?.acronym}).`);
     if (s.player.mandate?.office === 'governador' && !(rec.playerElected && rec.playerOffice === 'governador')) endMandate(s, 'Seu mandato de governador(a) terminou.');
     if (s.player.mandate?.office === 'secretario_estadual') endMandate(s, 'Com a posse do novo governo, você deixou a secretaria estadual.');
@@ -665,6 +668,12 @@ export function currentPhaseLabel(s: GameState): string {
   const kind = ne.kind === 'municipal' ? 'municipais' : 'gerais';
   const recentY = Math.floor(t / 12);
   const inElectionYear = isMunYear(recentY) || isGenYear(recentY);
+  const cur = s.player.mandate;
+  const won = s.generalElections.find((e) => e.playerElected && e.playerOffice && e.playerOffice !== cur?.office && t > mi(e.year, 10) && t < mi(e.year + 1, e.playerOffice === 'deputado_estadual' ? 3 : e.playerOffice === 'governador' ? 1 : 2));
+  if (won && cur) {
+    const lbl = UPPER_LABEL[cur.office] ?? ({ vereador: 'Vereador(a)', prefeito: 'Prefeito(a)', secretario: 'Secretário(a) municipal' } as Record<string, string>)[cur.office] ?? cur.office;
+    return `${lbl} · eleito(a) ${UPPER_LABEL[won.playerOffice!] ?? won.playerOffice} — posse em ${won.playerOffice === 'deputado_estadual' ? `15/03/${won.year + 1}` : won.playerOffice === 'governador' ? `06/01/${won.year + 1}` : `01/02/${won.year + 1}`}`;
+  }
   if (inElectionYear && t >= mi(recentY, 8) && t <= mi(recentY, 9)) return `Campanha eleitoral ${recentY} (${isMunYear(recentY) ? 'municipal' : 'geral'})`;
   if (inElectionYear && t === mi(recentY, 10)) return 'Resultado das eleições / 2º turno';
   if (inElectionYear && t > mi(recentY, 10)) return 'Transição e diplomação';
