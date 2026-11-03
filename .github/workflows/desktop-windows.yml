@@ -1,11 +1,13 @@
 # Gera o instalador de Windows do PBS num computador Windows do GitHub (gratuito para repositórios públicos
-# e com cota mensal para privados). Rode em: Actions → "Instalador Windows" → Run workflow.
+# e com cota mensal para privados). Roda sozinho a cada envio para a branch main, ou manualmente em
+# Actions → "Instalador Windows" → Run workflow.
 # O .exe (NSIS) e o .msi ficam disponíveis para download em "Artifacts" no fim da execução.
 name: Instalador Windows
 
 on:
   workflow_dispatch:
   push:
+    branches: [main]
     tags: ['v*']
 
 jobs:
