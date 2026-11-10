@@ -62,9 +62,9 @@ function GeneralResult({ rec }: { rec: GeneralElectionRecord }) {
     <>
       {rec.playerOffice && (
         <div className="card" style={{ marginBottom: 16, borderLeft: `5px solid ${rec.playerElected ? 'var(--accent)' : 'var(--red)'}` }}>
-          <div className="small mono muted">SEU RESULTADO · {(UPPER_LABEL[rec.playerOffice] ?? rec.playerOffice).toUpperCase()}</div>
+          <div className="small mono muted">SEU RESULTADO · {(UPPER_LABEL[rec.playerOffice] ?? (rec.playerOffice === 'presidente' ? 'Presidente da República' : rec.playerOffice === 'vice_presidente' ? 'Vice-presidente (votos da chapa)' : rec.playerOffice)).toUpperCase()}</div>
           <div className="big-number" style={{ margin: '6px 0' }}>{num(rec.playerVotes ?? 0)} votos</div>
-          <div>{rec.playerElected ? 'Eleito(a)!' : rec.runoffPending ? 'Disputando o 2º turno.' : 'Não eleito(a).'}</div>
+          <div>{rec.playerElected ? 'Eleito(a)!' : rec.runoffPending || rec.presidentRunoffPending ? 'Disputando o 2º turno.' : 'Não eleito(a).'}</div>
         </div>
       )}
       <div className="tabs">
@@ -78,7 +78,8 @@ function GeneralResult({ rec }: { rec: GeneralElectionRecord }) {
           <Round r={rec.governorFirst} title="Governador(a) — 1º turno" />
           {rec.governorRunoff && <Round r={rec.governorRunoff} title="Governador(a) — 2º turno" />}
           <Round r={rec.senate} title={`Senado (${rec.senateSeats} vaga${rec.senateSeats > 1 ? 's' : ''})`} seats={rec.senateSeats} />
-          <Round r={rec.presidentRunoff ?? rec.presidentFirst} title={`Presidência — ${rec.presidentRunoff ? '2º turno' : '1º turno'} (simulação de fundo)`} />
+          <Round r={rec.presidentFirst} title="Presidência — 1º turno" />
+          {rec.presidentRunoff && <Round r={rec.presidentRunoff} title="Presidência — 2º turno" />}
         </div>
       )}
       {tab === 'alesp' && <House r={rec.alesp} title="Assembleia Legislativa (94 vagas)" />}
@@ -195,6 +196,8 @@ export function EleicoesGerais({ s }: { s: GameState }) {
   ];
   const polls = s.polls.filter((p) => p.race === 'governador' && p.month.year === year);
   const senPolls = s.polls.filter((p) => p.race === 'senador' && p.month.year === year);
+  const presPolls = s.polls.filter((p) => p.race === 'presidente' && p.month.year === year);
+  const presRace = s.stateWorld.presidentRace ?? [];
   return (
     <>
       <div className="page-head"><div><h2>Eleições gerais de {year}</h2><p>Presidente, governador(a), Senado, deputados federais e estaduais · {num(rp.stateElectorate.value)} eleitores no estado</p></div></div>
@@ -203,6 +206,8 @@ export function EleicoesGerais({ s }: { s: GameState }) {
         <>
           {polls.length > 0 && <div style={{ marginBottom: 16 }}><Polls s={s} polls={polls} title="governo de SP" /></div>}
           {senPolls.length > 0 && <div style={{ marginBottom: 16 }}><Polls s={s} polls={senPolls} title="Senado" /></div>}
+          {presPolls.length > 0 && <div style={{ marginBottom: 16 }}><Polls s={s} polls={presPolls} title="Presidência da República" /></div>}
+          {presRace.length > 0 && <div className="card" style={{ marginBottom: 16 }}><h3>Pré-candidaturas à Presidência</h3><p className="small">{presRace.map((r) => `${r.name} (${r.label})`).join(' · ')}{c?.office === 'vice_presidente' && c.year === year ? ` — você é vice na chapa de ${c.runningMateName}.` : ''}</p><p className="small muted">Personagens do jogo. Presidente e vice: 35 anos, maioria absoluta com 2º turno (CF arts. 14 e 77).</p></div>}
           <div className="grid g-3">
             <div className="card">
               <h3>Calendário</h3>
@@ -210,7 +215,7 @@ export function EleicoesGerais({ s }: { s: GameState }) {
               <p className="small muted">{rp.label}. Reformas eleitorais posteriores a 2026 não são modeladas.</p>
             </div>
             <div className="card">
-              <h3>Elegibilidade {c && c.year === year ? `(${UPPER_LABEL[c.office] ?? c.office})` : '(deputado estadual)'}</h3>
+              <h3>Elegibilidade {c && c.year === year ? `(${UPPER_LABEL[c.office] ?? (c.office === 'presidente' ? 'Presidente da República' : c.office === 'vice_presidente' ? 'Vice-presidente' : c.office)})` : '(deputado estadual)'}</h3>
               <Checks checks={c && c.year === year && c.checks.length ? c.checks : previewEligibility(s, c && c.year === year ? c.office : 'deputado_estadual', year)} />
             </div>
             <div className="card">

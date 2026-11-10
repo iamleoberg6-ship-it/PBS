@@ -26,14 +26,15 @@ import { buildMonthReport, snapshot, recordDiff } from './ledger';
 import { partyMonthlyStep } from './partyorg';
 import { decayRelations } from './relations';
 import { LAST_YEAR, councilLegislatureNumber, genCycle, isGenYear, isMunYear, munCycle, munTerm, nextElection } from './cycle';
-import { applyGeneralResults, createStateRace, generalTermEnd, pickCouncillorCandidates, resolveGovernorRunoff, runGeneralElection, stateRaceShares, stateStrength, stateWorldMonthly } from './general';
+import { applyGeneralResults, createStateRace, generalTermEnd, partyAlignment, pickCouncillorCandidates, resolveGovernorRunoff, resolvePresidentRunoff, runGeneralElection, stateRaceShares, stateStrength, stateWorldMonthly } from './general';
 import { refreshPool, teamMonthlyStep } from './team';
+import { FEDERAL_LABEL, ministryById, aiPresidentTakesOffice, buildCoalition, federalMonthlyStep, formCabinet, initFederal, leaveMinistry, vicePresidentTakesOver } from './federal';
 import { nationalMonthlyStep } from './national';
 import { UPPER_LABEL, UPPER_SALARIES, schemeInvestigation, upperMonthlyStep } from './upper';
 import { generateFloorVotes, resolveFloorVotes } from './pauta';
 import { councillorWindowSwitches, crisisMonthlyStep, lapseCampaignPromises, promisesMonthlyStep } from './livingworld';
 import { checkAchievements, computeEnding } from './endings';
-import { endMandate, rememberVotes, isMunicipalMandate, mandateExpired, newMandate, startUpperMandate, vacateCouncilSeat } from './careers';
+import { endMandate, rememberVotes, startExecMandate, isMunicipalMandate, mandateExpired, newMandate, startUpperMandate, vacateCouncilSeat } from './careers';
 import type { ElectionRecord, GameState, LogEntry } from './types';
 
 const clamp = (v: number, a = 0, b = 100) => Math.max(a, Math.min(b, v));
@@ -138,6 +139,9 @@ function advanceMonthInner(state: GameState): GameState {
   mark('Investigação de esquema com emendas');
   for (const n of teamMonthlyStep(s, rng)) log(s, 'mandato', n);
   nationalMonthlyStep(s, rng);
+  for (const n of federalMonthlyStep(s, rng)) log(s, 'mandato', n);
+  mark('Governo federal: economia, Congresso e ministérios');
+  if (s.flags.assumiuPresidencia) log(s, 'mandato', vicePresidentTakesOver(s));
   mark('Equipe do gabinete: tarefas, devoluções e denúncias');
   if (s.flags.perdaMandatoEsquema && s.player.mandate) { delete s.flags.perdaMandatoEsquema; endMandate(s, 'Você perdeu o mandato por quebra de decoro parlamentar.'); }
   if (s.flags.exoneradoEstadual && s.player.mandate?.office === 'secretario_estadual') { delete s.flags.exoneradoEstadual; endMandate(s, 'Você deixou a secretaria estadual.'); }
@@ -308,25 +312,28 @@ function generalCalendar(s: GameState, t: number): string[] {
     w.councillorRuns = pickCouncillorCandidates(s, rng);
     out.push(`Prazo de filiação e domicílio para ${G}: ${rp.filiationDeadline.value.split('-').reverse().join('/')}. Março é a janela partidária dos deputados.`);
     if (w.councillorRuns.length) out.push(`${w.councillorRuns.length} vereador(es) de SP (personagens fictícios) anunciam pré-candidatura a deputado: ${w.councillorRuns.map((r) => `${s.government.councillors.find((x) => x.id === r.id)?.name} (${r.office === 'deputado_estadual' ? 'Alesp' : 'Câmara'})`).join(', ')}.`);
-    if (mine && ['prefeito', 'secretario', 'secretario_estadual', 'governador'].includes(s.player.mandate?.office ?? '') && !(s.player.mandate?.office === 'governador' && c!.office === 'governador')) {
+    if (mine && ['prefeito', 'secretario', 'secretario_estadual', 'governador', 'ministro', 'presidente'].includes(s.player.mandate?.office ?? '') && !(s.player.mandate?.office === 'governador' && c!.office === 'governador') && !(s.player.mandate?.office === 'presidente' && c!.office === 'presidente')) {
       out.push(`ÚLTIMO MÊS para se desincompatibilizar (${rp.desincompatibilizacao.source}): sem renunciar/afastar-se até o fim de março, o registro será indeferido.`);
     }
   }
   if (t === mi(G, 4) && mine) {
     const off = s.player.mandate?.office ?? '';
-    s.flags[`cargoAbril_${G}`] = ['prefeito', 'secretario', 'secretario_estadual'].includes(off) || (off === 'governador' && c!.office !== 'governador') ? off : '';
+    s.flags[`cargoAbril_${G}`] = ['prefeito', 'secretario', 'secretario_estadual', 'ministro'].includes(off) || (off === 'governador' && c!.office !== 'governador') || (off === 'presidente' && c!.office !== 'presidente') ? off : '';
   }
   if (t === mi(G, 7)) {
     w.governorRace = createStateRace(s, rng, 'governador');
     w.senateRace = createStateRace(s, rng, 'senador');
+    w.presidentRace = createStateRace(s, rng, 'presidente');
+    out.push(...viceInvite(s, rng));
     const gov = w.governor;
     out.push(`Convenções de 20/07 a 05/08 também para os cargos estaduais e federais. ${gov.isPlayer ? '' : gov.consecutiveTerms >= 2 ? `${gov.name} (governador) está no 2º mandato consecutivo e não pode concorrer (CF art. 14 §5º).` : `${gov.name} (governador) pode disputar a reeleição.`} Candidatos majoritários a partir de ${G} são personagens fictícios.`);
     if (s.player.staff && mine) out.push('Como servidor comissionado, você precisa se afastar do gabinete três meses antes do pleito (LC 64/90 art. 1º, II, "l") — licença registrada.');
   }
   if (mine && t === mi(G, 8)) handleConventionAndRegistration(s);
   if (t === mi(G, 8) || t === mi(G, 9)) {
-    for (const race of ['governador', 'senador'] as const) {
+    for (const race of ['governador', 'senador', 'presidente'] as const) {
       if (race === 'senador' && !(mine && c!.office === 'senador')) continue;
+      if (race === 'presidente' && !(mine && (c!.office === 'presidente' || c!.office === 'vice_presidente'))) continue;
       const poll = makeRacePoll(s, rng, stateRaceShares(s, race), race, G * 12 + 6);
       if (poll) { s.polls.push(poll); newsFromPoll(s, poll, rng); }
     }
@@ -346,6 +353,8 @@ function generalCalendar(s: GameState, t: number): string[] {
     }
   }
   if (t === mi(G, 11)) {
+    const rp2 = resolvePresidentRunoff(s, rng);
+    if (rp2) { out.push(rp2); if (rp2.includes('VOCÊ VENCEU') || rp2.includes('VOCÊ É')) s.flags.venceuSegundoTurno = true; else if (mine) lapseCampaignPromises(s, G); }
     const r = resolveGovernorRunoff(s, rng);
     if (r) { out.push(r); if (r.startsWith('VOCÊ VENCEU')) s.flags.venceuSegundoTurno = true; else if (mine) lapseCampaignPromises(s, G); }
     const rec = s.generalElections.find((e) => e.year === G);
@@ -361,6 +370,28 @@ function generalCalendar(s: GameState, t: number): string[] {
     out.push(`Posse do(a) presidente (05/01) e do(a) governador(a) (06/01) — EC 111/2021. Governo de SP: ${w.governor.isPlayer ? 'você' : w.governor.name} (${partyById(w.governor.partyId)?.acronym}).`);
     if (s.player.mandate?.office === 'governador' && !(rec.playerElected && rec.playerOffice === 'governador')) endMandate(s, 'Seu mandato de governador(a) terminou.');
     if (s.player.mandate?.office === 'secretario_estadual') endMandate(s, 'Com a posse do novo governo, você deixou a secretaria estadual.');
+    // Presidência (5/1): fim e início de mandatos do jogador, novo governo e ministério.
+    const pw = rec.presidentWinner;
+    const offNow = s.player.mandate?.office;
+    if (offNow === 'presidente' && !(pw?.isPlayer)) endMandate(s, 'Seu mandato de presidente da República terminou.');
+    if (offNow === 'vice_presidente' && !(pw?.viceIsPlayer)) endMandate(s, 'Seu mandato de vice-presidente terminou.');
+    if (s.player.mandate?.minister && s.player.mandate.office === 'ministro' && !(pw && !pw.isPlayer && s.stateWorld.president.consecutiveTerms > 1)) out.push(leaveMinistry(s, 'Com a posse do novo governo, o ministério foi recomposto.'));
+    const f = (s.federal ??= initFederal());
+    if (pw?.isPlayer) {
+      const cont = s.player.mandate?.office === 'presidente';
+      if (!cont) startExecMandate(s, 'presidente', `${G + 1}-01-05`, `${G + 5}-01-04`, `${(rec.playerVotes ?? 0).toLocaleString('pt-BR')} votos`);
+      else { s.player.mandate!.since = `${G + 1}-01-05`; s.player.mandate!.until = `${G + 5}-01-04`; s.player.careerHistory.push({ office: 'Presidente da República (reeleição)', from: `${G + 1}-01`, to: null, note: 'Reeleição' }); }
+      f.coalition = [...new Set([s.player.partyId!, ...(c?.coalitionPartyIds ?? []), ...buildCoalition(s, s.player.partyId!, f.style)])];
+      s.stateWorld.presidentCoalition = f.coalition;
+      formCabinet(s, rng, s.player.partyId!);
+      f.vice = { name: s.stateWorld.vicePresident?.name ?? 'Vice da chapa', partyId: s.stateWorld.vicePresident?.partyId ?? s.player.partyId, relation: 65 };
+      f.lastReshuffle = t;
+      out.push(`Você tomou posse como PRESIDENTE DA REPÚBLICA. Ministério montado (coalizão moderada): base de ${f.base.camara} deputados e ${f.base.senado} senadores. Ajuste o estilo de governo na página da Presidência.`);
+    } else {
+      if (pw?.viceIsPlayer) startExecMandate(s, 'vice_presidente', `${G + 1}-01-05`, `${G + 5}-01-04`, 'Eleito(a) na chapa presidencial');
+      out.push(...aiPresidentTakesOffice(s, rng));
+      if (pw?.viceIsPlayer) { f.vice = { name: s.character.name, partyId: s.player.partyId, isPlayer: true, relation: 65 }; out.push(`Você tomou posse como VICE-PRESIDENTE da República, ao lado de ${s.stateWorld.president.name}.`); }
+    }
     if (rec.playerElected && rec.playerOffice === 'governador') {
       const terms = (s.player.consecutiveTermsGovernador ?? 0);
       startUpperMandate(s, 'governador', `${G + 1}-01-06`, generalTermEnd('governador', G), `${(rec.playerVotes ?? 0).toLocaleString('pt-BR')} votos`);
@@ -375,7 +406,7 @@ function generalCalendar(s: GameState, t: number): string[] {
       s.player.mandate!.upper!.relationGov = 62;
       delete s.flags.secEstadualAceita;
     }
-    if (c && (c.year ?? 0) === G && (!rec.playerElected || rec.playerOffice === 'governador')) s.player.candidacy = null;
+    if (c && (c.year ?? 0) === G && (!rec.playerElected || rec.playerOffice === 'governador' || rec.playerOffice === 'presidente' || rec.playerOffice === 'vice_presidente')) s.player.candidacy = null;
   }
   if (rec && t === mi(G + 1, 2)) {
     applyGeneralResults(s, rec, 'federal');
@@ -388,6 +419,8 @@ function generalCalendar(s: GameState, t: number): string[] {
       s.player.candidacy = null;
     }
     departures(s, mi(G + 1, 2));
+    const lic = s.player.mandate?.minister?.licensed;
+    if (lic && Number(lic.until.slice(0, 4)) <= G + 1) { s.player.mandate!.minister!.licensed = null; out.push('Seu mandato parlamentar (licenciado) terminou: ao deixar o ministério, você não terá mandato para reassumir.'); }
   }
   if (rec && t === mi(G + 1, 3)) {
     applyGeneralResults(s, rec, 'alesp');
@@ -422,6 +455,25 @@ function departures(s: GameState, month: number) {
   s.stateWorld.pendingDepartures = s.stateWorld.pendingDepartures.filter((d) => d.posseMonth !== month);
 }
 
+/** Convite para compor chapa presidencial como vice (julho do ano eleitoral; candidatos são personagens do jogo). */
+function viceInvite(s: GameState, rng: GameState['rng']): string[] {
+  const c = s.player.candidacy;
+  if (c && c.status !== 'pretendida') return [];
+  if (!s.player.partyId || !s.stateWorld.presidentRace?.length) return [];
+  const age = s.month.year - Number(s.character.birthDate.slice(0, 4));
+  if (age < 35) return [];
+  const natRec = s.national ? (s.national.player.sudeste.recognition + s.national.player.nordeste.recognition + s.national.player.sul.recognition) / 3 : 0;
+  const off = s.player.mandate?.office ?? '';
+  const prominent = natRec >= 15 || s.player.recognition >= 60 || ['governador', 'senador', 'ministro', 'prefeito'].includes(off);
+  if (!prominent) return [];
+  const mineList = listIdForParty(s.player.partyId);
+  const cand = s.stateWorld.presidentRace.filter((r) => r.listId !== mineList && partyAlignment(s.player.partyId, r.partyId) >= 0.45).sort((a, b) => b.baseStrength - a.baseStrength)[0];
+  if (!cand || next(rng) > 0.5) return [];
+  s.flags.conviteVice = `${cand.listId}|${cand.name}|${cand.partyId}`;
+  s.pendingEvents.push({ templateId: 'convite_vice', vars: {} });
+  return [`${cand.name} (${partyById(cand.partyId)?.acronym}, personagem do jogo), pré-candidato(a) à Presidência, quer conversar sobre a vaga de vice na chapa.`];
+}
+
 /** Convite para secretaria estadual: só com afinidade política e preparo (mesma lógica do convite municipal). */
 function stateSecretaryInvite(s: GameState, govParty: string, govName: string) {
   if (!s.player.partyId || s.player.mandate?.office === 'governador') return;
@@ -445,7 +497,7 @@ function handleConventionAndRegistration(s: GameState) {
     log(s, 'eleicao', conv.text);
     if (!conv.approved) lapseCampaignPromises(s, c.year ?? 2028);
     if (!conv.approved && c.office !== 'vereador' && c.account.crowdPending && s.player.partyRel.leadershipTrust < 20) { log(s, 'eleicao', `Sem candidatura, a vaquinha virtual (${brl(c.account.crowdPending)}) é devolvida aos doadores.`); c.account.crowdPending = 0; }
-    const fallback = c.office === 'prefeito' ? 'vereador' : c.office === 'governador' || c.office === 'senador' ? 'deputado_federal' : c.office === 'deputado_federal' ? 'deputado_estadual' : null;
+    const fallback = c.office === 'prefeito' ? 'vereador' : c.office === 'governador' || c.office === 'senador' || c.office === 'presidente' ? 'deputado_federal' : c.office === 'deputado_federal' ? 'deputado_estadual' : null;
     if (!conv.approved && fallback && s.player.partyRel.leadershipTrust >= 20) {
       c.office = fallback;
       c.status = 'aprovada_convencao';
@@ -458,7 +510,7 @@ function handleConventionAndRegistration(s: GameState) {
     c.status = 'registrada';
     const party = partyById(s.player.partyId!)!;
     const strength = general ? stateStrength(s, party.id) / 4 : partyStrength(s, party.id);
-    const baseFund = ({ prefeito: 1_200_000, governador: 2_500_000, senador: 900_000, deputado_federal: 60_000, deputado_estadual: 35_000 } as Record<string, number>)[c.office] ?? 15_000;
+    const baseFund = ({ presidente: 20_000_000, vice_presidente: 0, prefeito: 1_200_000, governador: 2_500_000, senador: 900_000, deputado_federal: 60_000, deputado_estadual: 35_000 } as Record<string, number>)[c.office] ?? 15_000;
     const fefc = Math.round(baseFund * (0.5 + strength / 4) * (0.4 + s.player.partyRel.leadershipTrust / 140 + s.player.partyRel.influence / 200));
     c.account.fefc = fefc;
     if (s.flags.caixaDoisReserva) { c.account.donations += Number(s.flags.caixaDoisReserva); c.irregularities += 1; s.flags.irregCampanha = Number(s.flags.irregCampanha ?? 0) + 1; log(s, 'eleicao', `O dinheiro guardado por fora (${brl(Number(s.flags.caixaDoisReserva))}) entrou na campanha sem declaração: caixa dois.`); delete s.flags.caixaDoisReserva; }
@@ -683,6 +735,7 @@ export function currentPhaseLabel(s: GameState): string {
   if (inElectionYear && t < mi(recentY, 4)) return `Pré-eleitoral ${recentY} — prazo de filiação no início de abril`;
   if (inElectionYear && t < mi(recentY, 7)) return 'Pré-campanha';
   const m = s.player.mandate;
+  if (m && FEDERAL_LABEL[m.office]) return `${m.office === 'ministro' && m.minister ? (ministryById(m.minister.ministry)?.name ?? 'Ministério') : FEDERAL_LABEL[m.office]}${m.office !== 'ministro' ? ` ${m.since.slice(0, 4)}–${m.until.slice(0, 4)}` : ''} · próximas eleições ${nextElection(t).kind === 'geral' ? 'gerais' : 'municipais'}: ${nextElection(t).year}`;
   if (m && m.upper) return `Seu mandato: ${UPPER_LABEL[m.office] ?? m.office} ${m.since.slice(0, 4)}–${m.until.slice(0, 4)} · próximas eleições ${kind}: ${Y}`;
   const term = munTerm(t);
   return `Mandatos municipais ${term.from}–${term.to} · próximas eleições ${kind}: ${Y} — ${monthLabel(s.month)}`;

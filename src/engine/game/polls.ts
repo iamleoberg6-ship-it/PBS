@@ -19,7 +19,7 @@ export function makeMayorPoll(s: GameState, rng: RngState): Poll | null {
 }
 
 /** Pesquisa de 1º turno para qualquer cargo majoritário (prefeito, governador, senador). */
-export function makeRacePoll(s: GameState, rng: RngState, shares: { id: string; name: string; label: string; share: number }[], race: 'prefeito' | 'governador' | 'senador', start: number): Poll | null {
+export function makeRacePoll(s: GameState, rng: RngState, shares: { id: string; name: string; label: string; share: number }[], race: 'prefeito' | 'governador' | 'senador' | 'presidente', start: number): Poll | null {
   if (shares.length < 2) return null;
   const t = monthIndex(s.month);
   const end = s.month.year * 12 + 8; // setembro do ano eleitoral
@@ -41,7 +41,7 @@ export function makeRacePoll(s: GameState, rng: RngState, shares: { id: string; 
   };
 }
 
-export function makeRunoffPoll(s: GameState, rng: RngState, a: { id: string; name: string; label: string; w: number }, b: { id: string; name: string; label: string; w: number }, race: 'prefeito' | 'governador' = 'prefeito'): Poll {
+export function makeRunoffPoll(s: GameState, rng: RngState, a: { id: string; name: string; label: string; w: number }, b: { id: string; name: string; label: string; w: number }, race: 'prefeito' | 'governador' | 'presidente' = 'prefeito'): Poll {
   const n = pick(rng, [1092, 1204, 1600]);
   const u = 0.1 + normal(rng, 0, 0.01);
   const pa = a.w / (a.w + b.w);

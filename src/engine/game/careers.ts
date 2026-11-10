@@ -8,6 +8,7 @@ import { PLAYER } from './relations';
 import { initLegislature } from './legislature';
 import { newUpper, UPPER_LABEL, UPPER_SALARIES } from './upper';
 import { startFederalProjection } from './national';
+import { EXEC_SALARY, FEDERAL_LABEL, leaveMinistry } from './federal';
 import type { GameState, Mandate } from './types';
 
 const ym = (s: GameState) => `${s.month.year}-${String(s.month.month).padStart(2, '0')}`;
@@ -33,7 +34,7 @@ export function rememberVotes(s: GameState, votes: number, scope: 'cidade' | 'es
   s.player.recognition = Math.min(100, Math.max(s.player.recognition, s.player.recognitionFloor) + Math.min(5, cityVotes / 6000));
 }
 
-const OFFICE_FLOOR: Record<string, number> = { assessor: 10, vereador: 28, secretario: 26, deputado_estadual: 32, deputado_federal: 36, secretario_estadual: 30, senador: 45, prefeito: 50, governador: 55 };
+const OFFICE_FLOOR: Record<string, number> = { assessor: 10, vereador: 28, secretario: 26, deputado_estadual: 32, deputado_federal: 36, secretario_estadual: 30, senador: 45, prefeito: 50, governador: 55, ministro: 45, vice_presidente: 55, presidente: 70 };
 
 export function endMandate(s: GameState, text: string) {
   const prev = s.player.mandate?.office;
@@ -80,6 +81,17 @@ export function resignForCandidacy(s: GameState): string {
     endMandate(s, `Você deixou a secretaria municipal para concorrer em ${y} (desincompatibilização — LC 64/90 art. 1º).`);
     return 'Afastamento definitivo registrado. A pasta fica com um(a) interino(a).';
   }
+  if (office === 'ministro') {
+    const msg = leaveMinistry(s, `Desincompatibilização para disputar a eleição de ${y} (LC 64/90, art. 1º, II, "a", 1).`);
+    return msg;
+  }
+  if (office === 'presidente') {
+    const w = s.stateWorld;
+    const v = w.vicePresident;
+    w.president = { ...w.president, id: v?.id ?? 'vice_pres', name: v?.name ?? 'Vice-presidente (personagem do jogo)', partyId: v?.partyId ?? w.president.partyId, isPlayer: false };
+    endMandate(s, `Você renunciou à Presidência para disputar outro cargo em ${y} (CF art. 14 §6º). O(a) vice assume (CF art. 79).`);
+    return 'Renúncia apresentada. O(a) vice-presidente assume.';
+  }
   if (office === 'governador') {
     s.stateWorld.governor = { ...s.stateWorld.governor, id: 'vice_gov', name: 'Vice-governador(a) (personagem do jogo)', isPlayer: false };
     endMandate(s, `Você renunciou ao governo do Estado para disputar outro cargo em ${y} (CF art. 14 §6º). O(a) vice assume.`);
@@ -87,6 +99,28 @@ export function resignForCandidacy(s: GameState): string {
   }
   endMandate(s, `Você deixou o cargo para concorrer em ${y}.`);
   return 'Afastamento registrado.';
+}
+
+/** Posse como presidente ou vice (5 de janeiro — CF art. 82). */
+export function startExecMandate(s: GameState, office: 'presidente' | 'vice_presidente', since: string, until: string, note: string) {
+  if (s.player.mandate) {
+    const prev = s.player.mandate.office;
+    if (prev === 'vereador') {
+      const msg = vacateCouncilSeat(s, PLAYER, 'posse em outro cargo');
+      if (msg) s.log.push({ month: { ...s.month }, kind: 'camara', text: msg });
+    }
+    if (s.player.mandate.minister) leaveMinistry(s, 'Posse em cargo eletivo.');
+    if (s.player.mandate && s.player.mandate.office !== office) endMandate(s, `Você deixou o cargo de ${prev.replace('_', ' ')} para tomar posse como ${FEDERAL_LABEL[office]}.`);
+  }
+  s.player.mandate = newMandate(office, since, until);
+  s.player.mandate.approval = 55;
+  s.player.job = null;
+  s.finances.monthlyIncome = EXEC_SALARY;
+  s.player.careerHistory.push({ office: FEDERAL_LABEL[office], from: ym(s), to: null, note });
+  s.log.push({ month: { ...s.month }, kind: 'mandato', text: `Você tomou posse como ${FEDERAL_LABEL[office]} (${since.split('-').reverse().join('/')} a ${until.split('-').reverse().join('/')}).` });
+  startFederalProjection(s);
+  const n = s.national!;
+  for (const r of Object.keys(n.player) as (keyof typeof n.player)[]) n.player[r].recognition = Math.max(n.player[r].recognition, office === 'presidente' ? 85 : 45);
 }
 
 /** Posse num cargo estadual/federal (deputado, senador, governador, secretário estadual). */

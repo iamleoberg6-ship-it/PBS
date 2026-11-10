@@ -42,6 +42,7 @@ export function spendingLimit(office: string): number {
     case 'deputado_federal': return GAMEPLAY.spendingLimitDepFederal.value;
     case 'senador': return GAMEPLAY.spendingLimitSenadorSP.value;
     case 'governador': return GAMEPLAY.spendingLimitGovernadorSP.value;
+    case 'presidente': case 'vice_presidente': return GAMEPLAY.spendingLimitPresidente.value;
     default: return GAMEPLAY.spendingLimitVereadorSP.value;
   }
 }

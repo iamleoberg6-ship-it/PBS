@@ -6,7 +6,7 @@ import type { GeneralOffice, GeneralRulePack, MunicipalRulePack } from '../data/
 
 export type MunicipalOffice = 'vereador' | 'prefeito' | 'vice_prefeito';
 export type ElectiveOffice = MunicipalOffice | GeneralOffice;
-export const EXECUTIVE_OFFICES: ElectiveOffice[] = ['prefeito', 'governador'];
+export const EXECUTIVE_OFFICES: ElectiveOffice[] = ['prefeito', 'governador', 'presidente'];
 
 export interface EligibilityInput {
   office: ElectiveOffice;

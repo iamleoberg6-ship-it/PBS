@@ -261,3 +261,5 @@ td.num, th.num { text-align: right; font-family: var(--font-mono); }
 .br-cell { background: var(--card); border: 1px solid var(--line); border-top: 5px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
 .br-name { font-family: var(--font-display, inherit); font-size: 18px; font-weight: 600; }
 @media (max-width: 900px) { .br-map { grid-template-columns: 1fr; grid-template-areas: "n" "ne" "co" "se" "s"; } }
+.g-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 900px) { .g-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

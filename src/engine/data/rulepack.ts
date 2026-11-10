@@ -108,7 +108,7 @@ export function munRulepack(year: number): MunicipalRulePack {
 
 // ---------------- Eleições gerais (presidente, governador, Senado, deputados) ----------------
 
-export type GeneralOffice = 'deputado_estadual' | 'deputado_federal' | 'senador' | 'governador';
+export type GeneralOffice = 'deputado_estadual' | 'deputado_federal' | 'senador' | 'governador' | 'presidente' | 'vice_presidente';
 
 export interface GeneralRulePack {
   id: string;
@@ -123,7 +123,7 @@ export interface GeneralRulePack {
   registrationDeadline: Sourced<string>;
   campaignStart: Sourced<string>;
   desincompatibilizacao: Sourced<string>;
-  posse: Record<GeneralOffice | 'presidente', Sourced<string>>;
+  posse: Record<GeneralOffice, Sourced<string>>;
   minAge: Record<GeneralOffice, Sourced<{ age: number; checkedAt: 'registration' | 'posse' }>>;
   seats: { alesp: Sourced<number>; camaraSP: Sourced<number>; senadoSP: Sourced<number> };
   mandateYears: Record<GeneralOffice, Sourced<number>>;
@@ -152,6 +152,7 @@ export function buildGeneralRulepack(year: number): GeneralRulePack {
     desincompatibilizacao: derived(SIX, 'CF art. 14 §6º — chefes do Executivo renunciam até seis meses antes para concorrer a outros cargos'),
     posse: {
       presidente: real(`${year + 1}-01-05`, 'CF art. 82 (redação da EC 111/2021) — posse em 5 de janeiro'),
+      vice_presidente: real(`${year + 1}-01-05`, 'CF art. 82 (redação da EC 111/2021) — posse em 5 de janeiro, com o presidente'),
       governador: real(`${year + 1}-01-06`, 'CF art. 28 (redação da EC 111/2021) — posse em 6 de janeiro'),
       senador: derived(`${year + 1}-02-01`, 'CF art. 57 §4º — sessões preparatórias a partir de 1º de fevereiro'),
       deputado_federal: derived(`${year + 1}-02-01`, 'CF art. 57 §4º — sessões preparatórias a partir de 1º de fevereiro'),
@@ -162,6 +163,8 @@ export function buildGeneralRulepack(year: number): GeneralRulePack {
       deputado_federal: real({ age: 21, checkedAt: 'posse' }, 'CF art. 14 §3º VI "c"; Lei 9.504/97 art. 11 §2º'),
       governador: real({ age: 30, checkedAt: 'posse' }, 'CF art. 14 §3º VI "b"'),
       senador: real({ age: 35, checkedAt: 'posse' }, 'CF art. 14 §3º VI "a"'),
+      presidente: real({ age: 35, checkedAt: 'posse' }, 'CF art. 14 §3º VI "a"'),
+      vice_presidente: real({ age: 35, checkedAt: 'posse' }, 'CF art. 14 §3º VI "a"'),
     },
     seats: {
       alesp: real(94, 'CF art. 27 — triplo da representação federal até 36, mais 1 por deputado federal acima de 12 (36 + 58 = 94)'),
@@ -173,6 +176,8 @@ export function buildGeneralRulepack(year: number): GeneralRulePack {
       deputado_federal: real(4, 'CF art. 44, parágrafo único'),
       senador: real(8, 'CF art. 46 §1º'),
       governador: real(4, 'CF art. 28'),
+      presidente: real(4, 'CF art. 82'),
+      vice_presidente: real(4, 'CF art. 82'),
     },
     proportional: PROPORTIONAL_RULES,
     maxConsecutiveTermsExecutive: real(2, 'CF art. 14 §5º'),
@@ -182,6 +187,9 @@ export function buildGeneralRulepack(year: number): GeneralRulePack {
       { cargo: 'Secretário(a) municipal para governador, senador ou deputado', prazo: 'afastamento definitivo 6 meses antes', source: 'LC 64/90 art. 1º, III, "b", 3 (aplicado aos incisos V e VI) — confirmar jurisprudência do TSE', status: 'DERIVADA' },
       { cargo: 'Servidor comissionado (assessor) para qualquer cargo', prazo: 'afastamento 3 meses antes', source: 'LC 64/90 art. 1º, II, "l"', status: 'REGRA_REAL' },
       { cargo: 'Vereador(a) ou deputado(a) para outro cargo', prazo: 'não precisa se afastar', source: 'CF art. 14 §6º só alcança chefes do Executivo', status: 'REGRA_REAL' },
+      { cargo: 'Ministro(a) de Estado para qualquer cargo', prazo: 'deixar o cargo 6 meses antes', source: 'LC 64/90 art. 1º, II, "a", 1', status: 'REGRA_REAL' },
+      { cargo: 'Presidente para outro cargo', prazo: 'renúncia 6 meses antes', source: 'CF art. 14 §6º', status: 'REGRA_REAL' },
+      { cargo: 'Presidente para a reeleição', prazo: 'não precisa sair', source: 'CF art. 14 §5º (EC 16/1997)', status: 'REGRA_REAL' },
     ],
   };
 }
@@ -195,7 +203,7 @@ export function genRulepack(year: number): GeneralRulePack {
 // Parâmetros de gameplay (fictícios) usados pelo simulador nesta versão.
 export const GAMEPLAY = {
   actionPointsPerMonth: proposal(5, 'Compromissos de agenda por mês (parâmetro de jogo; era 3 até a v0.5)'),
-  officePointsPerMonth: proposal({ assessor: 3, vereador: 4, secretario: 4, deputado_estadual: 4, deputado_federal: 4, senador: 4, secretario_estadual: 4, prefeito: 5, governador: 5 } as Record<string, number>, 'Agenda do cargo: compromissos extras só para ações do próprio cargo (os 5 compromissos pessoais ficam livres para o resto)'),
+  officePointsPerMonth: proposal({ assessor: 3, vereador: 4, secretario: 4, deputado_estadual: 4, deputado_federal: 4, senador: 4, secretario_estadual: 4, prefeito: 5, governador: 5, presidente: 6, vice_presidente: 4, ministro: 5 } as Record<string, number>, 'Agenda do cargo: compromissos extras só para ações do próprio cargo (os 5 compromissos pessoais ficam livres para o resto)'),
   validVoteRateProportional: proposal(0.62, 'Calibrado com SP 2024 (~5,8 mi votos válidos para ~9,3 mi eleitores)'),
   validVoteRateMajoritarian: proposal(0.6),
   legendVoteShare: proposal(0.08, 'Fração aproximada de votos de legenda; ajustável'),
@@ -210,6 +218,7 @@ export const GAMEPLAY = {
   spendingLimitDepEstadual: derived(1_740_000, 'Limite nacional de 2022 para deputado estadual (R$ 1.270.629,01) corrigido pela inflação projetada do jogo (4% a.a.) até 2030; confirmar resolução TSE do ciclo'),
   spendingLimitDepFederal: derived(4_350_000, 'Limite nacional de 2022 para deputado federal (R$ 3.176.572,53) corrigido pela inflação projetada do jogo até 2030; confirmar resolução TSE do ciclo'),
   spendingLimitSenadorSP: proposal(12_000_000, 'Valor de jogo: o limite real para senador é fixado pelo TSE por estado a cada ciclo'),
+  spendingLimitPresidente: proposal(88_944_030, 'Referência: limite do 1º turno para presidente em 2022 (TSE, R$ 88,9 mi); o valor de cada ciclo é fixado pelo TSE e não foi atualizado aqui'),
   spendingLimitGovernadorSP: proposal(60_000_000, 'Valor de jogo: o limite real para governador é fixado pelo TSE por estado a cada ciclo'),
   deputyStateReach: proposal({ deputado_estadual: 0.75, deputado_federal: 0.7 }, 'Multiplicador dos votos do jogador fora da capital (base eleitoral concentrada na cidade de SP)'),
 };

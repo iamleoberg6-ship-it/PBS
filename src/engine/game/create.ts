@@ -1,4 +1,5 @@
 import { initNational } from './national';
+import { initFederal } from './federal';
 import { createRng } from '../rng';
 import { PARTIES } from '../data/parties';
 import { GAMEPLAY, RULEPACK_BR_2028_MUN } from '../data/rulepack';
@@ -196,6 +197,7 @@ export function createGame(input: NewGameInput): GameState {
     city: null as unknown as GameState['city'],
     stateWorld: initStateWorld(),
     national: initNational(),
+    federal: initFederal(),
     generalElections: [],
     crises: [],
     outlets: initOutlets(),

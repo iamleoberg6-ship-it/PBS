@@ -11,6 +11,7 @@ import { recomputeNetWorth } from './finance';
 import { snapshot, recordDiff } from './ledger';
 import { changeParty } from './party';
 import { STATE_AREAS } from './upper';
+import { becomeMinister, ministryById, type MinistryId } from './federal';
 import { addGoodwill } from './campaign';
 import { REGIONS } from '../data/regions';
 import type { GameState, PendingEvent } from './types';
@@ -312,6 +313,40 @@ export const EVENTS: EventTemplate[] = [
         },
       })),
       { label: 'Recusar', apply: () => 'Você recusou o convite.' },
+    ],
+  },
+  {
+    id: 'convite_ministerio',
+    title: () => 'Convite para o ministério',
+    body: (s) => `O(a) presidente ${String(s.flags.conviteMinisterioPres ?? '')} (personagem do jogo) convida você para um ministério. Ministros são de livre nomeação e exoneração (CF art. 87).${['deputado_federal', 'senador'].includes(s.player.mandate?.office ?? '') ? ' Como parlamentar, você se licencia sem perder o mandato e o suplente assume (CF art. 56, I).' : ''}`,
+    weight: 0,
+    condition: () => false,
+    options: (s) => [
+      ...String(s.flags.conviteMinisterio ?? '').split(',').filter(Boolean).map((id) => ({
+        label: `Aceitar: ${ministryById(id)?.name ?? id}`,
+        hint: 'Agenda própria da pasta, orçamento e relação com o(a) presidente',
+        apply: (st: GameState) => { delete st.flags.conviteMinisterio; return becomeMinister(st, id as MinistryId); },
+      })),
+      { label: 'Recusar', apply: (st: GameState) => { delete st.flags.conviteMinisterio; return 'Você agradeceu e recusou o convite.'; } },
+    ],
+  },
+  {
+    id: 'convite_vice',
+    title: () => 'Convite para vice na chapa presidencial',
+    body: (s) => { const [, name, pid] = String(s.flags.conviteVice ?? '').split('|'); return `${name} (${partyById(pid)?.acronym ?? ''}, personagem do jogo) convida você para ser vice-presidente na chapa. Presidente e vice são eleitos juntos (CF art. 77 §1º); você precisa ter 35 anos e estar filiado(a). Aceitar substitui qualquer pré-candidatura que você tenha.`; },
+    weight: 0,
+    condition: () => false,
+    options: () => [
+      {
+        label: 'Aceitar a vaga de vice', hint: 'Sua projeção soma à chapa; se ganhar, você é vice a partir de 5/1',
+        apply: (st: GameState) => {
+          const [list, name] = String(st.flags.conviteVice ?? '').split('|');
+          delete st.flags.conviteVice;
+          st.player.candidacy = { office: 'vice_presidente', year: st.month.year, status: 'pretendida', checks: [], coalitionPartyIds: [], campaignPoints: 0, account: { fefc: 0, donations: 0, ownFunds: 0, spent: 0 }, irregularities: 0, runningMateList: list, runningMateName: name };
+          return `Você aceitou ser vice na chapa de ${name}. As convenções homologam a chapa em agosto.`;
+        },
+      },
+      { label: 'Recusar', apply: (st: GameState) => { delete st.flags.conviteVice; return 'Você recusou o convite para vice.'; } },
     ],
   },
   {

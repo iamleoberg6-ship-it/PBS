@@ -111,7 +111,7 @@ export function previewEligibility(state: GameState, office: ElectiveOffice, yea
   const municipal = office === 'vereador' || office === 'prefeito' || office === 'vice_prefeito';
   const y = year ?? (municipal ? munCycle(t) : genCycle(t));
   const cur = state.player.mandate?.office ?? '';
-  const exec = ['prefeito', 'governador', 'secretario', 'secretario_estadual'].includes(cur) && cur !== office && !municipal;
+  const exec = ['prefeito', 'governador', 'secretario', 'secretario_estadual', 'ministro', 'presidente'].includes(cur) && cur !== office && !municipal;
   return checkEligibility({
     office,
     desincompatibilizacao: exec

@@ -5,6 +5,7 @@
 import { refreshPool, teamOffice } from './team';
 import { TIPS } from './tutorial';
 import { initNational, startFederalProjection } from './national';
+import { buildCoalition, formCabinet, initFederal } from './federal';
 import { GAMEPLAY, RULEPACK_BR_2028_MUN } from '../data/rulepack';
 import { initStateWorld } from './general';
 import { initOutlets } from './livingworld';
@@ -302,6 +303,12 @@ function upgradeWithinV8(s: Raw, report: LoadReport) {
   if (!s.tutorial) {
     const elapsed = ((s.month?.year ?? 2027) - 2027) * 12 + (s.month?.month ?? 1) - 1;
     s.tutorial = { enabled: true, seen: elapsed >= 3 ? TIPS.map((x) => x.id).filter((id) => id !== 'equipe' && id !== 'intro_porque') : [] };
+  }
+  // Governo federal: partidas antigas recebem a economia de partida; presidente personagem do jogo ganha ministério.
+  if (!s.federal) {
+    s.federal = initFederal();
+    const pr = s.stateWorld?.president;
+    if (pr && !pr.real && !pr.isPlayer && s.rng) { s.federal.coalition = buildCoalition(s as GameState, pr.partyId, 'misto'); formCabinet(s as GameState, s.rng, pr.partyId); }
   }
   // Equipe do gabinete (ajuste pós-Fase 5): currículos disponíveis já no mês do carregamento.
   if (teamOffice(s as GameState) && !s.player.team?.pool?.length && s.rng) refreshPool(s as GameState, s.rng);

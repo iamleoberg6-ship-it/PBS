@@ -299,7 +299,7 @@ export interface ConventionResult {
   byFaction?: { factionId: string; candidateId: string; delegates: number }[];
 }
 
-const OFFICE_PT: Record<string, string> = { vereador: 'vereador(a)', prefeito: 'prefeito(a)', deputado_estadual: 'deputado(a) estadual', deputado_federal: 'deputado(a) federal', senador: 'senador(a)', governador: 'governador(a)' };
+const OFFICE_PT: Record<string, string> = { vereador: 'vereador(a)', prefeito: 'prefeito(a)', deputado_estadual: 'deputado(a) estadual', deputado_federal: 'deputado(a) federal', senador: 'senador(a)', governador: 'governador(a)', presidente: 'presidente da República', vice_presidente: 'vice-presidente da República' };
 
 export function conventionVote(s: GameState, rng: RngState, office: string): ConventionResult {
   const pid = s.player.partyId!;
@@ -307,6 +307,7 @@ export function conventionVote(s: GameState, rng: RngState, office: string): Con
   const org = s.partyOrgs[pid];
   const pr = s.player.partyRel;
   const label = OFFICE_PT[office] ?? office;
+  if (office === 'vice_presidente') return { approved: true, text: `Convenções homologaram a chapa presidencial com você como vice (acordo entre os partidos da chapa — Lei 9.504/97 art. 8º).` };
   if (office === 'vereador' || office === 'deputado_estadual' || office === 'deputado_federal') {
     // Lista de até vagas+1 nomes: a direção decide; facção aliada pode garantir a vaga.
     // Para deputado (PROPOSTA): a lista estadual é mais disputada; quem já tem mandato leva vantagem.

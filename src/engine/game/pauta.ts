@@ -57,6 +57,9 @@ const posOf = (partyId: string | null) => (partyId ? generalPosition(partyIdeolo
 const govOf = (s: GameState, office: string) => (office === 'deputado_estadual' ? { h: s.stateWorld.governor, coalition: s.stateWorld.governorCoalition } : { h: s.stateWorld.president, coalition: s.stateWorld.presidentCoalition });
 
 /** Orientação de uma bancada: governo × oposição pesa mais que ideologia, como na prática do plenário. */
+/** Matérias de iniciativa parlamentar aprovadas pelo Congresso que chegam à sanção do presidente (jogador). */
+export const TEMPLATES_FOR_SANCTION = TEMPLATES.filter((t) => !t.byGov && t.houses.includes('camara'));
+
 export function benchOrientation(s: GameState, office: string, partyId: string | null, v: Pick<FloorVote, 'slant' | 'govPosition'>): VoteChoice {
   if (!partyId) return 'A';
   const g = govOf(s, office);
@@ -119,6 +122,8 @@ function tally(s: GameState, office: string, v: FloorVote, rng: RngState) {
 }
 
 // Câmara inteira (513): o jogo só conhece a bancada de SP; extrapola proporcionalmente (aproximação de jogo).
+export const scaleCamaraSeats = (s: GameState) => scaleCamara(s);
+export const senateSeatsApprox = () => senateSeats();
 function scaleCamara(s: GameState): Record<string, number> {
   const out: Record<string, number> = {};
   const sp = s.stateWorld.camaraSeats;

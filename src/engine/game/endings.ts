@@ -38,6 +38,9 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'cpi', title: 'Fiscal da cidade', description: 'Instalou uma CPI.', check: (s) => s.legislature.cpis.some((c) => c.proposer === 'character_player' && (c.status === 'instalada' || c.status === 'concluida')) },
   { id: 'virada', title: 'Virada no 2º turno', description: 'Venceu um 2º turno.', check: (s) => !!s.flags.venceuSegundoTurno },
   { id: 'lideranca_nacional', title: 'Liderança nacional', description: 'Chegou a 40 de projeção nacional (média das regiões do Brasil, pesada pelo eleitorado).', check: (s) => nationalIndex(s, 'recognition') >= 40 },
+  { id: 'ministro', title: 'Esplanada dos Ministérios', description: 'Foi nomeado(a) ministro(a) de Estado.', check: (s) => held(s, 'ministro') },
+  { id: 'vice_presidente', title: 'Segundo posto da República', description: 'Eleito(a) vice-presidente.', check: (s) => held(s, 'vice-presidente') },
+  { id: 'presidente', title: 'Palácio do Planalto', description: 'Eleito(a) presidente da República.', check: (s) => held(s, 'presidente da república') },
   { id: 'longa_carreira', title: 'Carreira longa', description: 'Exerceu três ou mais cargos ao longo da partida.', check: (s) => s.player.careerHistory.length >= 3 },
 ];
 
@@ -82,8 +85,13 @@ export function computeEnding(s: GameState, reason: 'fim' | 'aposentadoria'): En
   const kept = promisesKept(s);
   const broken = promisesBroken(s);
   const pick = (id: string, title: string, text: string): Ending => ({ id, title, text: `${text}${reason === 'aposentadoria' ? ' Você decidiu encerrar a carreira por conta própria.' : ''}`, score, month: { ...s.month } });
+  if (s.flags.impeachment) return pick('impeachment', 'Impeachment', 'O Senado condenou você por crime de responsabilidade e você perdeu a Presidência, com inabilitação para funções públicas por oito anos (CF art. 52, parágrafo único).');
   if (s.flags.cassado) return pick('cassado', 'Diploma cassado', 'A Justiça Eleitoral cassou um mandato seu. Sua história política ficou marcada pelo processo — e pela inelegibilidade que a acompanha (LC 64/90).');
   if (corrupt && (lies > 0 || s.flags.esquemaInvestigado || s.flags.rachadinhaInvestigada)) return pick('escandalo', 'Escândalo', 'Você chegou longe, mas o que aceitou por fora e as negações desmentidas viraram a sua biografia pública.');
+  if (held(s, 'presidente da república') && (s.player.mandate?.office !== 'presidente' || s.player.mandate.approval >= 45)) return pick('presidente', 'Presidente da República', 'Do bairro ao Palácio do Planalto: você governou o país e saiu com o respeito de boa parte do eleitorado.');
+  if (held(s, 'presidente da república')) return pick('presidente_impopular', 'Presidência difícil', 'Você chegou ao Planalto, mas a economia, o Congresso e as crises cobraram caro. A história ainda vai julgar.');
+  if (held(s, 'vice-presidente')) return pick('vice', 'Vice-presidente da República', 'Você chegou ao segundo posto da República, na sombra e no apoio ao titular — e sempre a um passo do primeiro.');
+  if (held(s, 'ministro')) return pick('ministro', 'Ministro(a) de Estado', 'Você comandou uma pasta da Esplanada e levou para Brasília o que aprendeu na cidade.');
   if (held(s, 'governador(a)') && (s.player.mandate?.office !== 'governador' || s.player.mandate.approval >= 50)) return pick('estadista', 'Estadista paulista', 'Você saiu do bairro para o Palácio dos Bandeirantes. Poucos conseguem; menos ainda deixam o cargo com a confiança do eleitor.');
   if (held(s, 'senador(a)')) return pick('senado', 'Voz de São Paulo no Senado', 'Oito anos de mandato no Senado coroam uma carreira construída na cidade.');
   if (held(s, 'prefeito(a) de são paulo') && kept >= broken) return pick('prefeito_entrega', 'Prefeito(a) que entregou', 'Você governou a maior cidade do país e cumpriu mais do que prometeu. A cidade lembra de quem entrega.');

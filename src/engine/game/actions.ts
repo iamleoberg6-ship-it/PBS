@@ -27,14 +27,15 @@ import { AMENDMENT_BUDGET, STATE_AREAS, UPPER_THEMES, amendmentYearTotals, healt
 import { RESPONSE_LABEL, lapseCampaignPromises, makePromise, promiseCapacity, respondCrisis, workOnPromise } from './livingworld';
 import { computeEnding } from './endings';
 import { BR_REGIONS, brName, isFederal, nationalAgenda } from './national';
+import { MINISTRIES, PRES_AGENDA, leaveMinistry, ministerCommon, ministryAction, ministryById, playerIsPresident, playerIsVice, playerMinistry, presAppoint, presEmendas, presFiscal, presInternational, presMeasure, presSetStyle, presSpeech, viceAction } from './federal';
 import { TASK_LABEL, assignTask, fireMember, hireMember, proposeRachadinha, regularizeGhost, stopRachadinha, teamOffice, themeOptionsForTeam, type TeamTask } from './team';
 import { resignForCandidacy } from './careers';
 import type { AttributeKey, Bill, CrisisResponse, GameState } from './types';
 
-export type ActionCategory = 'Vida e carreira' | 'Assessoria' | 'Partido' | 'Pré-candidatura' | 'Campanha' | 'Mandato de vereador' | 'Prefeitura' | 'Secretaria' | 'Mandato estadual/federal' | 'Governo do Estado' | 'Imagem e compromissos' | 'Gabinete';
+export type ActionCategory = 'Vida e carreira' | 'Assessoria' | 'Partido' | 'Pré-candidatura' | 'Campanha' | 'Mandato de vereador' | 'Prefeitura' | 'Secretaria' | 'Mandato estadual/federal' | 'Governo do Estado' | 'Imagem e compromissos' | 'Gabinete' | 'Presidência' | 'Ministério' | 'Vice-Presidência';
 
 /** Trabalho de cargo (gabinete, mandato, gestão) não sofre desgaste por repetição: é a rotina do cargo. */
-export const WORK_CATEGORIES: ActionCategory[] = ['Assessoria', 'Mandato de vereador', 'Prefeitura', 'Secretaria', 'Mandato estadual/federal', 'Governo do Estado', 'Gabinete'];
+export const WORK_CATEGORIES: ActionCategory[] = ['Assessoria', 'Mandato de vereador', 'Prefeitura', 'Secretaria', 'Mandato estadual/federal', 'Governo do Estado', 'Gabinete', 'Presidência', 'Ministério', 'Vice-Presidência'];
 /** Aprovação vinda de ações num mesmo mês antes de saturar (PROPOSTA). */
 export const APPROVAL_ACTION_CAP = 1.5;
 /** Compromissos de cargo do mês, conforme o cargo atual (0 sem cargo). */
@@ -443,19 +444,19 @@ export const ACTIONS: ActionDef[] = [
     params: (s) => {
       const ne = nextElection(now(s));
       if (ne.kind === 'municipal') return [{ value: 'vereador', label: `Vereador(a) — ${ne.year}` }, { value: 'prefeito', label: `Prefeito(a) — ${ne.year}` }];
-      const opts = [{ value: 'deputado_estadual', label: `Deputado(a) estadual — ${ne.year}` }, { value: 'deputado_federal', label: `Deputado(a) federal — ${ne.year}` }, { value: 'senador', label: `Senador(a) — ${ne.year}` }, { value: 'governador', label: `Governador(a) — ${ne.year}` }];
+      const opts = [{ value: 'deputado_estadual', label: `Deputado(a) estadual — ${ne.year}` }, { value: 'deputado_federal', label: `Deputado(a) federal — ${ne.year}` }, { value: 'senador', label: `Senador(a) — ${ne.year}` }, { value: 'governador', label: `Governador(a) — ${ne.year}` }, { value: 'presidente', label: `Presidente da República — ${ne.year}` }];
       void s;
       return opts;
     },
     apply: (s, _rng, param) => {
       const ne = nextElection(now(s));
-      const allowed = ne.kind === 'municipal' ? ['vereador', 'prefeito'] : ['deputado_estadual', 'deputado_federal', 'senador', 'governador'];
+      const allowed = ne.kind === 'municipal' ? ['vereador', 'prefeito'] : ['deputado_estadual', 'deputado_federal', 'senador', 'governador', 'presidente'];
       const office = (allowed.includes(param ?? '') ? param : allowed[0]) as 'vereador';
       s.player.candidacy = {
         office, year: ne.year, status: 'pretendida', checks: [], coalitionPartyIds: [], campaignPoints: 0,
         account: { fefc: 0, donations: 0, ownFunds: 0, spent: 0 }, irregularities: 0,
       };
-      const label = ({ vereador: 'vereador(a)', prefeito: 'prefeito(a)', deputado_estadual: 'deputado(a) estadual', deputado_federal: 'deputado(a) federal', senador: 'senador(a)', governador: 'governador(a)' } as Record<string, string>)[office];
+      const label = ({ vereador: 'vereador(a)', prefeito: 'prefeito(a)', deputado_estadual: 'deputado(a) estadual', deputado_federal: 'deputado(a) federal', senador: 'senador(a)', governador: 'governador(a)', presidente: 'presidente da República' } as Record<string, string>)[office];
       const desinc = ne.kind === 'geral' && ['prefeito', 'secretario', 'secretario_estadual', 'governador'].includes(s.player.mandate?.office ?? '')
         ? ` ATENÇÃO: no seu cargo atual é preciso se desincompatibilizar até seis meses antes da eleição (início de abril de ${ne.year}) — use "Renunciar para concorrer" até março.` : '';
       return `Você colocou seu nome como pré-candidato(a) a ${label} em ${ne.year}.${desinc}`;
@@ -903,7 +904,8 @@ export const ACTIONS: ActionDef[] = [
     availability: (s) => {
       const c = s.player.candidacy;
       const off = s.player.mandate?.office ?? '';
-      if (!c || !['prefeito', 'secretario', 'secretario_estadual', 'governador'].includes(off)) return 'hidden';
+      if (!c || !['prefeito', 'secretario', 'secretario_estadual', 'governador', 'ministro', 'presidente'].includes(off)) return 'hidden';
+      if (off === 'presidente' && c.office === 'presidente') return 'hidden';
       if (isMunYear(c.year ?? 2028) && off !== 'secretario_estadual' && !(off === 'governador')) return 'hidden';
       if (off === 'governador' && c.office === 'governador') return 'hidden';
       if (now(s) > mi(c.year ?? 2028, 3)) return 'O prazo de desincompatibilização (seis meses antes da eleição) já passou.';
@@ -1081,6 +1083,152 @@ export const ACTIONS: ActionDef[] = [
     paramLabel: 'Destino do dinheiro',
     params: () => [{ value: 'bolso', label: 'Para o seu bolso' }, { value: 'caixa', label: 'Guardar para a próxima campanha (caixa dois)' }],
     apply: (s, rng, param) => { s.flags[`esquema_${s.month.year}_${s.month.month}`] = true; return amendmentScheme(s, rng, param!); },
+  },
+  // ---------------- Ministério (jogador ministro ou vice com pasta) ----------------
+  {
+    id: 'min_acao', label: 'Ação da pasta', category: 'Ministério', cost: 1,
+    description: 'As ações próprias do seu ministério: cada pasta tem as suas. Gastam o orçamento discricionário da pasta e levam meses para dar resultado.',
+    availability: (s) => (playerMinistry(s) ? null : 'hidden'),
+    paramLabel: 'Ação',
+    params: (s) => {
+      const ms = playerMinistry(s);
+      if (!ms) return [];
+      const def = ministryById(ms.ministry)!;
+      return def.actions.flatMap((a) => (a.region ? BR_REGIONS.map((r) => ({ value: `${a.id}|${r}`, label: `${a.label} — ${brName(r)}${a.budget ? ` (R$ ${a.budget} bi)` : ''}` })) : [{ value: a.id, label: `${a.label}${a.budget ? ` (R$ ${a.budget} bi)` : ''}` }]));
+    },
+    apply: (s, rng, param) => ministryAction(s, rng, param!),
+  },
+  {
+    id: 'min_congresso', label: 'Defender a pasta no Congresso', category: 'Ministério', cost: 1,
+    description: 'Audiências em comissões e conversas com líderes. Melhora o humor do Congresso com o governo.',
+    availability: (s) => (playerMinistry(s) ? null : 'hidden'),
+    apply: (s, rng) => ministerCommon(s, rng, 'congresso'),
+  },
+  {
+    id: 'min_imprensa', label: 'Entrevista coletiva', category: 'Ministério', cost: 1,
+    description: 'Projeção nacional para você e para as ações da pasta. Uma frase mal colocada pode irritar o Planalto.',
+    availability: (s) => (playerMinistry(s) ? null : 'hidden'),
+    apply: (s, rng) => ministerCommon(s, rng, 'imprensa'),
+  },
+  {
+    id: 'min_despacho', label: 'Despachar com o(a) presidente', category: 'Ministério', cost: 1,
+    description: 'Apresenta resultados e alinha prioridades. Ministro sem relação com o presidente cai.',
+    availability: (s) => (playerMinistry(s) && !playerIsPresident(s) ? null : 'hidden'),
+    apply: (s, rng) => ministerCommon(s, rng, 'despacho'),
+  },
+  {
+    id: 'min_verba', label: 'Pedir crédito adicional à Fazenda', category: 'Ministério', cost: 1,
+    description: 'Mais orçamento para a pasta. Depende da relação com o presidente; piora o resultado fiscal.',
+    availability: (s) => (playerMinistry(s) ? null : 'hidden'),
+    apply: (s, rng) => ministerCommon(s, rng, 'verba'),
+  },
+  {
+    id: 'min_sair', fatigue: false, label: 'Pedir demissão do ministério', category: 'Ministério', cost: 0,
+    description: 'Deixa a pasta. Se você é deputado(a) ou senador(a) licenciado(a), volta ao mandato (CF art. 56).',
+    availability: (s) => (playerMinistry(s) ? null : 'hidden'),
+    apply: (s) => leaveMinistry(s, 'Você pediu demissão.'),
+  },
+  // ---------------- Presidência (jogador presidente) ----------------
+  {
+    id: 'pres_estilo', label: 'Reforma ministerial / estilo de governo', category: 'Presidência', cost: 1,
+    description: 'Coalizão ampla: mais votos no Congresso, ministros menos técnicos e mais pressão por cargos. Centralizar: ministério do seu campo, mais coeso e competente, mas base pequena. No máximo uma reforma a cada seis meses.',
+    availability: (s) => (playerIsPresident(s) ? null : 'hidden'),
+    paramLabel: 'Estilo',
+    params: () => [{ value: 'coalizao', label: 'Coalizão ampla (presidencialismo de coalizão)' }, { value: 'misto', label: 'Coalizão moderada' }, { value: 'centralizador', label: 'Centralizar no próprio campo' }],
+    apply: (s, rng, param) => presSetStyle(s, rng, param as 'coalizao'),
+  },
+  {
+    id: 'pres_nomear', label: 'Trocar um ministro', category: 'Presidência', cost: 1,
+    description: 'Livre nomeação e exoneração (CF art. 84, I). Nome técnico: mais competência, menos votos. Nome político de partido aliado: agrada a base.',
+    availability: (s) => (playerIsPresident(s) ? null : 'hidden'),
+    paramLabel: 'Pasta e perfil',
+    params: () => MINISTRIES.flatMap((m) => [{ value: `${m.id}|tecnico`, label: `${m.name} — nome técnico` }, { value: `${m.id}|politico`, label: `${m.name} — indicação de partido aliado` }]),
+    apply: (s, rng, param) => presAppoint(s, rng, param!),
+  },
+  {
+    id: 'pres_proposta', label: 'Enviar proposta ao Congresso / editar MP', category: 'Presidência', cost: 1,
+    description: 'Projetos de lei e PECs vão a votação meses depois, conforme sua base. Medidas provisórias valem na hora, mas caem se o Congresso não aprovar em até 120 dias (CF art. 62).',
+    availability: (s) => (playerIsPresident(s) ? null : 'hidden'),
+    paramLabel: 'Proposta',
+    params: () => PRES_AGENDA.map((m) => ({ value: m.id, label: `${m.kind} — ${m.label}` })),
+    apply: (s, rng, param) => presMeasure(s, rng, param!),
+  },
+  {
+    id: 'pres_fiscal', fatigue: false, label: 'Definir a política fiscal do ano', category: 'Presidência', cost: 1,
+    description: 'Uma vez por ano. Ajuste melhora as contas e a confiança, mas desacelera a economia; expansão estimula agora, com risco de inflação e dívida. O Banco Central é autônomo e reage com os juros.',
+    availability: (s) => (playerIsPresident(s) ? ((s.federal?.economy.stanceYear ?? 0) === s.month.year ? 'Política fiscal deste ano já definida.' : null) : 'hidden'),
+    paramLabel: 'Política',
+    params: () => [{ value: 'ajuste', label: 'Ajuste fiscal' }, { value: 'neutra', label: 'Neutra' }, { value: 'expansao', label: 'Expansionista' }, { value: 'pedalada', label: 'Maquiar as contas (ILEGAL — crime de responsabilidade)' }],
+    apply: (s, _rng, param) => presFiscal(s, param as 'ajuste'),
+  },
+  {
+    id: 'pres_emendas', label: 'Liberar emendas e cargos para a base', category: 'Presidência', cost: 1,
+    description: 'Melhora o humor do Congresso. Custa ao Tesouro e pode virar notícia de "balcão de negócios".',
+    availability: (s) => (playerIsPresident(s) ? null : 'hidden'),
+    paramLabel: 'Valor',
+    params: () => [2, 5, 10].map((v) => ({ value: String(v), label: `R$ ${v} bi` })),
+    apply: (s, _rng, param) => presEmendas(s, Number(param)),
+  },
+  {
+    id: 'pres_pronunciamento', label: 'Pronunciamento em rede nacional', category: 'Presidência', cost: 1,
+    description: 'Fala direto à população. Depende de comunicação e carisma — e às vezes dá panelaço.',
+    availability: (s) => (playerIsPresident(s) ? null : 'hidden'),
+    apply: (s, rng) => presSpeech(s, rng),
+  },
+  {
+    id: 'pres_viagem', label: 'Viagem a uma região do país', category: 'Presidência', cost: 1,
+    description: 'Inaugurações, visitas e imprensa regional.',
+    availability: (s) => (playerIsPresident(s) ? null : 'hidden'),
+    paramLabel: 'Região',
+    params: () => BR_REGIONS.map((r) => ({ value: `br_${r}`, label: brName(r) })),
+    apply: (s, rng, param) => { const msg = nationalAgenda(s, rng, param!); s.federal!.regionBias[param!.slice(3) as 'norte'] += 1.5; return msg.replace('Lembre: quem reelege você é o eleitorado de SP, e cada viagem afasta da base.', ''); },
+  },
+  {
+    id: 'pres_internacional', label: 'Viagem internacional / cúpula', category: 'Presidência', cost: 1,
+    description: 'Acordos e projeção; o(a) vice assume interinamente (CF art. 79).',
+    availability: (s) => (playerIsPresident(s) ? null : 'hidden'),
+    apply: (s) => presInternational(s),
+  },
+  // ---------------- Vice-Presidência ----------------
+  {
+    id: 'vp_articular', label: 'Articular votos do governo', category: 'Vice-Presidência', cost: 1,
+    description: 'Ajuda o(a) presidente no Congresso. Melhora a relação com o Planalto.',
+    availability: (s) => (playerIsVice(s) ? null : 'hidden'),
+    apply: (s, rng) => viceAction(s, rng, 'articular'),
+  },
+  {
+    id: 'vp_missao', label: 'Missão oficial no exterior', category: 'Vice-Presidência', cost: 1,
+    description: 'Representa o governo; projeção nacional.',
+    availability: (s) => (playerIsVice(s) ? null : 'hidden'),
+    apply: (s, rng) => viceAction(s, rng, 'missao'),
+  },
+  {
+    id: 'vp_agenda', label: 'Agenda numa região do país', category: 'Vice-Presidência', cost: 1,
+    description: 'Visitas e imprensa regional.',
+    availability: (s) => (playerIsVice(s) ? null : 'hidden'),
+    paramLabel: 'Região',
+    params: () => BR_REGIONS.map((r) => ({ value: `br_${r}`, label: brName(r) })),
+    apply: (s, rng, param) => viceAction(s, rng, 'agenda', param),
+  },
+  {
+    id: 'vp_perfil', label: 'Marcar posição própria', category: 'Vice-Presidência', cost: 1,
+    description: 'Entrevistas com opinião própria, de olho no futuro. Projeção sobe; o Planalto não gosta.',
+    availability: (s) => (playerIsVice(s) ? null : 'hidden'),
+    apply: (s, rng) => viceAction(s, rng, 'perfil'),
+  },
+  {
+    id: 'vp_ministerio', fatigue: false, label: 'Acumular um ministério', category: 'Vice-Presidência', cost: 1,
+    description: 'A Constituição prevê que o(a) vice auxilie o presidente em missões especiais (CF art. 79, parágrafo único); na prática, vices já acumularam ministérios.',
+    availability: (s) => (playerIsVice(s) && !s.player.mandate?.minister ? null : 'hidden'),
+    paramLabel: 'Pasta',
+    params: () => MINISTRIES.filter((m) => !['fazenda', 'casa_civil', 'sri'].includes(m.id)).map((m) => ({ value: m.id, label: m.name })),
+    apply: (s, _rng, param) => {
+      const m = s.player.mandate!;
+      const def = ministryById(param!)!;
+      m.minister = { ministry: def.id, budgetLeft: def.budget, performance: 55, relationPresident: s.federal?.vice?.relation ?? 60, since: { ...s.month }, licensed: null };
+      s.federal!.cabinet[def.id] = { name: s.character.name, partyId: s.player.partyId, competence: 60, kind: 'politico', isPlayer: true };
+      return `Além da Vice-Presidência, você agora chefia o ${def.name}.`;
+    },
   },
   {
     id: 'up_agenda_nacional', label: 'Agenda nacional (viagem a uma região)', category: 'Mandato estadual/federal', cost: 1,

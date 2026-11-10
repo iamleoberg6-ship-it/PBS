@@ -9,6 +9,7 @@
 // não decide se pessoas reais vão concorrer, nem quem venceria. Os votos são gerados por modelo de gameplay.
 
 import { rememberVotes } from './careers';
+import { nationalIndex } from './national';
 import { GAMEPLAY, genRulepack } from '../data/rulepack';
 import { PARTIES, allListIds, listIdForParty, listMembers, listName, partyById } from '../data/parties';
 import { allocateProportional, type PropList } from '../rules/proportional';
@@ -110,6 +111,7 @@ export function pickCouncillorCandidates(s: GameState, rng: RngState): Councillo
 // ---------------- Corridas majoritárias ----------------
 
 export function createStateRace(s: GameState, rng: RngState, kind: 'governador' | 'senador' | 'presidente'): RaceCandidate[] {
+  // Presidente: força das listas no país é aproximada pela de SP (o jogo não simula os 27 estados) — PROPOSTA.
   const ranked = allListIds().map((id) => ({ id, s: stateListStrength(s, id) })).sort((a, b) => b.s - a.s);
   const n = kind === 'senador' ? 6 : kind === 'governador' ? 5 : 5;
   const runners = [...ranked.slice(0, n - 1), ranked[7] ?? ranked[n]];
@@ -134,7 +136,40 @@ function playerMajStrength(s: GameState): number {
   return Math.pow(cs, 1.05) * (0.22 + 0.9 * Math.pow(score / 100, 1.7)) * Math.max(0.8, Math.min(1.25, campaignFactor(s)));
 }
 
-function activeField(s: GameState, race: RaceCandidate[], kind: 'governador' | 'senador'): (RaceCandidate & { strength: number })[] {
+/** Força do jogador na disputa presidencial: conta a projeção nacional, não só SP (PROPOSTA). */
+function playerPresStrength(s: GameState): number {
+  const c = s.player.candidacy!;
+  const coalition = [s.player.partyId!, ...c.coalitionPartyIds];
+  const cs = coalition.reduce((a, id) => a + stateStrength(s, id), 0);
+  const natRec = s.national ? nationalIndex(s, 'recognition') : s.player.recognition * 0.25;
+  const natApr = s.national ? nationalIndex(s, 'approval') : 50;
+  const score = Math.max(0, Math.min(100, natRec * 0.8 + (natApr - 50) * 0.4 + s.player.recognition * 0.15));
+  return Math.pow(cs, 1.05) * (0.22 + 0.9 * Math.pow(score / 100, 1.5)) * Math.max(0.8, Math.min(1.25, campaignFactor(s)));
+}
+
+/** Quanto um vice conhecido acrescenta à chapa (PROPOSTA). */
+function vicePull(s: GameState) {
+  const natRec = s.national ? nationalIndex(s, 'recognition') : s.player.recognition * 0.25;
+  return 0.02 + natRec / 400;
+}
+
+/** 2º turno presidencial com o jogador na chapa. */
+export function resolvePresidentRunoff(s: GameState, rng: RngState): string | null {
+  const rec = s.generalElections.find((e) => e.year === s.month.year);
+  const pr = rec?.presidentRunoffPending;
+  if (!rec || !pr) return null;
+  const mine = (x: typeof pr.a) => x.isPlayer || (!!pr.viceList && listIdForParty(x.partyId) === pr.viceList);
+  const boost = (x: typeof pr.a) => (x.isPlayer ? 1 + (s.player.candidacy?.campaignPoints ?? 0) / 180 + (s.character.attributes.negotiation - 50) / 260 - (s.player.candidacy?.irregularities ?? 0) * 0.05 : mine(x) ? 1 + vicePull(s) : 1);
+  rec.presidentRunoff = resolveRunoff(rng, pr.a, pr.b, pr.rest, boost(pr.a), boost(pr.b));
+  const win = rec.presidentRunoff.winnerId === pr.a.id ? pr.a : pr.b;
+  rec.presidentWinner = { id: win.id, name: win.name, partyId: win.partyId, isPlayer: win.isPlayer, viceIsPlayer: !!pr.viceList && !win.isPlayer && mine(win) };
+  rec.playerElected = mine(win);
+  rec.presidentRunoffPending = undefined;
+  if (rec.playerOffice === 'presidente') return win.isPlayer ? 'VOCÊ VENCEU O 2º TURNO E FOI ELEITO(A) PRESIDENTE DA REPÚBLICA!' : `${win.name} venceu o 2º turno presidencial. Você não foi eleito(a).`;
+  return mine(win) ? `A chapa de ${win.name} venceu o 2º turno: VOCÊ É O(A) VICE-PRESIDENTE ELEITO(A)!` : `${win.name} venceu o 2º turno presidencial; sua chapa perdeu.`;
+}
+
+function activeField(s: GameState, race: RaceCandidate[], kind: 'governador' | 'senador' | 'presidente'): (RaceCandidate & { strength: number })[] {
   const c = s.player.candidacy;
   const playerIn = !!c && c.office === kind && c.status === 'registrada';
   const coalitionLists = new Set(playerIn ? [s.player.partyId!, ...c!.coalitionPartyIds].map(listIdForParty) : []);
@@ -142,16 +177,17 @@ function activeField(s: GameState, race: RaceCandidate[], kind: 'governador' | '
     .filter((r) => !(playerIn && coalitionLists.has(r.listId)))
     .map((r) => {
       const m = listMembers(r.listId).reduce((a, id) => a + (s.parties[id]?.momentum ?? 0), 0) / listMembers(r.listId).length;
-      return { ...r, strength: r.baseStrength * (1 + m) };
+      const vice = kind === 'presidente' && c?.office === 'vice_presidente' && c.runningMateList === r.listId ? 1 + vicePull(s) : 1;
+      return { ...r, strength: r.baseStrength * (1 + m) * vice };
     });
   if (playerIn) {
-    out.push({ id: PLAYER, name: s.character.name, label: [s.player.partyId!, ...c!.coalitionPartyIds].map((id) => partyById(id)!.acronym).join(' / '), partyId: s.player.partyId!, listId: listIdForParty(s.player.partyId!), baseStrength: 0, birthDate: s.character.birthDate, isPlayer: true, strength: playerMajStrength(s) });
+    out.push({ id: PLAYER, name: s.character.name, label: [s.player.partyId!, ...c!.coalitionPartyIds].map((id) => partyById(id)!.acronym).join(' / '), partyId: s.player.partyId!, listId: listIdForParty(s.player.partyId!), baseStrength: 0, birthDate: s.character.birthDate, isPlayer: true, strength: kind === 'presidente' ? playerPresStrength(s) : playerMajStrength(s) });
   }
   return out;
 }
 
-export function stateRaceShares(s: GameState, kind: 'governador' | 'senador') {
-  const field = activeField(s, (kind === 'governador' ? s.stateWorld.governorRace : s.stateWorld.senateRace) ?? [], kind);
+export function stateRaceShares(s: GameState, kind: 'governador' | 'senador' | 'presidente') {
+  const field = activeField(s, (kind === 'governador' ? s.stateWorld.governorRace : kind === 'senador' ? s.stateWorld.senateRace : s.stateWorld.presidentRace) ?? [], kind);
   const total = field.reduce((a, c) => a + c.strength, 0) || 1;
   return field.map((c) => ({ id: c.id, name: c.name, label: c.label, share: c.strength / total }));
 }
@@ -269,17 +305,38 @@ export function runGeneralElection(s: GameState, rng: RngState, runs: Councillor
   const senateSeats = rp.seats.senadoSP.value;
   const senateWinners = senate.ranking.slice(0, senateSeats).map((r) => ({ id: r.id, name: r.name, partyId: sCands.find((c) => c.id === r.id)!.partyId, isPlayer: r.id === PLAYER }));
   senate.explanation = `Senado: eleição majoritária por maioria simples; ${senateSeats === 1 ? 'uma vaga (renovação de 1/3)' : 'duas vagas (renovação de 2/3 — cada eleitor vota em dois nomes)'}.`;
-  // Presidente: simulação de fundo com candidatos fictícios (o jogador não disputa — escopo do jogo é SP).
-  const presRace = createStateRace(s, rng, 'presidente');
-  const pField = presRace.map((r) => ({ ...r, strength: r.baseStrength * (listIdForParty(r.partyId) === listIdForParty(w.president.partyId) ? 0.8 + w.presidentApproval / 100 : 1) }));
-  const pCands = simulateMaj(s, rng, pField, 156_000_000);
-  const p1 = firstRound(pCands, 156_000_000, 200000);
+  // Presidente: candidatos personagens do jogo; o jogador pode disputar a Presidência ou compor uma chapa como vice.
+  const presRace = w.presidentRace ?? createStateRace(s, rng, 'presidente');
+  const pc = s.player.candidacy;
+  const playerPres = pc?.status === 'registrada' && pc.office === 'presidente';
+  const viceList = pc?.status === 'registrada' && pc.office === 'vice_presidente' ? pc.runningMateList : undefined;
+  const presLists = new Set(playerPres ? [s.player.partyId!, ...pc!.coalitionPartyIds].map(listIdForParty) : []);
+  const pField: (RaceCandidate & { strength: number })[] = presRace
+    .filter((r) => !presLists.has(r.listId))
+    .map((r) => ({ ...r, strength: r.baseStrength * (listIdForParty(r.partyId) === listIdForParty(w.president.partyId) ? 0.8 + w.presidentApproval / 100 : 1) * (viceList && r.listId === viceList ? 1 + vicePull(s) : 1) }));
+  if (!w.president.real && !w.president.isPlayer && w.president.consecutiveTerms < 2) {
+    const own = pField.find((r) => listIdForParty(r.partyId) === listIdForParty(w.president.partyId));
+    if (own) { own.name = w.president.name; own.id = w.president.id; }
+  }
+  if (playerPres) pField.push({ id: PLAYER, name: s.character.name, label: [s.player.partyId!, ...pc!.coalitionPartyIds].map((id) => partyById(id)!.acronym).join(' / '), partyId: s.player.partyId!, listId: listIdForParty(s.player.partyId!), baseStrength: 0, birthDate: s.character.birthDate, isPlayer: true, strength: playerPresStrength(s) });
+  const BR_ELECTORATE = 158_700_000; // TSE, eleitorado apto em 2026 (mantido na projeção)
+  const pCands = simulateMaj(s, rng, pField, BR_ELECTORATE);
+  const p1 = firstRound(pCands, BR_ELECTORATE, 200000);
   let p2: MajRoundResult | null = null;
+  let pWin: (typeof pCands)[number] | null = null;
+  let presPending: GeneralElectionRecord['presidentRunoffPending'] = undefined;
+  const mineTicket = (x: (typeof pCands)[number]) => x.isPlayer || (!!viceList && x.listId === viceList);
   if (p1.needsRunoff && p1.runoffIds) {
     const [a, b] = p1.runoffIds.map((id) => pCands.find((c) => c.id === id)!);
-    p2 = resolveRunoff(rng, a, b, pCands.filter((c) => c !== a && c !== b).reduce((x, c) => x + c.votes, 0));
-  }
-  const pWin = pCands.find((c) => c.id === (p2 ? p2.winnerId : p1.winnerId))!;
+    const rest = pCands.filter((c) => c !== a && c !== b).reduce((x, c) => x + c.votes, 0);
+    if (mineTicket(a) || mineTicket(b)) {
+      const pk = (x: typeof a) => ({ id: x.id, name: x.name, label: x.label, partyId: x.partyId, votes: x.votes, strength: x.strength, birthDate: x.birthDate, isPlayer: x.isPlayer });
+      presPending = { a: pk(a), b: pk(b), rest, viceList };
+    } else {
+      p2 = resolveRunoff(rng, a, b, rest);
+      pWin = pCands.find((c) => c.id === p2!.winnerId)!;
+    }
+  } else pWin = pCands.find((c) => c.id === p1.winnerId)!;
 
   const c = s.player.candidacy;
   const office = c?.status === 'registrada' ? c.office : null;
@@ -287,8 +344,17 @@ export function runGeneralElection(s: GameState, rng: RngState, runs: Councillor
     year, alesp: alesp.result, camara: camara.result, senate, senateSeats, governorFirst: g1, governorRunoff: null,
     presidentFirst: p1, presidentRunoff: p2, candidatePartyById,
     playerOffice: office, playerVotes: null, playerElected: false,
-    governorWinner: null, presidentWinner: { id: pWin.id, name: pWin.name, partyId: pWin.partyId }, senateWinners, councillorRuns: [], runoffPending: null,
+    governorWinner: null, presidentWinner: pWin ? { id: pWin.id, name: pWin.name, partyId: pWin.partyId, isPlayer: pWin.isPlayer, viceIsPlayer: !!viceList && pWin.listId === viceList } : null, senateWinners, councillorRuns: [], runoffPending: null,
+    presidentRunoffPending: presPending,
   };
+  for (const x of pCands) candidatePartyById[x.id] = x.partyId;
+  if (office === 'presidente' || office === 'vice_presidente') {
+    const mine = pCands.find((x) => mineTicket(x));
+    record.playerVotes = mine?.votes ?? 0;
+    if (presPending) notes.push(office === 'presidente' ? `PRESIDÊNCIA: você vai ao 2º turno com ${record.playerVotes.toLocaleString('pt-BR')} votos no 1º turno!` : `PRESIDÊNCIA: a chapa de ${mine?.name} com você de vice vai ao 2º turno!`);
+    else if (pWin && mineTicket(pWin)) { record.playerElected = true; notes.push(office === 'presidente' ? `VOCÊ FOI ELEITO(A) PRESIDENTE DA REPÚBLICA NO 1º TURNO, com ${record.playerVotes.toLocaleString('pt-BR')} votos!` : `A chapa de ${pWin.name} venceu no 1º turno: VOCÊ É O(A) VICE-PRESIDENTE ELEITO(A)!`); }
+    else notes.push(office === 'presidente' ? `Você teve ${record.playerVotes.toLocaleString('pt-BR')} votos para presidente e não chegou ao 2º turno.` : 'A chapa em que você era vice não chegou ao 2º turno.');
+  }
   for (const x of [...gCands, ...sCands]) candidatePartyById[x.id] = x.partyId;
   for (const r of runs) {
     const cc = s.government.councillors.find((x) => x.id === r.id);
@@ -330,7 +396,7 @@ export function runGeneralElection(s: GameState, rng: RngState, runs: Councillor
     if (win.isPlayer) notes.push('VOCÊ FOI ELEITO(A) GOVERNADOR(A) DE SÃO PAULO NO 1º TURNO!');
   }
   if (office === 'governador' && record.playerVotes === null) record.playerVotes = gCands.find((x) => x.isPlayer)?.votes ?? 0;
-  notes.push(`Eleições gerais ${year} (simulação): ${record.governorWinner ? `${record.governorWinner.isPlayer ? 'você' : record.governorWinner.name} (${partyById(record.governorWinner.partyId)?.acronym}) eleito(a) governador(a)` : 'governo vai ao 2º turno'}; Senado: ${senateWinners.map((x) => `${x.isPlayer ? 'você' : x.name} (${partyById(x.partyId)?.acronym})`).join(', ')}; presidência: ${p2 ? '2º turno' : '1º turno'} — ${pWin.name} (${partyById(pWin.partyId)?.acronym}, personagem fictício) eleito(a).`);
+  notes.push(`Eleições gerais ${year} (simulação): ${record.governorWinner ? `${record.governorWinner.isPlayer ? 'você' : record.governorWinner.name} (${partyById(record.governorWinner.partyId)?.acronym}) eleito(a) governador(a)` : 'governo vai ao 2º turno'}; Senado: ${senateWinners.map((x) => `${x.isPlayer ? 'você' : x.name} (${partyById(x.partyId)?.acronym})`).join(', ')}; presidência: ${presPending ? '2º turno em novembro' : `${p2 ? '2º turno' : '1º turno'} — ${pWin!.isPlayer ? 'você' : pWin!.name} (${partyById(pWin!.partyId)?.acronym}${pWin!.isPlayer ? '' : ', personagem do jogo'}) eleito(a)`}.`);
   // Compactação do save: o mapa de partidos só precisa dos eleitos, do jogador e dos majoritários.
   const keep = new Set([...alesp.result.elected, ...camara.result.elected].map((e) => e.candidateId).concat([PLAYER], gCands.map((x) => x.id), sCands.map((x) => x.id)));
   record.candidatePartyById = Object.fromEntries(Object.entries(candidatePartyById).filter(([id]) => keep.has(id)));
@@ -376,9 +442,15 @@ export function applyGeneralResults(s: GameState, rec: GeneralElectionRecord, st
       w.governorCoalition = coalitionFor(s, rec.governorWinner.partyId, rec.alesp.elected.map((e) => rec.candidatePartyById[e.candidateId]));
     }
     if (rec.presidentWinner) {
-      w.president = { id: rec.presidentWinner.id, name: rec.presidentWinner.name, partyId: rec.presidentWinner.partyId, real: false, since: rec.year + 1, until: rec.year + 4, consecutiveTerms: 1 };
+      const prev = w.president;
+      const pw = rec.presidentWinner;
+      const same = !prev.real && (prev.id === pw.id || (pw.isPlayer && prev.isPlayer));
+      w.president = { id: pw.id, name: pw.isPlayer ? s.character.name : pw.name, partyId: pw.partyId, real: false, since: rec.year + 1, until: rec.year + 4, consecutiveTerms: same ? prev.consecutiveTerms + 1 : 1, isPlayer: !!pw.isPlayer };
       w.presidentApproval = 55;
-      w.presidentCoalition = coalitionFor(s, rec.presidentWinner.partyId, []);
+      w.presidentCoalition = coalitionFor(s, pw.partyId, []);
+      w.vicePresident = pw.viceIsPlayer
+        ? { id: 'character_player', name: s.character.name, partyId: s.player.partyId!, real: false, since: rec.year + 1, until: rec.year + 4, consecutiveTerms: 1, isPlayer: true }
+        : { id: `vice_${rec.year}`, name: pw.isPlayer ? (s.player.candidacy?.viceName ?? 'Vice da chapa') : fictionalName(s.rng), partyId: pw.partyId, real: false, since: rec.year + 1, until: rec.year + 4, consecutiveTerms: 1 };
     }
   }
   if (stage === 'federal') {

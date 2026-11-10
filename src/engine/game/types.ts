@@ -119,6 +119,10 @@ export interface Candidacy {
   account: CampaignAccount;
   irregularities: number;
   plan?: CampaignPlan;
+  /** Chapa presidencial: vice do jogador candidato a presidente, ou lista do candidato a presidente quando o jogador é vice. */
+  viceName?: string;
+  runningMateList?: string;
+  runningMateName?: string;
 }
 
 export interface StaffDemand {
@@ -149,7 +153,7 @@ export interface StaffJob {
   since: GameMonth;
 }
 
-export type OfficeHeld = 'vereador' | 'prefeito' | 'secretario' | 'assessor' | 'deputado_estadual' | 'deputado_federal' | 'senador' | 'governador' | 'secretario_estadual';
+export type OfficeHeld = 'vereador' | 'prefeito' | 'secretario' | 'assessor' | 'deputado_estadual' | 'deputado_federal' | 'senador' | 'governador' | 'secretario_estadual' | 'presidente' | 'vice_presidente' | 'ministro';
 
 export interface Project {
   id: string;
@@ -175,6 +179,8 @@ export interface Mandate {
   secretariat?: Secretariat | null;
   /** Mandatos estaduais/federais (Fase 5): estado abstrato — SIMPLIFICAÇÃO documentada em upper.ts. */
   upper?: UpperMandate | null;
+  /** Ministro de Estado (ou vice com pasta). */
+  minister?: import('./federal').MinisterState | null;
 }
 
 export interface UpperMandate {
@@ -550,7 +556,7 @@ export interface Poll {
   results: { id: string; name: string; label: string; share: number }[]; // share sobre o total de entrevistados
   scenario: '1º turno' | '2º turno';
   /** Cargo pesquisado (ausente = prefeito, saves antigos). */
-  race?: 'prefeito' | 'governador' | 'senador';
+  race?: 'prefeito' | 'governador' | 'senador' | 'presidente';
   rejection?: Record<string, number>; // id → fração que não votaria de jeito nenhum
   knowledge?: Record<string, number>; // id → fração que conhece o candidato
   govEval?: { good: number; regular: number; bad: number };
@@ -616,6 +622,9 @@ export interface StateWorld {
   /** Vereadores que trocaram de mandato (eleitos deputados) e aguardam posse. */
   pendingDepartures: { councillorId: string; office: 'deputado_estadual' | 'deputado_federal'; posseMonth: number; real2026?: boolean }[];
   governorRace: RaceCandidate[] | null;
+  /** Candidaturas presidenciais do ciclo (personagens do jogo), conhecidas a partir de julho. */
+  presidentRace?: RaceCandidate[] | null;
+  vicePresident?: StateHolder | null;
   senateRace: RaceCandidate[] | null;
   /** Vereadores (IA) que anunciaram candidatura a deputado no ciclo corrente. */
   councillorRuns: { id: string; office: 'deputado_estadual' | 'deputado_federal' }[];
@@ -637,8 +646,10 @@ export interface GeneralElectionRecord {
   playerElected: boolean;
   playerVotesByRegion?: Record<string, number>;
   governorWinner: { id: string; name: string; partyId: string; isPlayer: boolean } | null;
-  presidentWinner: { id: string; name: string; partyId: string } | null;
+  presidentWinner: { id: string; name: string; partyId: string; isPlayer?: boolean; viceIsPlayer?: boolean } | null;
   senateWinners: { id: string; name: string; partyId: string; isPlayer: boolean }[];
+  /** 2º turno presidencial com o jogador (como candidato a presidente ou a vice na chapa). */
+  presidentRunoffPending?: GeneralElectionRecord['runoffPending'] & { viceList?: string };
   /** Vereadores de SP (IA) que disputaram e o resultado. */
   councillorRuns: { id: string; name: string; partyId: string; office: 'deputado_estadual' | 'deputado_federal'; votes: number; elected: boolean }[];
   runoffPending: {
@@ -749,6 +760,8 @@ export interface GameState {
   tutorial?: { enabled: boolean; seen: string[] };
   /** Brasil por grandes regiões (esfera federal). */
   national?: import('./national').NationalState;
+  /** Governo federal (Presidência, ministérios, economia nacional). */
+  federal?: import('./federal').FederalState;
   /** Resumo do último mês (Fase 6): o que mudou e por quê. */
   monthReport?: import('./ledger').MonthReportItem[];
   character: Character;

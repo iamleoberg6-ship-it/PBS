@@ -39,6 +39,7 @@ export * from './game/upper';
 export * from './game/team';
 export * from './game/tutorial';
 export * from './game/national';
+export * from './game/federal';
 export * from './game/livingworld';
 export * from './game/endings';
 export * from './game/careers';
