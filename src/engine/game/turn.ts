@@ -12,7 +12,7 @@ import { seatsByParty } from './council';
 import { PROFESSIONS } from './create';
 import { ensureMonthlyFloorVote, blocCounts, electMesa, initLegislature, legislatureMonthlyStep, legislatureNews, mesaWindow, playerIsCouncillor } from './legislature';
 import { createSecretariat, inviteAffinity, secretariatMonthlyStep } from './secretariat';
-import { campaignMonthlyStep, distributeVotes, electoralLawsuit, enrichMayorPoll, judgeAccounts, mayorRegionalShares } from './campaign';
+import { campaignMonthlyStep, distributeVotes, electoralLawsuit, enrichMayorPoll, enrichNationalPoll, judgeAccounts, mayorRegionalShares } from './campaign';
 import { bossEndorsement, leaveStaff, staffMonthlyStep } from './assessor';
 import { PLAYER } from './relations';
 import { aiFiscalPolicy, cityMonthlyStep, citySummaryForMayorApproval, closeFiscalYear, fiscalCalendar, isMayorPlayer, resetSecretariatForNewMayor, tcmStep } from './municipality';
@@ -335,7 +335,7 @@ function generalCalendar(s: GameState, t: number): string[] {
       if (race === 'senador' && !(mine && c!.office === 'senador')) continue;
       if (race === 'presidente' && !(mine && (c!.office === 'presidente' || c!.office === 'vice_presidente'))) continue;
       const poll = makeRacePoll(s, rng, stateRaceShares(s, race), race, G * 12 + 6);
-      if (poll) { s.polls.push(poll); newsFromPoll(s, poll, rng); }
+      if (poll) { if (race === 'presidente') enrichNationalPoll(s, poll); s.polls.push(poll); newsFromPoll(s, poll, rng); }
     }
   }
   if (t === mi(G, 10)) {

@@ -11,6 +11,7 @@ import { REGIONS, SEGMENTS, regionById, regionWeights, segmentById } from '../da
 import { EXPERT_SCALE, generalPosition } from '../data/ideology';
 import { GAMEPLAY } from '../data/rulepack';
 import { PLAYER, adjustRel } from './relations';
+import { BR_REGIONS, initNational, nationalIndex, type BrRegion } from './national';
 import type { CampaignPlan, GameState, Poll, RegionCampaign } from './types';
 
 const clamp = (v: number, a = 0, b = 100) => Math.max(a, Math.min(b, v));
@@ -57,8 +58,85 @@ export function addGoodwill(s: GameState, region: string, v: number) {
   }
 }
 
+// ---------------- Geografia da campanha ----------------
+// Campanha municipal/estadual: as 8 regiões da capital. Campanha presidencial (presidente ou vice): as 5 grandes
+// regiões do país, com peso pelo eleitorado real de 2026 (TSE). Prioridades das regiões do país são parâmetros de
+// jogo inspirados nos indicadores (desemprego e renda da PNAD, cobertura de saneamento) — o jogo não atribui
+// ideologia às regiões.
+
+export const NATIONAL_THEMES = [
+  { value: 'emprego', label: 'Emprego e renda' },
+  { value: 'custo', label: 'Custo de vida e inflação' },
+  { value: 'saude', label: 'Saúde (SUS)' },
+  { value: 'educacao', label: 'Educação' },
+  { value: 'seguranca', label: 'Segurança pública' },
+  { value: 'social', label: 'Combate à pobreza' },
+  { value: 'infraestrutura', label: 'Infraestrutura e saneamento' },
+  { value: 'ambiente', label: 'Meio ambiente e clima' },
+];
+export const NATIONAL_THEME_LABEL: Record<string, string> = Object.fromEntries(NATIONAL_THEMES.map((t) => [t.value, t.label]));
+
+const NATIONAL_PRIORITIES: Record<BrRegion, string[]> = {
+  norte: ['infraestrutura', 'saude', 'emprego'],
+  nordeste: ['emprego', 'social', 'educacao'],
+  centro_oeste: ['infraestrutura', 'seguranca', 'custo'],
+  sudeste: ['seguranca', 'saude', 'custo'],
+  sul: ['custo', 'infraestrutura', 'saude'],
+};
+/** Temas municipais dos segmentos traduzidos para a pauta nacional. */
+const SEG_THEME_NATIONAL: Record<string, string> = { mobilidade: 'infraestrutura', gcm: 'seguranca', habitacao: 'social', zeladoria: 'infraestrutura', cultura: 'educacao', meioambiente: 'ambiente', saude: 'saude', educacao: 'educacao' };
+
+export interface CampaignArea { id: string; name: string; priorities: string[]; weight: number; detail: string }
+
+export const isNationalCampaign = (s: GameState) => ['presidente', 'vice_presidente'].includes(s.player.candidacy?.office ?? '');
+
+export function campaignAreas(s: GameState): CampaignArea[] {
+  if (isNationalCampaign(s)) {
+    const n = s.national ?? initNational();
+    const tot = BR_REGIONS.reduce((a, r) => a + n.regions[r].electorate, 0);
+    return BR_REGIONS.map((r) => ({ id: `br_${r}`, name: n.regions[r].name, priorities: NATIONAL_PRIORITIES[r], weight: n.regions[r].electorate / tot, detail: `${n.regions[r].states} · ${(n.regions[r].electorate / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mi de eleitores` }));
+  }
+  const w = regionWeights();
+  return REGIONS.map((r) => ({ id: r.id, name: r.name, priorities: r.priorities, weight: w[r.id], detail: `renda ${r.income} (parâmetro)` }));
+}
+export const areaName = (s: GameState, id: string) => campaignAreas(s).find((a) => a.id === id)?.name ?? regionById(id)?.name ?? id;
+const areaPriorities = (id: string) => (id.startsWith('br_') ? NATIONAL_PRIORITIES[id.slice(3) as BrRegion] ?? [] : regionById(id)?.priorities ?? []);
+export const campaignHome = (s: GameState) => (isNationalCampaign(s) ? 'br_sudeste' : s.player.homeRegion);
+
+function initNationalPlan(s: GameState): CampaignPlan {
+  const n = s.national ?? initNational();
+  const pos = generalPosition(s.character.ideology) ?? 5;
+  const extreme = Math.abs(pos - 5) * 4;
+  const regions: Record<string, RegionCampaign> = {};
+  for (const r of BR_REGIONS) {
+    const p = n.player[r];
+    const home = r === 'sudeste';
+    regions[`br_${r}`] = {
+      presence: clamp((home ? 15 + s.player.base * 0.2 : 3) + Math.min(25, n.funds[r] * 0.4)),
+      knowledge: clamp(Math.max(3, p.recognition) + (home ? s.player.recognition * 0.25 : 0)),
+      rejection: clamp(8 + extreme + Math.max(0, 50 - p.approval) * 0.4),
+      leaders: home ? 1 : 0,
+    };
+  }
+  return {
+    regions, focus: ['br_sudeste'], themes: [], segments: [], tone: 'propositivo',
+    team: { coordenacao: false, marketing: false, juridico: false, contabilidade: false },
+    internalPolls: [], accountability: null,
+  };
+}
+
+/** Plano atual, coerente com a geografia da candidatura (se o cargo mudou, o plano é refeito). */
+export function currentPlan(s: GameState): CampaignPlan | null {
+  const c = s.player.candidacy;
+  if (!c?.plan) return null;
+  const want = campaignAreas(s)[0].id;
+  if (!c.plan.regions[want]) c.plan = initPlan(s);
+  return c.plan;
+}
+
 // ---------------- Plano ----------------
 export function initPlan(s: GameState): CampaignPlan {
+  if (isNationalCampaign(s)) return initNationalPlan(s);
   const regions: Record<string, RegionCampaign> = {};
   const pos = generalPosition(s.character.ideology) ?? 5;
   const extreme = Math.abs(pos - 5) * 4;
@@ -84,7 +162,7 @@ export function ensurePlan(s: GameState): CampaignPlan | null {
   const c = s.player.candidacy;
   if (!c) return null;
   if (!c.plan) c.plan = initPlan(s);
-  return c.plan;
+  return currentPlan(s);
 }
 
 /** Avaliação geral do candidato (0–1). */
@@ -94,9 +172,10 @@ function appeal(s: GameState): number {
 }
 
 export function themeFit(plan: CampaignPlan, regionId: string): number {
-  const r = regionById(regionId)!;
-  const hits = plan.themes.filter((t) => r.priorities.includes(t)).length;
-  const segHits = plan.segments.reduce((acc, sg) => acc + (segmentById(sg)?.themes.filter((t) => plan.themes.includes(t)).length ?? 0), 0);
+  const pr = areaPriorities(regionId);
+  const nat = regionId.startsWith('br_');
+  const hits = plan.themes.filter((t) => pr.includes(t)).length;
+  const segHits = plan.segments.reduce((acc, sg) => acc + (segmentById(sg)?.themes.filter((t) => plan.themes.includes(nat ? SEG_THEME_NATIONAL[t] ?? t : t)).length ?? 0), 0);
   return 0.7 + hits * 0.15 + Math.min(0.15, segHits * 0.05) - (plan.themes.length === 0 ? 0.05 : 0);
 }
 
@@ -108,29 +187,29 @@ export function regionalIntention(s: GameState, plan: CampaignPlan, regionId: st
 
 /** Intenção de referência: candidatura com o mesmo reconhecimento, sem plano, sem temas e sem trabalho territorial. */
 function baselineIntention(s: GameState): number {
-  return (Math.max(5, s.player.recognition * 0.85) / 100) * appeal(s) * 0.65 * 0.88 * 0.62;
+  const rec = isNationalCampaign(s) ? (s.national ? nationalIndex(s, 'recognition') : s.player.recognition * 0.25) : s.player.recognition * 0.85;
+  return (Math.max(5, rec) / 100) * appeal(s) * 0.65 * 0.88 * 0.62;
 }
 
 /** Fator territorial que multiplica a força geral da candidatura (limitado). */
 export function campaignFactor(s: GameState): number {
-  const plan = s.player.candidacy?.plan;
+  const plan = currentPlan(s);
   if (!plan) return 1;
-  const w = regionWeights();
-  const avg = REGIONS.reduce((acc, r) => acc + w[r.id] * regionalIntention(s, plan, r.id), 0);
+  const avg = campaignAreas(s).reduce((acc, r) => acc + r.weight * regionalIntention(s, plan, r.id), 0);
   const f = avg / Math.max(0.005, baselineIntention(s));
   return Math.max(0.65, Math.min(1.45, Math.pow(f, 0.6)));
 }
 
 /** Distribui um total de votos do jogador pelas regiões, segundo a intenção regional. */
 export function distributeVotes(s: GameState, total: number): Record<string, number> {
-  const plan = s.player.candidacy?.plan ?? initPlan(s);
-  const w = regionWeights();
-  const raw = REGIONS.map((r) => w[r.id] * Math.max(0.0001, regionalIntention(s, plan, r.id)));
+  const plan = currentPlan(s) ?? initPlan(s);
+  const areas = campaignAreas(s);
+  const raw = areas.map((r) => r.weight * Math.max(0.0001, regionalIntention(s, plan, r.id)));
   const tot = raw.reduce((a, b) => a + b, 0);
   const out: Record<string, number> = {};
   let acc = 0;
-  REGIONS.forEach((r, i) => { out[r.id] = Math.round((total * raw[i]) / tot); acc += out[r.id]; });
-  out[REGIONS[REGIONS.length - 1].id] += total - acc;
+  areas.forEach((r, i) => { out[r.id] = Math.round((total * raw[i]) / tot); acc += out[r.id]; });
+  out[areas[areas.length - 1].id] += total - acc;
   return out;
 }
 
@@ -166,7 +245,7 @@ export function visitRegion(s: GameState, rng: RngState, regionId: string): stri
   rc.presence = grow(rc.presence, g);
   rc.knowledge = grow(rc.knowledge, g * 0.8);
   s.player.candidacy!.campaignPoints += 1.5;
-  return `Agenda em ${regionById(regionId)!.name}: presença +${g.toFixed(0)}, conhecimento do seu nome na região sobe.`;
+  return `${isNationalCampaign(s) ? 'Caravana pelo' : 'Agenda em'} ${areaName(s, regionId)}: presença +${g.toFixed(0)}, conhecimento do seu nome na região sobe.`;
 }
 
 export function recruitLeader(s: GameState, rng: RngState, regionId: string): string {
@@ -178,16 +257,23 @@ export function recruitLeader(s: GameState, rng: RngState, regionId: string): st
   if (next(rng) < p) {
     rc.leaders += 1;
     rc.knowledge = grow(rc.knowledge, 4);
-    return `Uma liderança comunitária de ${regionById(regionId)!.name} (personagem do jogo) declarou apoio. Lideranças na região: ${rc.leaders}.`;
+    return isNationalCampaign(s) ? `Governadores, prefeitos e lideranças do ${areaName(s, regionId)} (personagens do jogo) entraram no palanque. Apoios na região: ${rc.leaders}.` : `Uma liderança comunitária de ${areaName(s, regionId)} (personagem do jogo) declarou apoio. Lideranças na região: ${rc.leaders}.`;
   }
-  return `As lideranças de ${regionById(regionId)!.name} ainda não fecharam com você.`;
+  return `As lideranças de ${areaName(s, regionId)} ainda não fecharam com você.`;
+}
+
+/** Custo de cada função da equipe: majoritárias pagam o valor "grande"; a presidencial, 5× (PROPOSTA). */
+export function teamCost(s: GameState, role: TeamRole): number {
+  const o = s.player.candidacy?.office ?? '';
+  if (o === 'presidente' || o === 'vice_presidente') return TEAM_ROLES[role].costP * 5;
+  return ['prefeito', 'governador', 'senador'].includes(o) ? TEAM_ROLES[role].costP : TEAM_ROLES[role].costV;
 }
 
 export function hireRole(s: GameState, role: TeamRole): string | number {
   const plan = ensurePlan(s)!;
   if (plan.team[role]) return 'Essa função já está contratada.';
   const c = s.player.candidacy!;
-  const cost = c.office === 'prefeito' ? TEAM_ROLES[role].costP : TEAM_ROLES[role].costV;
+  const cost = teamCost(s, role);
   const bal = c.account.fefc + c.account.donations + c.account.ownFunds + (c.account.fundoPartidario ?? 0) - c.account.spent;
   if (bal < cost) return `Saldo de campanha insuficiente (precisa de R$ ${cost.toLocaleString('pt-BR')}).`;
   c.account.spent += cost;
@@ -209,35 +295,35 @@ export function mediaPush(s: GameState, rng: RngState, channel: 'digital' | 'imp
   const mk = plan.team.marketing ? 1.3 : 1;
   const comm = s.character.attributes.communication;
   const g = (3 + comm / 25 + next(rng) * 2) * reach * mk;
-  for (const r of REGIONS) plan.regions[r.id].knowledge = grow(plan.regions[r.id].knowledge, g * (plan.focus.includes(r.id) ? 1.3 : 0.8));
-  if (plan.tone === 'ataque') for (const r of REGIONS) plan.regions[r.id].rejection = clamp(plan.regions[r.id].rejection + 1.5);
+  for (const r of campaignAreas(s)) plan.regions[r.id].knowledge = grow(plan.regions[r.id].knowledge, g * (plan.focus.includes(r.id) ? 1.3 : 0.8));
+  if (plan.tone === 'ataque') for (const r of campaignAreas(s)) plan.regions[r.id].rejection = clamp(plan.regions[r.id].rejection + 1.5);
   return `Comunicação (${channel === 'digital' ? 'redes e impulsionamento' : channel === 'tv' ? 'rádio e TV' : 'material impresso e carro de som'}): alcance de ${Math.round(reach * 100)}% no público-alvo; conhecimento +${g.toFixed(1)}.`;
 }
 
 export function attackOpponent(s: GameState, rng: RngState): string {
   const plan = ensurePlan(s)!;
-  const race = s.mayorRace?.filter((r) => !r.isPlayer) ?? [];
-  const isMayor = s.player.candidacy!.office === 'prefeito';
-  const target = isMayor && race.length ? [...race].sort((a, b) => b.baseStrength - a.baseStrength)[0] : null;
+  const office = s.player.candidacy!.office;
+  const race = (office === 'prefeito' ? s.mayorRace : office === 'presidente' ? s.stateWorld.presidentRace : office === 'governador' ? s.stateWorld.governorRace : null)?.filter((r) => !r.isPlayer) ?? [];
+  const target = race.length ? [...race].sort((a, b) => b.baseStrength - a.baseStrength)[0] : null;
   const ok = next(rng) < 0.45 + s.character.attributes.communication / 300;
-  for (const r of REGIONS) plan.regions[r.id].rejection = clamp(plan.regions[r.id].rejection + (ok ? 1.5 : 4));
+  for (const r of campaignAreas(s)) plan.regions[r.id].rejection = clamp(plan.regions[r.id].rejection + (ok ? 1.5 : 4));
   if (target && ok) {
     target.baseStrength *= 0.94;
     return `Campanha de contraste contra ${target.name}: o adversário perdeu terreno, mas sua rejeição também subiu.`;
   }
   if (ok) { s.player.candidacy!.campaignPoints += 2; return 'Contraste com os adversários repercutiu bem na sua base; a rejeição subiu um pouco.'; }
-  return 'O ataque foi visto como baixaria: sua rejeição subiu em toda a cidade.';
+  return `O ataque foi visto como baixaria: sua rejeição subiu ${isNationalCampaign(s) ? 'no país inteiro' : 'em toda a cidade'}.`;
 }
 
 export function internalPoll(s: GameState, rng: RngState): string {
   const plan = ensurePlan(s)!;
   const byRegion: Record<string, number> = {};
-  for (const r of REGIONS) byRegion[r.id] = Math.max(0, regionalIntention(s, plan, r.id) * 100 + normal(rng, 0, 1.2));
-  const w = regionWeights();
-  const overall = REGIONS.reduce((a, r) => a + w[r.id] * byRegion[r.id], 0);
-  const rejection = REGIONS.reduce((a, r) => a + w[r.id] * plan.regions[r.id].rejection, 0);
+  const areas = campaignAreas(s);
+  for (const r of areas) byRegion[r.id] = Math.max(0, regionalIntention(s, plan, r.id) * 100 + normal(rng, 0, 1.2));
+  const overall = areas.reduce((a, r) => a + r.weight * byRegion[r.id], 0);
+  const rejection = areas.reduce((a, r) => a + r.weight * plan.regions[r.id].rejection, 0);
   plan.internalPolls.push({ month: { ...s.month }, byRegion, overall, rejection });
-  const best = [...REGIONS].sort((a, b) => byRegion[b.id] - byRegion[a.id]);
+  const best = [...areas].sort((a, b) => byRegion[b.id] - byRegion[a.id]);
   return `Pesquisa interna (não divulgada, sem registro): melhor desempenho em ${best[0].name} e ${best[1].name}; pior em ${best[best.length - 1].name}. Rejeição média ${rejection.toFixed(0)}%.`;
 }
 
@@ -257,17 +343,24 @@ export function requestPartyFund(s: GameState, rng: RngState): string {
 
 // ---------------- Passo mensal e pós-eleição ----------------
 export function campaignMonthlyStep(s: GameState) {
-  const plan = s.player.candidacy?.plan;
+  const plan = currentPlan(s);
   if (!plan) return;
-  for (const r of REGIONS) {
+  const nat = isNationalCampaign(s);
+  for (const r of campaignAreas(s)) {
     const rc = plan.regions[r.id];
-    const floor = s.player.recognition * 0.85;
+    const floor = nat ? (s.national?.player[r.id.slice(3) as BrRegion]?.recognition ?? 3) : s.player.recognition * 0.85;
     rc.knowledge = clamp(rc.knowledge + (floor - rc.knowledge) * 0.05);
     rc.presence = clamp(rc.presence * 0.95);
     rc.rejection = clamp(rc.rejection + (10 - rc.rejection) * 0.03);
   }
-  const home = plan.regions[s.player.homeRegion];
-  if (home) home.knowledge = grow(home.knowledge, s.player.base / 40);
+  // Campanha presidencial: o que o eleitor de cada região aprende sobre você fica (reconhecimento nacional).
+  if (nat && s.national) for (const r of BR_REGIONS) {
+    const p = s.national.player[r];
+    const k = plan.regions[`br_${r}`]?.knowledge ?? 0;
+    if (k > p.recognition) p.recognition = clamp(p.recognition + (k - p.recognition) * 0.06);
+  }
+  const home = plan.regions[campaignHome(s)];
+  if (home) home.knowledge = grow(home.knowledge, s.player.base / (nat ? 120 : 40));
 }
 
 /** Prestação de contas à Justiça Eleitoral (dezembro do ano eleitoral). */
@@ -319,6 +412,20 @@ export function pickHomeRegion(rng: RngState): string {
   let x = next(rng);
   for (const r of REGIONS) { x -= w[r.id]; if (x <= 0) return r.id; }
   return REGIONS[0].id;
+}
+
+/** Cortes regionais de uma pesquisa presidencial: o jogador varia conforme a campanha em cada região; os demais, não (sem viés ideológico regional). */
+export function enrichNationalPoll(s: GameState, poll: Poll) {
+  const plan = currentPlan(s);
+  const areas = campaignAreas(s);
+  const avg = plan ? areas.reduce((a, r) => a + r.weight * regionalIntention(s, plan, r.id), 0) : 1;
+  const out: Record<string, { id: string; share: number }[]> = {};
+  for (const r of areas) {
+    const raw = poll.results.map((c) => c.share * (c.id === PLAYER && plan && avg > 0 ? Math.max(0.4, Math.min(2, regionalIntention(s, plan, r.id) / avg)) : 1));
+    const tot = raw.reduce((a, b) => a + b, 0) || 1;
+    out[r.id] = poll.results.map((c, i) => ({ id: c.id, share: (raw[i] / tot) * (1 - poll.undecided) })).sort((a, b) => b.share - a.share).slice(0, 3);
+  }
+  poll.byRegion = out;
 }
 
 /** Acréscimos de uma pesquisa de prefeito: rejeição, conhecimento, avaliação do governo e cortes regionais. */

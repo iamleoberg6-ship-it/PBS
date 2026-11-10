@@ -18,7 +18,7 @@ import { ideologicalDistance, partyIdeology } from '../data/ideology';
 import { next, normal, pareto, type RngState } from '../rng';
 import { apportion } from '../util/apportion';
 import { ballotName, fictionalName, randomBirthDate } from './names';
-import { campaignFactor } from './campaign';
+import { campaignFactor, distributeVotes } from './campaign';
 import { estimateVereadorVotes, playerElectoralScore } from './elections';
 import { PLAYER } from './relations';
 import { genCycle, mi } from './cycle';
@@ -351,6 +351,7 @@ export function runGeneralElection(s: GameState, rng: RngState, runs: Councillor
   if (office === 'presidente' || office === 'vice_presidente') {
     const mine = pCands.find((x) => mineTicket(x));
     record.playerVotes = mine?.votes ?? 0;
+    if (record.playerVotes) record.playerVotesByRegion = distributeVotes(s, record.playerVotes);
     if (presPending) notes.push(office === 'presidente' ? `PRESIDÊNCIA: você vai ao 2º turno com ${record.playerVotes.toLocaleString('pt-BR')} votos no 1º turno!` : `PRESIDÊNCIA: a chapa de ${mine?.name} com você de vice vai ao 2º turno!`);
     else if (pWin && mineTicket(pWin)) { record.playerElected = true; notes.push(office === 'presidente' ? `VOCÊ FOI ELEITO(A) PRESIDENTE DA REPÚBLICA NO 1º TURNO, com ${record.playerVotes.toLocaleString('pt-BR')} votos!` : `A chapa de ${pWin.name} venceu no 1º turno: VOCÊ É O(A) VICE-PRESIDENTE ELEITO(A)!`); }
     else notes.push(office === 'presidente' ? `Você teve ${record.playerVotes.toLocaleString('pt-BR')} votos para presidente e não chegou ao 2º turno.` : 'A chapa em que você era vice não chegou ao 2º turno.');

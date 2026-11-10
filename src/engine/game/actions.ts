@@ -15,7 +15,7 @@ import { contestBlock } from './partyorg';
 import { fatigueMultiplier, registerUse, dampenGains } from './fatigue';
 import { snapshot, recordDiff } from './ledger';
 import { REGIONS, SEGMENTS } from '../data/regions';
-import { TEAM_ROLES, spendingLimit, addCategory, attackOpponent, ensurePlan, hireRole, internalPoll, mediaPush, recruitLeader, requestPartyFund, visitRegion, type TeamRole } from './campaign';
+import { TEAM_ROLES, NATIONAL_THEMES, spendingLimit, addCategory, areaName, attackOpponent, campaignAreas, campaignHome, currentPlan, ensurePlan, hireRole, internalPoll, isNationalCampaign, mediaPush, recruitLeader, requestPartyFund, teamCost, visitRegion, type TeamRole } from './campaign';
 import { askPromotion, demandChance, fulfillDemand, hireAsStaff, leaveStaff, staffBossOptions, staffInitiative, switchOffice } from './assessor';
 import { PROFESSIONS } from './create';
 import { recomputeNetWorth } from './finance';
@@ -123,12 +123,13 @@ const fundBase = (s: GameState, major: number, minor: number) => {
   if (o === 'deputado_estadual' || o === 'deputado_federal') return minor * 2;
   return minor;
 };
-const isMayorRace = (s: GameState) => ['prefeito', 'governador', 'senador'].includes(s.player.candidacy?.office ?? '');
+const isMayorRace = (s: GameState) => ['prefeito', 'governador', 'senador', 'presidente'].includes(s.player.candidacy?.office ?? '');
 
 function spendCampaign(s: GameState, vereadorCost: number, mayorCost: number, category = 'outros'): number | string {
   // Deputado: campanha estadual custa mais que a de vereador (PROPOSTA: 1,6×).
   const office = s.player.candidacy?.office;
-  const cost = isMayorRace(s) ? mayorCost : Math.round(vereadorCost * (office === 'deputado_estadual' || office === 'deputado_federal' ? 1.6 : 1));
+  // Presidencial: 5× a de prefeito da capital (PROPOSTA; limite de gastos de presidente é muito maior).
+  const cost = isNationalCampaign(s) ? mayorCost * 5 : isMayorRace(s) ? mayorCost : Math.round(vereadorCost * (office === 'deputado_estadual' || office === 'deputado_federal' ? 1.6 : 1));
   if (campaignBalance(s) < cost) return `Saldo de campanha insuficiente (precisa de ${brl(cost)}).`;
   s.player.candidacy!.account.spent += cost;
   addCategory(s.player.candidacy!.account, category, cost);
@@ -139,13 +140,16 @@ function setPlanOption(s: GameState, param: string): string {
   const plan = ensurePlan(s)!;
   const [k, v] = param.split('|');
   const toggle = (arr: string[], val: string, max: number) => { const i = arr.indexOf(val); if (i >= 0) { arr.splice(i, 1); return 'removido'; } if (arr.length >= max) arr.shift(); arr.push(val); return 'incluído'; };
-  if (k === 'foco') return `Região ${REGIONS.find((r) => r.id === v)?.name}: ${toggle(plan.focus, v, 3)} nas prioridades.`;
-  if (k === 'tema') return `Tema ${THEMES.find((t) => t.value === v)?.label}: ${toggle(plan.themes, v, 3)}.`;
+  if (k === 'foco') return `Região ${areaName(s, v)}: ${toggle(plan.focus, v, 3)} nas prioridades.`;
+  if (k === 'tema') return `Tema ${campaignThemes(s).find((t) => t.value === v)?.label}: ${toggle(plan.themes, v, 3)}.`;
   if (k === 'seg') return `Segmento ${SEGMENTS.find((g) => g.id === v)?.name}: ${toggle(plan.segments, v, 2)}.`;
   if (k === 'tom') { plan.tone = v as typeof plan.tone; return `Tom da campanha: ${v}.`; }
   return 'Opção inválida.';
 }
 const regionOptions = () => REGIONS.map((r) => ({ value: r.id, label: r.name }));
+/** Regiões da campanha atual: da capital ou do país (presidencial). */
+const campaignRegionOptions = (s: GameState) => campaignAreas(s).map((r) => ({ value: r.id, label: r.name }));
+const campaignThemes = (s: GameState) => (isNationalCampaign(s) ? NATIONAL_THEMES : THEMES);
 const preOrCampaign = (s: GameState) => {
   const c = s.player.candidacy;
   if (!c || ['rejeitada_convencao', 'indeferida'].includes(c.status)) return false;
@@ -527,14 +531,14 @@ export const ACTIONS: ActionDef[] = [
   // ---------------- Campanha ----------------
   {
     id: 'corpo_a_corpo', label: 'Agenda de rua numa região', category: 'Campanha', cost: 1,
-    description: 'Caminhadas, feiras e estações numa região. Aumenta presença e conhecimento do seu nome ali. R$ 5 mil (vereador) / R$ 50 mil (prefeito).',
+    description: 'Caminhadas, feiras e estações numa região (na presidencial, caravana por uma região do país). Aumenta presença e conhecimento do seu nome ali. R$ 5 mil (vereador) / R$ 50 mil (prefeito) / R$ 250 mil (presidente).',
     availability: (s) => (campaignOn(s) ? null : 'hidden'),
-    paramLabel: 'Região', params: regionOptions,
+    paramLabel: 'Região', params: campaignRegionOptions,
     apply: (s, rng, param) => {
       const r = spendCampaign(s, 5000, 50000, 'eventos');
       if (typeof r === 'string') return r;
       s.player.base = grow(s.player.base, 1);
-      return `${visitRegion(s, rng, param ?? s.player.homeRegion)} (gasto ${brl(r)}).`;
+      return `${visitRegion(s, rng, param ?? campaignHome(s))} (gasto ${brl(r)}).`;
     },
   },
   {
@@ -557,8 +561,8 @@ export const ACTIONS: ActionDef[] = [
     id: 'lideranca_local', label: 'Buscar apoio de lideranças locais', category: 'Pré-candidatura', cost: 1,
     description: 'Lideranças comunitárias (personagens do jogo) dão capilaridade numa região. Vale na pré-campanha e na campanha.',
     availability: (s) => (preOrCampaign(s) ? null : 'hidden'),
-    paramLabel: 'Região', params: regionOptions,
-    apply: (s, rng, param) => { ensurePlan(s); return recruitLeader(s, rng, param ?? s.player.homeRegion); },
+    paramLabel: 'Região', params: campaignRegionOptions,
+    apply: (s, rng, param) => { ensurePlan(s); return recruitLeader(s, rng, param ?? campaignHome(s)); },
   },
   {
     id: 'plano_campanha', fatigue: false, label: 'Ajustar o plano de campanha', category: 'Pré-candidatura', cost: 0,
@@ -566,10 +570,10 @@ export const ACTIONS: ActionDef[] = [
     availability: (s) => (preOrCampaign(s) ? null : 'hidden'),
     paramLabel: 'Escolha',
     params: (s) => {
-      const plan = s.player.candidacy?.plan;
+      const plan = currentPlan(s);
       return [
-        ...REGIONS.map((r) => ({ value: `foco|${r.id}`, label: `${plan?.focus.includes(r.id) ? 'Tirar' : 'Priorizar'} região: ${r.name}` })),
-        ...THEMES.map((t) => ({ value: `tema|${t.value}`, label: `${plan?.themes.includes(t.value) ? 'Tirar' : 'Incluir'} tema: ${t.label}` })),
+        ...campaignAreas(s).map((r) => ({ value: `foco|${r.id}`, label: `${plan?.focus.includes(r.id) ? 'Tirar' : 'Priorizar'} região: ${r.name}` })),
+        ...campaignThemes(s).map((t) => ({ value: `tema|${t.value}`, label: `${plan?.themes.includes(t.value) ? 'Tirar' : 'Incluir'} tema: ${t.label}` })),
         ...SEGMENTS.map((g) => ({ value: `seg|${g.id}`, label: `${plan?.segments.includes(g.id) ? 'Tirar' : 'Mirar'} segmento: ${g.name}` })),
         ...(['propositivo', 'contraste', 'ataque'] as const).map((t) => ({ value: `tom|${t}`, label: `Tom: ${t}` })),
       ];
@@ -581,7 +585,7 @@ export const ACTIONS: ActionDef[] = [
     description: 'Coordenação, marketing, jurídico e contabilidade. Pago com recursos da campanha (a partir do registro).',
     availability: (s) => (campaignOn(s) ? ((Object.keys(TEAM_ROLES) as TeamRole[]).every((k) => s.player.candidacy?.plan?.team[k]) ? 'Equipe completa.' : null) : 'hidden'),
     paramLabel: 'Função',
-    params: (s) => (Object.keys(TEAM_ROLES) as TeamRole[]).filter((k) => !s.player.candidacy?.plan?.team[k]).map((k) => ({ value: k, label: `${TEAM_ROLES[k].label} — ${brl(isMayorRace(s) ? TEAM_ROLES[k].costP : TEAM_ROLES[k].costV)}` })),
+    params: (s) => (Object.keys(TEAM_ROLES) as TeamRole[]).filter((k) => !s.player.candidacy?.plan?.team[k]).map((k) => ({ value: k, label: `${TEAM_ROLES[k].label} — ${brl(teamCost(s, k))}` })),
     apply: (s, _rng, param) => {
       const r = hireRole(s, (param ?? 'coordenacao') as TeamRole);
       return typeof r === 'string' ? r : `${TEAM_ROLES[param as TeamRole].label} contratada (${brl(r)}). ${TEAM_ROLES[param as TeamRole].note}`;
@@ -624,7 +628,7 @@ export const ACTIONS: ActionDef[] = [
   },
   {
     id: 'debate', label: 'Participar de debate', category: 'Campanha', cost: 1,
-    description: 'Só para prefeito. Bom desempenho rende muito; um tropeço custa caro.',
+    description: 'Só nas majoritárias (prefeito, governador, senador, presidente). Bom desempenho rende muito; um tropeço custa caro.',
     availability: (s) => (campaignOn(s) && isMayorRace(s) ? null : 'hidden'),
     apply: (s, rng) => {
       const roll = normal(rng, s.character.attributes.communication + s.character.attributes.politicalKnowledge * 0.4, 18);

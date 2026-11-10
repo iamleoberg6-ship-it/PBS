@@ -170,9 +170,22 @@ Se condenado, o jogador perde o cargo e tem o final "Impeachment".
 | Matérias, MPs, ministros, presidentes e vices a partir de 2031 | Ficção (personagens do jogo) |
 | Câmara nacional extrapolada da bancada de SP; força das listas no país aproximada pela de SP | SIMPLIFICAÇÃO (o jogo não simula os 27 estados) |
 
-## 9. Pendências
+## 9. Campanha presidencial com painel nacional
 
-1. Campanha presidencial com painel nacional próprio. Hoje ela usa o painel de campanha de SP mais a projeção nacional.
-2. Os 27 estados e as bancadas reais da Câmara inteira.
-3. Indicação de ministros do STF, PGR e diretoria do Banco Central (dependem do Senado).
-4. Orçamento federal detalhado (LOA e emendas de bancada no ciclo do governo).
+Quem disputa a Presidência (ou é vice de chapa) faz campanha num mapa do país, não no mapa da capital.
+
+- **Mapa:** as 5 grandes regiões, com peso pelo eleitorado de 2026 (TSE): Sudeste 42,0%, Nordeste 27,6%, Sul 14,5%, Norte 8,3% e Centro-Oeste 7,6%. A página Campanha mostra estados, população (Censo 2022), eleitorado, presença, conhecimento, rejeição, apoios e intenção relativa por região.
+- **Temas nacionais:** emprego e renda, custo de vida, saúde, educação, segurança, combate à pobreza, infraestrutura e saneamento, meio ambiente.
+- **Prioridades por região** (PROPOSTA, inspiradas em PNAD e saneamento): Norte (infraestrutura, saúde, emprego); Nordeste (emprego, combate à pobreza, educação); Centro-Oeste (infraestrutura, segurança, custo de vida); Sudeste (segurança, saúde, custo de vida); Sul (custo de vida, infraestrutura, saúde). O jogo não atribui ideologia às regiões.
+- **Ponto de partida:** o conhecimento em cada região vem do reconhecimento nacional do jogador; no Sudeste soma-se o reconhecimento em SP. A rejeição sobe com posições extremas e baixa aprovação regional.
+- **Ações:** "Agenda de rua" vira caravana por uma região; "lideranças" vira palanque com governadores e prefeitos (personagens do jogo). Pesquisa interna, comunicação e contraste usam as 5 regiões. O contraste mira o adversário mais forte da corrida presidencial. Debate fica disponível para o cabeça de chapa, não para o vice.
+- **Custos (PROPOSTA):** 5× os de prefeito da capital, nas ações e na equipe de campanha.
+- **Efeito:** o que o eleitor aprende sobre você numa região passa aos poucos para o reconhecimento nacional, que pesa na força da chapa. O fator territorial entra na força do candidato.
+- **Pesquisas e apuração:** as pesquisas presidenciais trazem cortes por região. O resultado mostra seus votos de 1º turno por região do país.
+- **Troca de cargo:** se a candidatura mudar de cargo (por exemplo, de presidente para deputado na convenção), o plano é refeito na geografia certa.
+
+## 10. Pendências
+
+1. Os 27 estados e as bancadas reais da Câmara inteira.
+2. Indicação de ministros do STF, PGR e diretoria do Banco Central (dependem do Senado).
+3. Orçamento federal detalhado (LOA e emendas de bancada no ciclo do governo).

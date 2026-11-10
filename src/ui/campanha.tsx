@@ -1,6 +1,6 @@
 import {
-  CAMPAIGN_RULES, REGIONS, SEGMENTS, STAFF_RANKS, STAFF_RULES, TEAM_ROLES, THEMES, THEME_LABEL, campaignFactor, demandChance, monthLabel, partyById,
-  regionWeights, regionalIntention, regionPop, spendingLimit,
+  BR_REGIONS, CAMPAIGN_RULES, NATIONAL_THEMES, NATIONAL_THEME_LABEL, REGIONS, SEGMENTS, STAFF_RANKS, STAFF_RULES, TEAM_ROLES, THEMES, THEME_LABEL,
+  campaignAreas, campaignFactor, campaignHome, currentPlan, demandChance, isNationalCampaign, monthLabel, partyById, regionalIntention, regionPop, spendingLimit, teamCost,
   type GameState, type TeamRole,
 } from '../engine';
 import { brl, num, pct } from './format';
@@ -10,7 +10,11 @@ const TAG: Record<string, string> = { REAL: 'real', PARÂMETRO: 'proposta' };
 
 export function Campanha({ s, act }: { s: GameState; act: Act }) {
   const c = s.player.candidacy;
-  const plan = c?.plan;
+  const plan = c ? currentPlan(s) : null;
+  const nat = isNationalCampaign(s);
+  const areas = campaignAreas(s);
+  const themes = nat ? NATIONAL_THEMES : THEMES;
+  const tLabel = (x: string) => (nat ? NATIONAL_THEME_LABEL[x] : THEME_LABEL[x]) ?? x;
   const home = REGIONS.find((r) => r.id === s.player.homeRegion);
   if (!c) {
     return (
@@ -23,19 +27,18 @@ export function Campanha({ s, act }: { s: GameState; act: Act }) {
   const acc = c.account;
   const total = acc.fefc + acc.donations + acc.ownFunds + (acc.fundoPartidario ?? 0);
   const limit = spendingLimit(c.office);
-  const w = regionWeights();
   return (
     <>
-      <div className="page-head"><div><h2>Campanha {c.year ?? 2028} — {({ prefeito: 'Prefeitura', vereador: 'Câmara Municipal', deputado_estadual: 'Assembleia Legislativa', deputado_federal: 'Câmara dos Deputados', senador: 'Senado', governador: 'Governo do Estado' } as Record<string, string>)[c.office]}</h2><p>Situação: {c.status.replace('_', ' ')} · você mora em {home?.name} · fator territorial {plan ? campaignFactor(s).toFixed(2) : '—'} (1,00 = campanha sem trabalho regional)</p></div></div>
+      <div className="page-head"><div><h2>Campanha {c.year ?? 2028} — {({ prefeito: 'Prefeitura', vereador: 'Câmara Municipal', deputado_estadual: 'Assembleia Legislativa', deputado_federal: 'Câmara dos Deputados', senador: 'Senado', governador: 'Governo do Estado', presidente: 'Presidência da República', vice_presidente: 'Vice-Presidência (chapa)' } as Record<string, string>)[c.office]}</h2><p>Situação: {c.status.replace('_', ' ')} · {nat ? 'campanha nacional nas 5 grandes regiões' : `você mora em ${home?.name}`} · fator territorial {plan ? campaignFactor(s).toFixed(2) : '—'} (1,00 = campanha sem trabalho regional)</p></div></div>
       {!plan && <div className="callout">O plano é criado na primeira ação de pré-campanha ou campanha (ou ajuste-o abaixo).</div>}
       {plan && (
         <div className="grid g-2">
           <div className="card">
             <h3>Plano</h3>
             <div className="small muted">Regiões prioritárias (até 3)</div>
-            <div className="pill-row" style={{ margin: '4px 0 10px' }}>{REGIONS.map((r) => <button key={r.id} className="btn btn-sm" style={plan.focus.includes(r.id) ? { background: 'var(--accent)', color: '#fff', borderColor: 'transparent' } : undefined} onClick={() => act('plano_campanha', `foco|${r.id}`)}>{r.name}</button>)}</div>
+            <div className="pill-row" style={{ margin: '4px 0 10px' }}>{areas.map((r) => <button key={r.id} className="btn btn-sm" style={plan.focus.includes(r.id) ? { background: 'var(--accent)', color: '#fff', borderColor: 'transparent' } : undefined} onClick={() => act('plano_campanha', `foco|${r.id}`)}>{r.name}</button>)}</div>
             <div className="small muted">Temas (até 3)</div>
-            <div className="pill-row" style={{ margin: '4px 0 10px' }}>{THEMES.map((t) => <button key={t.value} className="btn btn-sm" style={plan.themes.includes(t.value) ? { background: 'var(--accent)', color: '#fff', borderColor: 'transparent' } : undefined} onClick={() => act('plano_campanha', `tema|${t.value}`)}>{THEME_LABEL[t.value]}</button>)}</div>
+            <div className="pill-row" style={{ margin: '4px 0 10px' }}>{themes.map((t) => <button key={t.value} className="btn btn-sm" style={plan.themes.includes(t.value) ? { background: 'var(--accent)', color: '#fff', borderColor: 'transparent' } : undefined} onClick={() => act('plano_campanha', `tema|${t.value}`)}>{tLabel(t.value)}</button>)}</div>
             <div className="small muted">Segmentos-alvo (até 2) — não associados a partidos</div>
             <div className="pill-row" style={{ margin: '4px 0 10px' }}>{SEGMENTS.map((g) => <button key={g.id} className="btn btn-sm" style={plan.segments.includes(g.id) ? { background: 'var(--accent)', color: '#fff', borderColor: 'transparent' } : undefined} onClick={() => act('plano_campanha', `seg|${g.id}`)}>{g.name}</button>)}</div>
             <div className="small muted">Tom</div>
@@ -45,7 +48,7 @@ export function Campanha({ s, act }: { s: GameState; act: Act }) {
           <div className="card">
             <h3>Equipe e finanças</h3>
             <table><tbody>
-              {(Object.keys(TEAM_ROLES) as TeamRole[]).map((k) => <tr key={k}><td>{TEAM_ROLES[k].label}</td><td>{plan.team[k] ? <span className="tag ok">contratada</span> : <span className="tag">não</span>}</td><td className="small muted">{TEAM_ROLES[k].note}</td></tr>)}
+              {(Object.keys(TEAM_ROLES) as TeamRole[]).map((k) => <tr key={k}><td>{TEAM_ROLES[k].label}</td><td>{plan.team[k] ? <span className="tag ok">contratada</span> : <span className="tag">não</span>}</td><td className="small muted">{TEAM_ROLES[k].note}{!plan.team[k] && ` (${brl(teamCost(s, k))})`}</td></tr>)}
             </tbody></table>
             <table style={{ marginTop: 10 }}><tbody>
               <tr><td>FEFC (partido)</td><td className="num">{brl(acc.fefc)}</td></tr>
@@ -62,14 +65,14 @@ export function Campanha({ s, act }: { s: GameState; act: Act }) {
       )}
       {plan && (
         <div className="card" style={{ marginTop: 16 }}>
-          <div className="card-title"><h3>Mapa da campanha</h3><span className="small muted">intenção relativa = conhecimento × avaliação × temas × (1 − rejeição) × influência local</span></div>
+          <div className="card-title"><h3>{nat ? 'Mapa nacional da campanha' : 'Mapa da campanha'}</h3><span className="small muted">intenção relativa = conhecimento × avaliação × temas × (1 − rejeição) × influência local</span></div>
           <div className="table-wrap"><table>
             <thead><tr><th>Região</th><th className="num">Eleitorado (peso)</th><th>Prioridades</th><th className="num">Presença</th><th className="num">Conhecem você</th><th className="num">Rejeição</th><th className="num">Lideranças</th><th className="num">Intenção relativa</th></tr></thead>
-            <tbody>{REGIONS.map((r) => { const rc = plan.regions[r.id]; return (
+            <tbody>{areas.map((r) => { const rc = plan.regions[r.id]; if (!rc) return null; return (
               <tr key={r.id} className={plan.focus.includes(r.id) ? 'mine' : ''}>
-                <td><b>{r.name}</b>{r.id === s.player.homeRegion && <span className="tag ok" style={{ marginLeft: 4 }}>casa</span>}<div className="small muted">renda {r.income} (parâmetro)</div></td>
-                <td className="num">{pct(w[r.id], 1)}</td>
-                <td className="small">{r.priorities.map((t) => THEME_LABEL[t]).join(', ')}</td>
+                <td><b>{r.name}</b>{r.id === campaignHome(s) && <span className="tag ok" style={{ marginLeft: 4 }}>casa</span>}<div className="small muted">{r.detail}</div></td>
+                <td className="num">{pct(r.weight, 1)}</td>
+                <td className="small">{r.priorities.map(tLabel).join(', ')}</td>
                 <td className="num">{Math.round(rc.presence)}</td>
                 <td className="num">{Math.round(rc.knowledge)}%</td>
                 <td className="num">{Math.round(rc.rejection)}%</td>
@@ -77,15 +80,31 @@ export function Campanha({ s, act }: { s: GameState; act: Act }) {
                 <td className="num">{(regionalIntention(s, plan, r.id) * 100).toFixed(1)}</td>
               </tr>); })}</tbody>
           </table></div>
-          {plan.internalPolls.length > 0 && (() => { const p = plan.internalPolls[plan.internalPolls.length - 1]; return <p className="small">Última pesquisa interna ({monthLabel(p.month)}): intenção média {p.overall.toFixed(1)}, rejeição {p.rejection.toFixed(0)}%. Melhor região: {REGIONS.slice().sort((a, b) => p.byRegion[b.id] - p.byRegion[a.id])[0].name}.</p>; })()}
+          {plan.internalPolls.length > 0 && (() => { const p = plan.internalPolls[plan.internalPolls.length - 1]; return <p className="small">Última pesquisa interna ({monthLabel(p.month)}): intenção média {p.overall.toFixed(1)}, rejeição {p.rejection.toFixed(0)}%. Melhor região: {areas.slice().sort((a, b) => (p.byRegion[b.id] ?? 0) - (p.byRegion[a.id] ?? 0))[0].name}.</p>; })()}
         </div>
       )}
-      <Territorio s={s} />
+      {nat ? <TerritorioNacional s={s} /> : <Territorio s={s} />}
       <div className="card" style={{ marginTop: 16 }}>
         <h3>Regras da campanha</h3>
+        {nat && <div className="small" style={{ marginBottom: 5 }}><span className="tag proposta" style={{ marginRight: 6 }}>PARÂMETRO</span>Campanha presidencial: o mapa usa as 5 grandes regiões, com peso pelo eleitorado de 2026 (TSE). Prioridades de cada região são parâmetros do jogo inspirados em indicadores (PNAD, saneamento); o jogo não atribui ideologia às regiões. Ações custam 5× as de prefeito da capital. O que o eleitor aprende sobre você numa região vira reconhecimento nacional.</div>}
         {CAMPAIGN_RULES.map((r, i) => <div key={i} className="small" style={{ marginBottom: 5 }}><span className={`tag ${TAG[r.tag] ?? ''}`} style={{ marginRight: 6 }}>{r.tag}</span>{r.text}</div>)}
       </div>
     </>
+  );
+}
+
+function TerritorioNacional({ s }: { s: GameState }) {
+  const n = s.national;
+  if (!n) return null;
+  return (
+    <div className="card" style={{ marginTop: 16 }}>
+      <h3>As 5 grandes regiões do país</h3>
+      <div className="table-wrap"><table>
+        <thead><tr><th>Região</th><th>Estados</th><th className="num">População (Censo 2022)</th><th className="num">Eleitorado 2026 (TSE)</th><th className="num">Seu reconhecimento</th><th className="num">Sua aprovação</th></tr></thead>
+        <tbody>{BR_REGIONS.map((r) => <tr key={r}><td><b>{n.regions[r].name}</b></td><td className="small">{n.regions[r].states}</td><td className="num">{num(n.regions[r].population)}</td><td className="num">{num(n.regions[r].electorate)}</td><td className="num">{Math.round(n.player[r].recognition)}%</td><td className="num">{Math.round(n.player[r].approval)}</td></tr>)}</tbody>
+      </table></div>
+      <p className="small muted">População e eleitorado reais (IBGE e TSE). Reconhecimento e aprovação regionais são indicadores do jogo.</p>
+    </div>
   );
 }
 

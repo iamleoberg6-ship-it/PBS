@@ -1,4 +1,4 @@
-import { TIPS, nationalIndex, resetTutorial, setTutorial, tutorialOn } from '../engine';
+import { TIPS, brName, nationalIndex, resetTutorial, setTutorial, tutorialOn, type BrRegion } from '../engine';
 import { useState } from 'react';
 import {
   ATTRIBUTE_LABELS, FEDERATIONS, GAMEPLAY, PARTIES, PROFESSIONS, REAL_FIGURES, RULEPACK_BR_2028_MUN as RP, SAO_PAULO, UPPER_LABEL, LAST_YEAR, munCycle, munRulepack, genRulepack,
@@ -384,7 +384,7 @@ export function Polls({ s, polls, title }: { s: GameState; polls: GameState['pol
         {last.byRegion && (
           <div className="table-wrap" style={{ marginTop: 8 }}>
             <table><thead><tr><th>Região</th><th>1º</th><th>2º</th></tr></thead>
-              <tbody>{REGIONS.map((rg) => { const row = last.byRegion![rg.id] ?? []; const nm = (id: string) => last.results.find((x) => x.id === id)?.name.split(' ')[0] ?? id; return <tr key={rg.id}><td className="small">{rg.name}</td>{row.slice(0, 2).map((x) => <td key={x.id} className="small">{nm(x.id)} {pct(x.share, 0)}</td>)}</tr>; })}</tbody></table>
+              <tbody>{Object.keys(last.byRegion).map((id) => ({ id, name: REGIONS.find((x) => x.id === id)?.name ?? (id.startsWith('br_') ? brName(id.slice(3) as BrRegion) : id) })).map((rg) => { const row = last.byRegion![rg.id] ?? []; const nm = (id: string) => last.results.find((x) => x.id === id)?.name.split(' ')[0] ?? id; return <tr key={rg.id}><td className="small">{rg.name}</td>{row.slice(0, 2).map((x) => <td key={x.id} className="small">{nm(x.id)} {pct(x.share, 0)}</td>)}</tr>; })}</tbody></table>
             <div className="small muted">Cortes regionais têm margem de erro maior que a do total.</div>
           </div>
         )}

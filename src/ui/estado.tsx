@@ -1,4 +1,4 @@
-import { BR_REGIONS } from '../engine';
+import { BR_REGIONS, brName, type BrRegion } from '../engine';
 import { useState } from 'react';
 import {
   ACHIEVEMENTS, FUNDING_KIND_LABEL, AMENDMENT_BUDGET, AMENDMENT_SOURCES, amendmentYearTotals, healthShareRequired, LAST_YEAR, availableActions, officePointsFor, REGIONS, RESPONSE_LABEL, STATE_AREAS, STATE_SOURCES, UPPER_LABEL, careerScore, cityAlignment, formatIsoPt, genCycle, genRulepack,
@@ -65,6 +65,12 @@ function GeneralResult({ rec }: { rec: GeneralElectionRecord }) {
           <div className="small mono muted">SEU RESULTADO · {(UPPER_LABEL[rec.playerOffice] ?? (rec.playerOffice === 'presidente' ? 'Presidente da República' : rec.playerOffice === 'vice_presidente' ? 'Vice-presidente (votos da chapa)' : rec.playerOffice)).toUpperCase()}</div>
           <div className="big-number" style={{ margin: '6px 0' }}>{num(rec.playerVotes ?? 0)} votos</div>
           <div>{rec.playerElected ? 'Eleito(a)!' : rec.runoffPending || rec.presidentRunoffPending ? 'Disputando o 2º turno.' : 'Não eleito(a).'}</div>
+          {rec.playerVotesByRegion && Object.keys(rec.playerVotesByRegion).some((k) => k.startsWith('br_')) && (
+            <div className="table-wrap" style={{ marginTop: 8 }}><table>
+              <thead><tr><th>Região do país</th><th className="num">Votos (1º turno)</th><th className="num">% dos seus votos</th></tr></thead>
+              <tbody>{Object.entries(rec.playerVotesByRegion).map(([k, v]) => <tr key={k}><td>{brName(k.slice(3) as BrRegion)}</td><td className="num">{num(v)}</td><td className="num">{pct(v / Math.max(1, rec.playerVotes ?? 1), 1)}</td></tr>)}</tbody>
+            </table><div className="small muted">Distribuição regional simulada a partir do mapa nacional da campanha.</div></div>
+          )}
         </div>
       )}
       <div className="tabs">
