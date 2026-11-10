@@ -12,6 +12,7 @@ import { Secretaria } from './secretaria';
 import { Governo } from './governo';
 import { Campanha, GabineteParlamentar } from './campanha';
 import { Equipe } from './equipe';
+import { VidaPessoal } from './pessoal';
 import { Brasil } from './brasil';
 import { GovernoFederal } from './federal';
 import { GuideCard } from './guide';
@@ -19,7 +20,7 @@ import { CausesModal } from './causes';
 import { exportSave, isDesktop, mirrorToFile } from './desktop';
 import { Conquistas, EleicoesGerais, EstadoUniao, Imagem, MeuMandato } from './estado';
 
-const PAGE_IDS = ['gabinete', 'mandato', 'personagem', 'meupartido', 'partidos', 'redes', 'noticias', 'campanha', 'eleicoes', 'gerais', 'estado', 'imagem', 'gabparl', 'governo', 'camara', 'secretaria', 'cidade', 'conquistas', 'historico', 'regras', 'equipe', 'brasil', 'federal'] as const;
+const PAGE_IDS = ['gabinete', 'mandato', 'personagem', 'meupartido', 'partidos', 'redes', 'noticias', 'campanha', 'eleicoes', 'gerais', 'estado', 'imagem', 'gabparl', 'governo', 'camara', 'secretaria', 'cidade', 'conquistas', 'historico', 'regras', 'equipe', 'brasil', 'federal', 'pessoal'] as const;
 type PageId = (typeof PAGE_IDS)[number];
 type NavGroup = { title: string; items: [PageId, string][] };
 
@@ -40,7 +41,7 @@ const MANDATE_PAGE: Record<string, [PageId, string]> = {
 /** Navegação por esferas: o cargo atual vem primeiro, depois a eleição mais próxima e a esfera onde você atua. */
 function navGroups(s: GameState): NavGroup[] {
   const m = s.player.mandate;
-  const groups: NavGroup[] = [{ title: 'Você', items: [['gabinete', 'Agenda e ações'], ['personagem', 'Personagem'], ['imagem', 'Imagem e promessas']] }];
+  const groups: NavGroup[] = [{ title: 'Você', items: [['gabinete', 'Agenda e ações'], ['personagem', 'Personagem'], ['pessoal', s.personal?.leave ? 'Vida pessoal (licenciado)' : 'Vida pessoal e família'], ['imagem', 'Imagem e promessas']] }];
   const cargo: [PageId, string][] = [];
   if (m && MANDATE_PAGE[m.office]) cargo.push(MANDATE_PAGE[m.office]);
   if (s.player.staff) cargo.push(['gabparl', 'Gabinete parlamentar (assessoria)']);
@@ -167,6 +168,7 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
         {page === 'campanha' && <Campanha s={s} act={act} />}
         {page === 'gabparl' && <GabineteParlamentar s={s} act={act} />}
         {page === 'equipe' && <Equipe s={s} act={act} />}
+        {page === 'pessoal' && <VidaPessoal s={s} act={act} />}
         {page === 'brasil' && <Brasil s={s} />}
         {page === 'federal' && <GovernoFederal s={s} act={act} decide={(id, d) => setS(decideSanction(s, id, d))} />}
         {page === 'governo' && <Governo s={s} openDraft={() => setS(openDraft(s))} adjust={(k, p) => setS(adjustDraft(s, k, p))} />}

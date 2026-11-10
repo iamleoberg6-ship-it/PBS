@@ -67,7 +67,7 @@ export function Gabinete({ s, act, voteBill, voteFloor }: Props & { voteBill: (i
   const p = s.player;
   const m = p.mandate;
   const acts = availableActions(s);
-  const ORDER = ['Governo do Estado', 'Mandato estadual/federal', 'Prefeitura', 'Secretaria', 'Mandato de vereador', 'Assessoria', 'Imagem e compromissos', 'Campanha', 'Pré-candidatura', 'Partido', 'Vida e carreira'];
+  const ORDER = ['Governo do Estado', 'Mandato estadual/federal', 'Prefeitura', 'Secretaria', 'Mandato de vereador', 'Assessoria', 'Imagem e compromissos', 'Campanha', 'Pré-candidatura', 'Partido', 'Vida pessoal', 'Vida e carreira'];
   const groups = [...new Set(acts.map((a) => a.def.category))].sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b));
   const party = p.partyId ? partyById(p.partyId) : null;
   return (

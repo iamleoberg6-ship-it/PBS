@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   REGIONS,   ATTRIBUTE_LABELS, BASE_ATTRIBUTES, FREE_POINTS, PARTIES, PROFESSIONS, START_STATUS, SAO_PAULO, TIER_PROFILES,
-  createGame, previewEligibility, AXES, PARTIES as ALL_PARTIES, EXPERT_SCALE, categoryLabel, generalPosition, ideologicalDistance, partyIdeology, type AttributeKey, type GameState, type ProfessionId, type StartStatus,
+  createGame, previewEligibility, AXES, PARTIES as ALL_PARTIES, EXPERT_SCALE, categoryLabel, generalPosition, ideologicalDistance, partyIdeology, type AttributeKey, type GameState, type ProfessionId, type StartStatus, MARITAL_LABEL, type FamilyInput, type Marital,
 } from '../engine';
 import { brl } from './format';
 
@@ -21,6 +21,11 @@ export function Creation({ onStart, onBack }: { onStart: (s: GameState) => void;
   const [seed, setSeed] = useState('');
   const [guide, setGuide] = useState(true);
   const [homeRegion, setHomeRegion] = useState('sul2');
+  const [marital, setMarital] = useState<Marital>('solteiro');
+  const [partnerName, setPartnerName] = useState('');
+  const [kids, setKids] = useState<{ name: string; age: number }[]>([]);
+  const [parentsAlive, setParentsAlive] = useState(true);
+  const family: FamilyInput = { marital, partnerName, children: kids.map((k) => ({ name: k.name, age: k.age })), parentsAlive };
   const [ideo, setIdeo] = useState<Record<string, number>>({ economia: 0, social: 0, seguranca: 0, ambiente: 0 });
   const ideology = { ...ideo, fiscal: ideo.economia, trabalho: ideo.economia, desenvolvimento: ideo.economia };
 
@@ -46,7 +51,7 @@ export function Creation({ onStart, onBack }: { onStart: (s: GameState) => void;
   const start = () => {
     const s = createGame({
       name, birthDate, gender, education, profession, startStatus,
-      startPartyId: startStatus === 'independente' ? null : partyId, bio, attributeBonus: bonus, ideology, homeRegion,
+      startPartyId: startStatus === 'independente' ? null : partyId, bio, attributeBonus: bonus, ideology, homeRegion, family,
       seed: seed.trim() ? Number(seed) || undefined : undefined,
     });
     s.tutorial = { enabled: guide, seen: [] };
@@ -126,6 +131,32 @@ export function Creation({ onStart, onBack }: { onStart: (s: GameState) => void;
                   {REGIONS.map((r) => <option key={r.id} value={r.id}>{r.name} — {r.subprefeituras.map((x) => x.name).join(', ')}</option>)}
                 </select>
                 <span className="hint">Sua base começa nessa região; o resto da cidade precisa ser conquistado na campanha.</span></div>
+            </div>
+            <div className="card form">
+              <h3>Família</h3>
+              <div className="grid g-2">
+                <div className="field"><label>Estado civil</label>
+                  <select value={marital} onChange={(e) => setMarital(e.target.value as Marital)}>
+                    {(Object.keys(MARITAL_LABEL) as Marital[]).map((m) => <option key={m} value={m}>{MARITAL_LABEL[m]}</option>)}
+                  </select></div>
+                {['casado', 'uniao_estavel', 'namorando'].includes(marital) && (
+                  <div className="field"><label>Nome do(a) parceiro(a)</label>
+                    <input value={partnerName} onChange={(e) => setPartnerName(e.target.value)} placeholder="Deixe em branco para sortear" /></div>
+                )}
+              </div>
+              <div className="field"><label>Filhos ({kids.length})</label>
+                {kids.map((k, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
+                    <input style={{ flex: 2 }} value={k.name} onChange={(e) => setKids(kids.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} placeholder="Nome (opcional)" />
+                    <input style={{ flex: 1 }} type="number" min={0} max={50} value={k.age} onChange={(e) => setKids(kids.map((x, j) => (j === i ? { ...x, age: Number(e.target.value) } : x)))} aria-label="Idade" />
+                    <button className="btn btn-sm" onClick={() => setKids(kids.filter((_, j) => j !== i))} aria-label="Remover">×</button>
+                  </div>
+                ))}
+                {kids.length < 5 && <button className="btn btn-sm" onClick={() => setKids([...kids, { name: '', age: 5 }])}>+ Adicionar filho(a)</button>}
+                <span className="hint">Idade em 2027. Filhos adultos podem, um dia, seguir na política — ou herdar a sua.</span>
+              </div>
+              <label className="small" style={{ display: 'flex', gap: 6, alignItems: 'center' }}><input type="checkbox" checked={parentsAlive} onChange={(e) => setParentsAlive(e.target.checked)} /> Pais vivos</label>
+              <span className="hint">Família, pretendentes e amigos são personagens do jogo. Ao longo da partida aparecem chances de namorar, casar, ter conflitos em casa — e a exposição pública traz ameaças.</span>
             </div>
           </div>
 

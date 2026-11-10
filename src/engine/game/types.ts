@@ -737,7 +737,7 @@ export interface Ending {
 
 export interface LogEntry {
   month: GameMonth;
-  kind: 'acao' | 'evento' | 'eleicao' | 'partido' | 'mandato' | 'sistema' | 'financas' | 'camara' | 'secretaria';
+  kind: 'acao' | 'evento' | 'eleicao' | 'partido' | 'mandato' | 'sistema' | 'financas' | 'camara' | 'secretaria' | 'pessoal';
   text: string;
 }
 
@@ -760,6 +760,8 @@ export interface GameState {
   tutorial?: { enabled: boolean; seen: string[] };
   /** Brasil por grandes regiões (esfera federal). */
   national?: import('./national').NationalState;
+  /** Vida pessoal (Fase 8): família, relacionamentos, exposição, ameaças, saúde. */
+  personal?: import('./personal').PersonalState;
   /** Governo federal (Presidência, ministérios, economia nacional). */
   federal?: import('./federal').FederalState;
   /** Resumo do último mês (Fase 6): o que mudou e por quê. */

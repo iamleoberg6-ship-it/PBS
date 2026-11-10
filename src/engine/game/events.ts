@@ -24,6 +24,8 @@ export interface EventOption {
   apply: (s: GameState, rng: RngState, vars: PendingEvent['vars']) => string;
 }
 
+import { PERSONAL_EVENTS } from './personalEvents';
+
 export interface EventTemplate {
   id: string;
   title: (s: GameState, vars: PendingEvent['vars']) => string;
@@ -429,3 +431,6 @@ export function resolveEvent(state: GameState, optionIndex: number): GameState {
   }
   return s;
 }
+
+// Fase 8: vida pessoal.
+EVENTS.push(...PERSONAL_EVENTS);

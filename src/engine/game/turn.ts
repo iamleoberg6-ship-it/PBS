@@ -10,6 +10,7 @@ import { runoff } from '../rules/majoritarian';
 import { rollEvent } from './events';
 import { seatsByParty } from './council';
 import { PROFESSIONS } from './create';
+import { onLeave, personalMonthlyStep } from './personal';
 import { ensureMonthlyFloorVote, blocCounts, electMesa, initLegislature, legislatureMonthlyStep, legislatureNews, mesaWindow, playerIsCouncillor } from './legislature';
 import { createSecretariat, inviteAffinity, secretariatMonthlyStep } from './secretariat';
 import { campaignMonthlyStep, distributeVotes, electoralLawsuit, enrichMayorPoll, enrichNationalPoll, judgeAccounts, mayorRegionalShares } from './campaign';
@@ -198,8 +199,11 @@ function advanceMonthInner(state: GameState): GameState {
   }
 
   // 6b) Pauta do novo mês: ao menos uma votação para quem tem mandato legislativo.
-  s.floorVotes.push(...generateFloorVotes(s, rng));
-  ensureMonthlyFloorVote(s, rng);
+  // Licenciado(a): o suplente vota no lugar.
+  if (!onLeave(s)) {
+    s.floorVotes.push(...generateFloorVotes(s, rng));
+    ensureMonthlyFloorVote(s, rng);
+  }
   // 7) Agenda do cargo (depois das posses do mês).
   s.officePoints = officePointsFor(s);
   refreshPool(s, rng);
@@ -208,8 +212,12 @@ function advanceMonthInner(state: GameState): GameState {
   if (office === 'vereador' || office === 'prefeito' || office === 'secretario') s.finances.monthlyIncome = SALARIES[office];
   else if (office && office in UPPER_SALARIES) s.finances.monthlyIncome = UPPER_SALARIES[office as keyof typeof UPPER_SALARIES].value;
 
-  // 7b) Imprensa: notícias sobre o que aconteceu desde o último fechamento + contexto.
   mark('Calendário eleitoral e acontecimentos do mês');
+  // 7c) Vida pessoal: família, estresse, saúde, exposição, ameaças, licença.
+  for (const n of personalMonthlyStep(s)) log(s, 'pessoal', n);
+  if (!onLeave(s) && !s.officePoints) s.officePoints = officePointsFor(s);
+  mark('Vida pessoal: família, estresse, segurança');
+  // 7b) Imprensa: notícias sobre o que aconteceu desde o último fechamento + contexto.
   const cursor = Number(s.flags.newsCursor ?? 0);
   newsFromLog(s, s.log.slice(cursor), rng);
   s.flags.newsCursor = s.log.length;

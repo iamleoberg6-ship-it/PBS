@@ -14,6 +14,7 @@ import { PARTIES, partyById } from '../data/parties';
 import { neutralIdeology } from '../data/ideology';
 import { createRng } from '../rng';
 import { SAVE_VERSION, type GameState } from './types';
+import { initPersonal } from './personal';
 import { initialCouncillors, seatsByParty } from './council';
 import { initialSocial } from './social';
 import { recomputeNetWorth } from './finance';
@@ -297,6 +298,13 @@ function upgradeWithinV8(s: Raw, report: LoadReport) {
     report.repairs.push('Vereadores reais eleitos deputados em 2026 deixam a Câmara; suplentes fictícios do mesmo partido assumem.');
   }
   s.floorVotes ??= [];
+  // Vida pessoal (Fase 8): partidas antigas começam solteiras, com os pais, sem filhos — a família cresce em eventos.
+  if (!s.personal && s.character) {
+    s.personal = initPersonal(undefined, s.character, s.character.startStatus ?? 'independente', s.character.profession, Number(s.flags?.seed ?? 1));
+    const t = (s.month?.year ?? 2027) * 12 + (s.month?.month ?? 1) - 1;
+    s.personal.lastFamilyTime = t;
+    report.repairs.push('Vida pessoal adicionada (estado civil solteiro; ajuste a família com os eventos do jogo).');
+  }
   // Brasil por regiões (esfera federal): partidas antigas recebem os dados; quem já está em Brasília parte da projeção atual.
   if (!s.national) { s.national = initNational(); const o = s.player?.mandate?.office; if (o === 'deputado_federal' || o === 'senador') startFederalProjection(s as GameState); }
   // Guia (Fase 6): partidas já em andamento não reveem a introdução; só as dicas de recursos novos.

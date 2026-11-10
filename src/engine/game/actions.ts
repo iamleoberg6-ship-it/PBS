@@ -13,6 +13,8 @@ import { applyEffects, PORTFOLIOS, freeBudget, disputeBudget, manageCrisis, meet
 import { PLAYER, adjustRel, standing } from './relations';
 import { contestBlock } from './partyorg';
 import { fatigueMultiplier, registerUse, dampenGains } from './fatigue';
+import { onLeave } from './personal';
+import { PERSONAL_ACTIONS } from './personalActions';
 import { snapshot, recordDiff } from './ledger';
 import { REGIONS, SEGMENTS } from '../data/regions';
 import { TEAM_ROLES, NATIONAL_THEMES, spendingLimit, addCategory, areaName, attackOpponent, campaignAreas, campaignHome, currentPlan, ensurePlan, hireRole, internalPoll, isNationalCampaign, mediaPush, recruitLeader, requestPartyFund, teamCost, visitRegion, type TeamRole } from './campaign';
@@ -32,7 +34,7 @@ import { TASK_LABEL, assignTask, fireMember, hireMember, proposeRachadinha, regu
 import { resignForCandidacy } from './careers';
 import type { AttributeKey, Bill, CrisisResponse, GameState } from './types';
 
-export type ActionCategory = 'Vida e carreira' | 'Assessoria' | 'Partido' | 'Pré-candidatura' | 'Campanha' | 'Mandato de vereador' | 'Prefeitura' | 'Secretaria' | 'Mandato estadual/federal' | 'Governo do Estado' | 'Imagem e compromissos' | 'Gabinete' | 'Presidência' | 'Ministério' | 'Vice-Presidência';
+export type ActionCategory = 'Vida e carreira' | 'Assessoria' | 'Partido' | 'Pré-candidatura' | 'Campanha' | 'Mandato de vereador' | 'Prefeitura' | 'Secretaria' | 'Mandato estadual/federal' | 'Governo do Estado' | 'Imagem e compromissos' | 'Gabinete' | 'Presidência' | 'Ministério' | 'Vice-Presidência' | 'Vida pessoal';
 
 /** Trabalho de cargo (gabinete, mandato, gestão) não sofre desgaste por repetição: é a rotina do cargo. */
 export const WORK_CATEGORIES: ActionCategory[] = ['Assessoria', 'Mandato de vereador', 'Prefeitura', 'Secretaria', 'Mandato estadual/federal', 'Governo do Estado', 'Gabinete', 'Presidência', 'Ministério', 'Vice-Presidência'];
@@ -40,6 +42,7 @@ export const WORK_CATEGORIES: ActionCategory[] = ['Assessoria', 'Mandato de vere
 export const APPROVAL_ACTION_CAP = 1.5;
 /** Compromissos de cargo do mês, conforme o cargo atual (0 sem cargo). */
 export function officePointsFor(s: GameState): number {
+  if (onLeave(s)) return 0;
   const o = s.player.mandate?.office ?? (s.player.staff ? 'assessor' : null);
   return o ? GAMEPLAY.officePointsPerMonth.value[o] ?? 0 : 0;
 }
@@ -1521,14 +1524,14 @@ function runningPrograms(s: GameState) {
 
 
 export function availableActions(s: GameState) {
-  return ACTIONS.filter((a) => !a.panel).map((a) => ({ def: a, status: a.availability(s) })).filter((x) => x.status !== 'hidden');
+  return ACTIONS.filter((a) => !a.panel).map((a) => ({ def: a, status: actionStatus(s, a) })).filter((x) => x.status !== 'hidden');
 }
 
 export function performAction(state: GameState, actionId: string, param?: string): GameState {
   const s: GameState = structuredClone(state);
   const def = ACTIONS.find((a) => a.id === actionId);
   if (!def || s.gameOver) return state;
-  const status = def.availability(s);
+  const status = actionStatus(s, def);
   if (status !== null) return state;
   // Ação com lista de opções: o parâmetro precisa ser uma das opções válidas agora (evita travar com escolha vazia).
   if (def.params && def.id !== 'autofinanciar') {
@@ -1566,4 +1569,14 @@ export function performAction(state: GameState, actionId: string, param?: string
   recordDiff(s, before, def.label + (fat.mult < 1 ? ` (rendimento ${Math.round(fat.mult * 100)}%)` : ''));
   s.log.push({ month: { ...s.month }, kind: 'acao', text: `${def.label}: ${msg}` });
   return s;
+}
+
+// Fase 8: vida pessoal.
+ACTIONS.push(...PERSONAL_ACTIONS);
+
+/** Disponibilidade, com a licença do cargo: licenciado(a), o trabalho do mandato fica com o(a) substituto(a). */
+export function actionStatus(s: GameState, def: ActionDef): string | null | 'hidden' {
+  const st = def.availability(s);
+  if (st === null && onLeave(s) && isWorkAction(def)) return 'Você está de licença do cargo.';
+  return st;
 }

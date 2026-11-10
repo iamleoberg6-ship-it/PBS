@@ -14,6 +14,7 @@ export interface AchievementDef {
 const held = (s: GameState, label: string) => s.player.careerHistory.some((h) => h.office.toLowerCase().includes(label));
 const promisesKept = (s: GameState) => s.communityPromises.filter((p) => p.status === 'cumprida').length;
 const promisesBroken = (s: GameState) => s.communityPromises.filter((p) => p.status === 'quebrada').length;
+const familyMood = (s: GameState) => { const f = s.personal?.family.filter((m) => !m.ex) ?? []; return f.length ? f.reduce((a, m) => a + m.mood, 0) / f.length : 0; };
 const lawsByPlayer = (s: GameState) => s.legislature.bills.filter((b) => b.author === 'character_player' && b.stage === 'lei').length;
 
 export const ACHIEVEMENTS: AchievementDef[] = [
@@ -41,6 +42,9 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'ministro', title: 'Esplanada dos Ministérios', description: 'Foi nomeado(a) ministro(a) de Estado.', check: (s) => held(s, 'ministro') },
   { id: 'vice_presidente', title: 'Segundo posto da República', description: 'Eleito(a) vice-presidente.', check: (s) => held(s, 'vice-presidente') },
   { id: 'presidente', title: 'Palácio do Planalto', description: 'Eleito(a) presidente da República.', check: (s) => held(s, 'presidente da república') },
+  { id: 'familia_unida', title: 'Casa em ordem', description: 'Chegou a um cargo majoritário com a família próxima (humor médio da família acima de 70).', check: (s) => ['prefeito', 'governador', 'senador', 'presidente'].includes(s.player.mandate?.office ?? '') && familyMood(s) >= 70 },
+  { id: 'resistiu_ameacas', title: 'Não me calo', description: 'Registrou três ocorrências de ameaça e seguiu no mandato.', check: (s) => (s.personal?.occurrences ?? 0) >= 3 && !!s.player.mandate },
+  { id: 'dinastia', title: 'Dinastia política', description: 'Um parente se elegeu, ou você passou o bastão a um(a) filho(a).', check: (s) => !!s.flags.passouBastao || !!s.personal?.family.some((m) => m.politics?.status === 'eleito') },
   { id: 'longa_carreira', title: 'Carreira longa', description: 'Exerceu três ou mais cargos ao longo da partida.', check: (s) => s.player.careerHistory.length >= 3 },
 ];
 
@@ -73,12 +77,21 @@ export function careerScore(s: GameState): number {
   const rep = (s.player.credibility ?? 60) - 60;
   const promises = promisesKept(s) * 2 - promisesBroken(s) * 3;
   const approval = s.player.mandate ? (s.player.mandate.approval - 50) / 3 : 0;
-  const stains = Number(s.flags.esquemaEmendas ?? 0) * 4 + Number(s.flags.rachadinha ?? 0) * 4 + Number(s.flags.fantasmasNomeados ?? 0) * 3 + Number(s.flags.vantagemIndevida ?? 0) * 6 + Number(s.flags.mentirasExpostas ?? 0) * 5 + (s.flags.cassado ? 20 : 0);
+  const stains = Number(s.flags.esquemaEmendas ?? 0) * 4 + Number(s.flags.rachadinha ?? 0) * 4 + Number(s.flags.fantasmasNomeados ?? 0) * 3 + Number(s.flags.vantagemIndevida ?? 0) * 6 + Number(s.flags.mentirasExpostas ?? 0) * 5 + Number(s.flags.nepotismo ?? 0) * 3 + (s.flags.cassado ? 20 : 0);
   return Math.max(0, Math.min(100, Math.round(peak * 0.7 + rep * 0.3 + promises + approval + s.achievements.length * 0.6 - stains)));
 }
 
 /** Final da partida: escolhe o desfecho pela trajetória. Vários finais possíveis. */
-export function computeEnding(s: GameState, reason: 'fim' | 'aposentadoria'): Ending {
+export function computeEnding(s: GameState, reason: 'fim' | 'aposentadoria' | 'familia'): Ending {
+  const e = endingFor(s, reason);
+  const p = s.personal;
+  const heirs = p?.family.filter((m) => m.politics?.status === 'eleito') ?? [];
+  if (heirs.length) e.text += ` A família segue na política: ${heirs.map((m) => m.name).join(', ')}.`;
+  if (p && p.generation > 1) e.text += ` Você foi a ${p.generation}ª geração da família na vida pública, depois de ${p.ancestors.map((a) => a.name).join(' e ')}.`;
+  return e;
+}
+
+function endingFor(s: GameState, reason: 'fim' | 'aposentadoria' | 'familia'): Ending {
   const score = careerScore(s);
   const lies = Number(s.flags.mentirasExpostas ?? 0);
   const corrupt = Number(s.flags.vantagemIndevida ?? 0) > 0 || Number(s.flags.esquemaEmendas ?? 0) > 0 || Number(s.flags.rachadinhaTotal ?? 0) > 0;
@@ -87,6 +100,7 @@ export function computeEnding(s: GameState, reason: 'fim' | 'aposentadoria'): En
   const pick = (id: string, title: string, text: string): Ending => ({ id, title, text: `${text}${reason === 'aposentadoria' ? ' Você decidiu encerrar a carreira por conta própria.' : ''}`, score, month: { ...s.month } });
   if (s.flags.impeachment) return pick('impeachment', 'Impeachment', 'O Senado condenou você por crime de responsabilidade e você perdeu a Presidência, com inabilitação para funções públicas por oito anos (CF art. 52, parágrafo único).');
   if (s.flags.cassado) return pick('cassado', 'Diploma cassado', 'A Justiça Eleitoral cassou um mandato seu. Sua história política ficou marcada pelo processo — e pela inelegibilidade que a acompanha (LC 64/90).');
+  if (reason === 'familia') return { id: 'familia', title: 'Pela família', text: `Você escolheu sair da vida pública e voltar para casa${held(s, '') ? `, depois de chegar a ${s.player.careerHistory[s.player.careerHistory.length - 1]?.office ?? 'um mandato'}` : ''}. A política continua; você, agora, também — de outro jeito.`, score, month: { ...s.month } };
   if (corrupt && (lies > 0 || s.flags.esquemaInvestigado || s.flags.rachadinhaInvestigada)) return pick('escandalo', 'Escândalo', 'Você chegou longe, mas o que aceitou por fora e as negações desmentidas viraram a sua biografia pública.');
   if (held(s, 'presidente da república') && (s.player.mandate?.office !== 'presidente' || s.player.mandate.approval >= 45)) return pick('presidente', 'Presidente da República', 'Do bairro ao Palácio do Planalto: você governou o país e saiu com o respeito de boa parte do eleitorado.');
   if (held(s, 'presidente da república')) return pick('presidente_impopular', 'Presidência difícil', 'Você chegou ao Planalto, mas a economia, o Congresso e as crises cobraram caro. A história ainda vai julgar.');

@@ -31,6 +31,7 @@ export function initialPartyRel(status: StartStatus, member: boolean): PlayerPar
 import { ideologicalDistance, neutralIdeology, partyIdeology, type AxisId } from '../data/ideology';
 import type { Attributes, Character, GameState, ProfessionId, StartStatus } from './types';
 import { SAVE_VERSION } from './types';
+import { initPersonal } from './personal';
 
 // Origens profissionais (PROPOSTA de balanceamento). Nenhuma bloqueia caminhos.
 // Origens profissionais (PROPOSTA de balanceamento). Cada uma tem pontos fortes e fracos;
@@ -84,6 +85,8 @@ export interface NewGameInput {
   seed?: number;
   /** Região onde o personagem mora e tem base (Fase 4). */
   homeRegion?: string;
+  /** Família escolhida na criação (Fase 8). */
+  family?: import('./personal').FamilyInput;
 }
 
 export const BASE_ATTRIBUTES: Attributes = {
@@ -198,6 +201,7 @@ export function createGame(input: NewGameInput): GameState {
     stateWorld: initStateWorld(),
     national: initNational(),
     federal: initFederal(),
+    personal: initPersonal(input.family, character, input.startStatus, input.profession, seed),
     generalElections: [],
     crises: [],
     outlets: initOutlets(),
