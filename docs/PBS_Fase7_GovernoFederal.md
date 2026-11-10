@@ -14,7 +14,7 @@ Módulos novos: `game/federal.ts` (motor) e `ui/federal.tsx` (página). Integra�
 - carreiras: `careers.ts`;
 - save: `save.ts`.
 
-Testes: 152 passando, 12 deles em `federal.test.ts`. Save: versão 8, e partidas antigas recebem o governo federal ao carregar.
+Testes: 155 passando, 12 deles em `federal.test.ts` e 3 em `campaignNational.test.ts`. Save: versão 8, e partidas antigas recebem o governo federal ao carregar.
 
 ---
 
