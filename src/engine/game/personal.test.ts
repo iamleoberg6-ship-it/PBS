@@ -5,7 +5,7 @@ import { availableActions, officePointsFor, performAction } from './actions';
 import { newMandate } from './careers';
 import { loadSave, serialize } from './save';
 import { computeExposure, exposeNepotism, launchHeir, partner, personalMonthlyStep, reflexBlock, startLeave } from './personal';
-import { switchToHeir } from './personalActions';
+import { seatHeirs, switchToHeir } from './personalActions';
 import { computeEnding } from './endings';
 import type { GameState } from './types';
 
@@ -120,5 +120,65 @@ describe('Herdeiro e finais', () => {
     const n = performAction(s, 'pv_sair_pela_familia');
     expect(n.gameOver).toBe(true);
     expect(n.ending?.id).toBe('familia');
+  });
+});
+
+describe('Fase 8b — herdeiro com mandato, parente na equipe, nascimento', () => {
+  it('parente eleito vereador toma posse na Câmara e o bastão passa com o mandato', () => {
+    const s = mk(3, familyA);
+    const lia = s.personal!.family.find((m) => m.name.startsWith('Lia'))!;
+    lia.politicalInterest = 80;
+    lia.politics = { office: 'vereador', year: 2028, status: 'eleito', since: 2029 * 12, until: 2032 * 12 + 11, seated: false };
+    s.month = { year: 2029, month: 2 };
+    s.government.councillors[10].real = false;
+    const msgs = seatHeirs(s);
+    expect(msgs[0]).toContain('tomou posse');
+    expect(s.government.councillors.some((c) => c.id === `heir_${lia.id}` && c.name === 'Lia Moraes')).toBe(true);
+    expect(s.government.councillors.length).toBe(55);
+    const msg = switchToHeir(s, s.rng, lia.id);
+    expect(msg).toContain('mandato de vereador');
+    expect(s.player.mandate?.office).toBe('vereador');
+    expect(s.player.mandate?.until).toBe('2032-12-31');
+    expect(s.government.councillors.some((c) => c.id === 'character_player')).toBe(true);
+    const n = advanceMonth(s);
+    expect(n.player.mandate?.office).toBe('vereador');
+  });
+  it('herdeiro deputado estadual: bastão inclui o mandato na Alesp', () => {
+    const s = mk(3, familyA);
+    const lia = s.personal!.family.find((m) => m.name.startsWith('Lia'))!;
+    lia.politicalInterest = 80;
+    lia.politics = { office: 'deputado_estadual', year: 2030, status: 'eleito', since: 2031 * 12 + 2, until: 2035 * 12 + 2 };
+    s.month = { year: 2031, month: 6 };
+    switchToHeir(s, s.rng, lia.id);
+    expect(s.player.mandate?.office).toBe('deputado_estadual');
+    expect(s.player.mandate?.upper).toBeTruthy();
+  });
+  it('parente nomeado na equipe ocupa vaga; ao vir a público, sai da equipe', () => {
+    const s = mk(3, familyA);
+    s.player.mandate = newMandate('vereador', '2025-01-01', '2028-12-31');
+    const lia = s.personal!.family.find((m) => m.name.startsWith('Lia'))!;
+    const opt = availableActions(s).find((a) => a.def.id === 'eq_parente');
+    expect(opt).toBeUndefined(); // ação de painel, fora da lista geral
+    const n = performAction(s, 'eq_parente', lia.id);
+    const member = n.player.team!.members.find((m) => m.relativeId === lia.id)!;
+    expect(member.origin).toBe('parente');
+    const liaN = n.personal!.family.find((m) => m.id === lia.id)!;
+    expect(liaN.employedByPlayer).toBe('direto');
+    exposeNepotism(n, liaN);
+    expect(n.player.team!.members.some((m) => m.relativeId === lia.id)).toBe(false);
+  });
+  it('bebê planejado nasce e vira filho(a) na família', () => {
+    const s = mk(3, familyA);
+    const before = s.personal!.family.length;
+    s.personal!.babyDue = 2027 * 12 + 2;
+    s.personal!.babyBy = 'player';
+    s.month = { year: 2027, month: 3 };
+    const out = personalMonthlyStep(s);
+    expect(out.some((x) => x.startsWith('Nasceu'))).toBe(true);
+    expect(s.personal!.family.length).toBe(before + 1);
+    expect(s.pendingEvents.some((e) => e.templateId === 'nascimento')).toBe(true);
+    s.player.mandate = newMandate('vereador', '2025-01-01', '2028-12-31');
+    expect(startLeave(s, 4, 'nascimento')).toContain('nascimento');
+    expect(s.personal!.leave?.paid).toBe(true);
   });
 });

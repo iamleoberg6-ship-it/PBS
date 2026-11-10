@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  ORIGIN_LABEL, REGIONS, SKILL_LABEL, TASK_LABEL, TASK_SKILL, TEAM_RULES, honestyLabel, teamSummary, themeOptionsForTeam,
+  ORIGIN_LABEL, REGIONS, adultRelatives, relationLabel, SKILL_LABEL, TASK_LABEL, TASK_SKILL, TEAM_RULES, honestyLabel, teamSummary, themeOptionsForTeam,
   type GameState, type TeamMember, type TeamSkill, type TeamTask,
 } from '../engine';
 import { brl } from './format';
@@ -51,7 +51,7 @@ function Member({ s, m, act }: { s: GameState; m: TeamMember; act: Act }) {
         <span className="small muted">{isChief ? 'Chefe de gabinete' : 'Assessor(a)'} · {brl(m.salary)}</span>
       </div>
       <div className="pill-row">
-        <span className="tag">{ORIGIN_LABEL[m.origin]}</span>{status}
+        <span className="tag" style={m.origin === 'parente' ? { background: 'var(--red)', color: '#fff' } : undefined}>{ORIGIN_LABEL[m.origin]}</span>{status}
         {m.rachadinha > 0 && <span className="tag" style={{ background: 'var(--red)', color: '#fff' }}>devolve {Math.round(m.rachadinha * 100)}% (ilegal)</span>}
       </div>
       <Skills m={m} highlight={TASK_SKILL[m.task]} />
@@ -108,6 +108,7 @@ export function Equipe({ s, act }: { s: GameState; act: Act }) {
   if (!sum || !t) return <div className="card"><p>Só quem exerce mandato de vereador(a), deputado(a) ou senador(a) nomeia assessores de gabinete.</p></div>;
   const hasChief = t.members.some((m) => m.role === 'chefe');
   const devol = t.members.reduce((x, m) => x + m.salary * m.rachadinha, 0);
+  const relatives = adultRelatives(s).filter((m) => !m.employedByPlayer && !m.ex);
   const block = (c: TeamMember) => (sum.slotsLeft <= 0 ? 'Equipe-chave completa.' : c.role === 'chefe' && hasChief ? 'Você já tem chefe de gabinete.' : c.salary > sum.free ? 'Não cabe na verba restante.' : null);
   return (
     <>
@@ -128,6 +129,15 @@ export function Equipe({ s, act }: { s: GameState; act: Act }) {
       <p className="small muted">A honestidade é uma avaliação feita por referências e pode errar. Ela indica a propensão a aceitar rachadinha, a virar funcionário fantasma por conta própria — ou a denunciar uma proposta ilegal. A lista muda todo mês.</p>
       <div className="grid g-3">{t.pool.map((c) => <Candidate key={c.id} c={c} act={act} blocked={block(c)} />)}</div>
       {!t.pool.length && <p className="small muted">Novos currículos chegam no próximo mês.</p>}
+      {relatives.length > 0 && (
+        <div className="card" style={{ marginTop: 16, borderLeft: '5px solid var(--red)' }}>
+          <h3>Parentes pedindo vaga</h3>
+          <p className="small"><span className="tag" style={{ background: 'var(--red)', color: '#fff', marginRight: 6 }}>ILEGAL</span>Nomear cônjuge, companheiro(a) ou parente até o 3º grau em cargo de confiança é nepotismo: viola a Constituição (Súmula Vinculante 13 do STF) e é ato de improbidade (Lei 8.429/92, art. 11, XI). O parente ocupa uma vaga, recebe salário e a família fica feliz — mas todo mês há chance de a imprensa descobrir: exoneração, credibilidade −12 e manchete.</p>
+          <div className="pill-row">{relatives.map((m) => (
+            <button key={m.id} className="btn btn-sm" disabled={sum.slotsLeft <= 0} title={sum.slotsLeft <= 0 ? 'Equipe-chave completa' : ''} onClick={() => act('eq_parente', m.id)}>Nomear {m.name} ({relationLabel(m).toLowerCase()})</button>
+          ))}</div>
+        </div>
+      )}
       <div className="card" style={{ marginTop: 16 }}>
         <h3>Regras</h3>
         {TEAM_RULES.map((r) => <p key={r} className="small">{r}</p>)}

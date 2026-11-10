@@ -60,7 +60,7 @@ export function VidaPessoal({ s, act }: { s: GameState; act: Act }) {
               <tbody>{fam.map((m) => (
                 <tr key={m.id}>
                   <td><b>{m.name}</b>{p.heirId === m.id && <span className="tag ok" style={{ marginLeft: 4 }}>herdeiro(a)</span>}
-                    {m.politics && <div className="small">{m.politics.status === 'pre' ? 'pré-candidato(a)' : m.politics.status === 'eleito' ? 'eleito(a)' : 'não eleito(a)'} — {m.politics.office === 'vereador' ? 'vereador(a)' : 'deputado(a) estadual'} {m.politics.year}</div>}
+                    {m.politics && <div className="small">{m.politics.status === 'pre' ? 'pré-candidato(a)' : m.politics.status === 'eleito' ? (m.politics.until !== undefined && monthIndexOf(s) > m.politics.until ? 'ex-' : m.politics.since !== undefined && monthIndexOf(s) < m.politics.since ? 'eleito(a), posse em breve —' : 'em mandato —') : 'não eleito(a)'} — {m.politics.office === 'vereador' ? 'vereador(a)' : 'deputado(a) estadual'} {m.politics.year}</div>}
                     {m.formerOffice && <div className="small muted">{m.formerOffice}</div>}
                     {m.employedByPlayer && <div className="small" style={{ color: 'var(--red)' }}>nomeado(a) irregularmente ({m.employedByPlayer === 'cruzado' ? 'nepotismo cruzado' : 'no seu gabinete'})</div>}</td>
                   <td>{relationLabel(m)}</td>
@@ -72,6 +72,7 @@ export function VidaPessoal({ s, act }: { s: GameState; act: Act }) {
             </table></div>
           ) : <p className="small muted">Ninguém próximo por enquanto.</p>}
           {exes.length > 0 && <p className="small muted">{exes.map((m) => `${relationLabel(m)}: ${m.name}`).join(' · ')}</p>}
+          {p.babyDue ? <p className="small"><b>{p.babyBy === 'adocao' ? 'Adoção em andamento' : 'Bebê a caminho'}:</b> previsão para {monthLabel(fromIndex(p.babyDue))}.</p> : null}
           <p className="small muted">Mais de três meses sem "Tempo com a família" e o humor de cônjuge e filhos pequenos cai todo mês.</p>
         </div>
         <div className="card">

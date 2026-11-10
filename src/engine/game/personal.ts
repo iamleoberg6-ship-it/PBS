@@ -28,7 +28,7 @@ export interface FamilyMember {
   trait: Trait;
   /** Interesse em seguir carreira política (0–100). */
   politicalInterest: number;
-  politics?: { office: 'vereador' | 'deputado_estadual'; year: number; status: 'pre' | 'eleito' | 'derrotado' } | null;
+  politics?: { office: 'vereador' | 'deputado_estadual'; year: number; status: 'pre' | 'eleito' | 'derrotado'; since?: number; until?: number; seated?: boolean } | null;
   /** Ex-político (pais de quem começa como herdeiro): só contexto. */
   formerOffice?: string;
   employedByPlayer?: 'direto' | 'cruzado';
@@ -39,7 +39,7 @@ export interface Friend { id: string; name: string; kind: 'amigo' | 'mentor' | '
 export interface Rival { name: string; intensity: number; since: number }
 export interface Romance { name: string; gender: 'F' | 'M'; birthYear: number; affinity: number; stage: 'conhecendo' | 'namoro'; since: number; public: boolean }
 export interface Threat { month: number; level: number; text: string; gendered: boolean; response?: string }
-export interface Leave { office: string; since: number; until: number; reason: 'interesse' | 'saude' | 'ameaca'; paid: boolean }
+export interface Leave { office: string; since: number; until: number; reason: 'interesse' | 'saude' | 'ameaca' | 'nascimento'; paid: boolean }
 
 export interface PersonalState {
   marital: Marital;
@@ -74,6 +74,10 @@ export interface PersonalState {
   occurrences: number;
   /** Sorteio próprio da vida pessoal (não altera o resto da simulação). */
   rng: RngState;
+  /** Mês previsto para o nascimento de um filho (0 = nenhum). */
+  babyDue?: number;
+  /** Quem está gestando: a personagem ou o(a) parceiro(a). Adoção: 'adocao'. */
+  babyBy?: 'player' | 'partner' | 'adocao';
 }
 
 export interface FamilyInput {
@@ -232,15 +236,16 @@ export function startLeave(s: GameState, months: number, reason: Leave['reason']
   if (block) return block;
   const o = s.player.mandate!.office;
   const legis = LEGISLATIVE.includes(o);
-  if (legis && reason !== 'saude') months = Math.min(months, privateLeaveLeft(s));
+  const own = reason === 'saude' || reason === 'nascimento';
+  if (legis && !own) months = Math.min(months, privateLeaveLeft(s));
   if (months <= 0) return 'Você já usou os 120 dias de licença por interesse particular deste ano (CF art. 56, II).';
-  const paid = reason === 'saude' || !legis;
+  const paid = own || !legis;
   p.leave = { office: o, since: now(s), until: now(s) + months, reason, paid };
-  if (legis && reason !== 'saude') p.leaveUsed[String(s.month.year)] = (p.leaveUsed[String(s.month.year)] ?? 0) + months;
+  if (legis && !own) p.leaveUsed[String(s.month.year)] = (p.leaveUsed[String(s.month.year)] ?? 0) + months;
   s.officePoints = 0;
   if (!paid) s.finances.monthlyIncome = 0;
   const who = legis ? 'O(a) suplente assume a cadeira enquanto isso.' : o === 'presidente' ? 'O vice-presidente assume interinamente (CF art. 79).' : 'O(a) vice assume interinamente.';
-  return `Licença de ${months} ${months === 1 ? 'mês' : 'meses'} (${reason === 'saude' ? 'saúde' : reason === 'ameaca' ? 'segurança pessoal' : 'interesse particular'}${paid ? '' : ', sem remuneração'}). ${who} Você segue na política fora do cargo — partido, base e redes — com a sua agenda pessoal.`;
+  return `Licença de ${months} ${months === 1 ? 'mês' : 'meses'} (${reason === 'saude' ? 'saúde' : reason === 'nascimento' ? 'nascimento de filho(a)' : reason === 'ameaca' ? 'segurança pessoal' : 'interesse particular'}${paid ? '' : ', sem remuneração'}). ${who} Você segue na política fora do cargo — partido, base e redes — com a sua agenda pessoal.`;
 }
 export function endLeave(s: GameState, early = false): string {
   const p = s.personal!;
@@ -269,6 +274,7 @@ export function heirCandidacyOptions(s: GameState): { value: string; label: stri
   if (s.month.month > 7) return out;
   for (const m of adultRelatives(s)) {
     if (m.politics?.status === 'pre' || m.politicalInterest < 50) continue;
+    if (m.politics?.status === 'eleito' && (m.politics.until ?? 0) > (y + 1) * 12 + 2) continue;
     if (isMunYear(y)) out.push({ value: `${m.id}|vereador`, label: `${m.name} — vereador(a) em ${y}` });
     if (isGenYear(y) && memberAge(s, m) >= 21) out.push({ value: `${m.id}|deputado_estadual`, label: `${m.name} — deputado(a) estadual em ${y}` });
   }
@@ -295,6 +301,7 @@ function resolveHeirs(s: GameState, rng: RngState): string[] {
     const chance = Math.min(0.85, 0.12 + s.player.recognition / 160 + s.player.base / 300 + m.politicalInterest / 500 + ((s.player.credibility ?? 60) - 60) / 300);
     const won = next(rng) < chance;
     m.politics.status = won ? 'eleito' : 'derrotado';
+    if (won) { const Y = m.politics.year; m.politics.since = m.politics.office === 'vereador' ? (Y + 1) * 12 : (Y + 1) * 12 + 2; m.politics.until = m.politics.office === 'vereador' ? (Y + 4) * 12 + 11 : (Y + 5) * 12 + 2; m.politics.seated = false; }
     m.mood = clamp(m.mood + (won ? 15 : -10));
     out.push(won ? `${m.name} foi eleito(a) ${m.politics.office === 'vereador' ? 'vereador(a)' : 'deputado(a) estadual'}! O sobrenome agora está em mais de um mandato.` : `${m.name} não se elegeu ${m.politics.office === 'vereador' ? 'vereador(a)' : 'deputado(a) estadual'}.`);
   }
@@ -374,18 +381,40 @@ export function personalMonthlyStep(s: GameState): string[] {
   if (hired && next(rng) < (hired.employedByPlayer === 'direto' ? 0.06 : 0.035)) out.push(exposeNepotism(s, hired));
   if (hired && !s.player.mandate) hired.employedByPlayer = undefined;
   out.push(...resolveHeirs(s, rng));
+  if (p.babyDue && t >= p.babyDue) out.push(birth(s, rng));
   return out;
 }
 
 export function exposeNepotism(s: GameState, m: FamilyMember): string {
   const kind = m.employedByPlayer;
   m.employedByPlayer = undefined;
+  if (s.player.team) s.player.team.members = s.player.team.members.filter((x) => x.relativeId !== m.id);
   s.player.credibility = clamp((s.player.credibility ?? 60) - 12);
   s.character.attributes.popularity = clamp(s.character.attributes.popularity - 3);
   if (s.player.mandate) s.player.mandate.approval = clamp(s.player.mandate.approval - 6);
   s.flags.nepotismo = Number(s.flags.nepotismo ?? 0) + 1;
   m.mood = clamp(m.mood - 10);
   return `NEPOTISMO EXPOSTO: a imprensa revelou ${kind === 'cruzado' ? `a troca de nomeações entre gabinetes para empregar ${m.name}` : `a nomeação de ${m.name}, seu(sua) parente, no gabinete`}. É vedado pela Súmula Vinculante 13 do STF e pode configurar improbidade (Lei 8.429/92, art. 11, XI). ${m.name} foi exonerado(a). Credibilidade −12.`;
+}
+
+// ---------------- Nascimento ----------------
+
+export function birth(s: GameState, rng: RngState): string {
+  const p = s.personal!;
+  const g = randGender(rng);
+  const surname = surnameOf(s.character.name);
+  const adoption = p.babyBy === 'adocao';
+  const baby: FamilyMember = { id: newId(s, 'fam'), name: `${firstName(rng, g)} ${surname}`, relation: 'filho', gender: g, birthYear: s.month.year - (adoption ? Math.floor(next(rng) * 4) : 0), mood: 85, trait: randTrait(rng, true), politicalInterest: Math.round(next(rng) * 40) };
+  p.family.push(baby);
+  p.babyDue = 0;
+  p.babyBy = undefined;
+  p.lastFamilyTime = now(s);
+  p.stress = clamp(p.stress + 8);
+  const pt = partner(s);
+  if (pt) pt.mood = clamp(pt.mood + 12);
+  s.player.recognition = clamp(s.player.recognition + 0.5);
+  s.pendingEvents.push({ templateId: 'nascimento', vars: { name: baby.name } });
+  return adoption ? `${baby.name} chegou à família pela adoção.` : `Nasceu ${baby.name}!`;
 }
 
 // ---------------- Ações (chamadas por personalActions.ts) ----------------
@@ -483,6 +512,9 @@ export const PERSONAL_RULES: { tag: 'REAL' | 'PARÂMETRO' | 'SIMPLIFICAÇÃO'; t
   { tag: 'REAL', text: 'Violência política contra a mulher: assediar, constranger, perseguir ou ameaçar candidata ou detentora de mandato, por menosprezo à condição de mulher, é crime (Código Eleitoral, art. 326-B, incluído pela Lei 14.192/2021).' },
   { tag: 'REAL', text: 'Difamação (Código Penal, art. 139) — base da ação contra o adversário pessoal.' },
   { tag: 'REAL', text: 'Nepotismo: nomear cônjuge, companheiro ou parente até o 3º grau em cargo de confiança, inclusive por nomeações recíprocas entre gabinetes, viola a Constituição (Súmula Vinculante 13 do STF) e é ato de improbidade (Lei 8.429/92, art. 11, XI).' },
+  { tag: 'REAL', text: 'Licença-gestante de 120 dias e licença-paternidade são direitos de trabalhadores (CF art. 7º, XVIII e XIX). Adoção segue o Estatuto da Criança e do Adolescente (Lei 8.069/90).' },
+  { tag: 'SIMPLIFICAÇÃO', text: 'Para quem tem mandato, a licença pelo nascimento é regulada pela Casa ou pelo Executivo; o jogo dá licença remunerada de 4 meses para quem gestou e de 1 mês para os demais. Adoção leva cerca de 12 meses (parâmetro).' },
+  { tag: 'SIMPLIFICAÇÃO', text: 'Parente eleito(a) vereador(a) ocupa uma cadeira na posse, no lugar de um vereador fictício; a eleição do parente é sorteada à parte da apuração geral. Ao passar o bastão, você continua com o mandato que ele(a) tiver.' },
   { tag: 'REAL', text: 'Inelegibilidade reflexa: cônjuge e parentes até o 2º grau de prefeito, governador ou presidente não podem se candidatar no território do titular, salvo se já tiverem mandato e disputarem a reeleição (CF art. 14 §7º). O divórcio durante o mandato não afasta essa inelegibilidade (Súmula Vinculante 18 do STF).' },
   { tag: 'REAL', text: 'Deputado ou senador não perde o mandato quando licenciado por doença ou para tratar de interesse particular, sem remuneração, até 120 dias por sessão legislativa; o suplente é convocado (CF art. 56, II e §1º).' },
   { tag: 'SIMPLIFICAÇÃO', text: 'Vereador e deputado estadual seguem a mesma regra de licença do Congresso (as regras exatas estão na Lei Orgânica do Município e na Constituição do Estado). Prefeito, governador e presidente licenciados: o vice assume interinamente; o jogo considera a licença sempre autorizada.' },

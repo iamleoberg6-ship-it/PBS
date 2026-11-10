@@ -6,6 +6,9 @@ import { BASE_ATTRIBUTES, PROFESSIONS, initialPartyRel } from './create';
 import { initialSocial } from './social';
 import { computeEnding } from './endings';
 import { BR_REGIONS } from './national';
+import { seatsByParty } from './council';
+import { initLegislature } from './legislature';
+import { newMandate, startUpperMandate } from './careers';
 import {
   PRIVATE_SECURITY_COST, THERAPY_COST, batonBlock, characterAge, computeExposure, date, endLeave, familyTime, heirCandidacyOptions, heirCandidates,
   launchHeir, leaveBlock, meetFriends, meetPeople, memberAge, partner, peakOffice, privateLeaveLeft, rest, startLeave, type FamilyMember,
@@ -141,9 +144,9 @@ export const PERSONAL_ACTIONS: ActionDef[] = [
   },
   {
     id: 'pv_bastao', fatigue: false, label: 'Passar o bastão a um(a) filho(a)', category: 'Vida pessoal', cost: 0,
-    description: 'Você se aposenta da política e a partida continua com um(a) filho(a) adulto(a) que tenha interesse em política: herda parte do seu reconhecimento, da sua base e da sua rejeição, e o mesmo partido.',
+    description: 'Você se aposenta da política e a partida continua com um(a) filho(a) adulto(a) que tenha interesse em política: herda parte do seu reconhecimento, da sua base e da sua rejeição, e o mesmo partido. Se o(a) herdeiro(a) já tem mandato, você continua jogando com esse mandato.',
     availability: (s) => (!has(s) || !children(s).length ? 'hidden' : batonBlock(s)),
-    paramLabel: 'Herdeiro(a)', params: (s) => heirCandidates(s).filter((c) => c.politics?.status !== 'eleito').map((c) => ({ value: c.id, label: `Continuar como ${c.name} (${memberAge(s, c)} anos)` })),
+    paramLabel: 'Herdeiro(a)', params: (s) => heirCandidates(s).map((c) => ({ value: c.id, label: `Continuar como ${c.name} (${memberAge(s, c)} anos)${heirInOffice(s, c) ? ` — com o mandato de ${c.politics!.office === 'vereador' ? 'vereador(a)' : 'deputado(a) estadual'}` : ''}` })),
     apply: (s, rng, param) => switchToHeir(s, rng, param!),
   },
   {
@@ -213,7 +216,50 @@ export function switchToHeir(s: GameState, rng: RngState, heirId: string): strin
     leave: null, leaveUsed: {}, therapy: false, lastFamilyTime: now(s), highStressMonths: 0, reducedAgendaUntil: 0, lastHealthEvent: 0, promisedTimeUntil: 0,
     heirId: null, generation, ancestors: [...p.ancestors, { name: old.name, peak: oldPeak, until: now(s) }], occurrences: 0, rng: p.rng,
   };
+  // Herdeiro(a) com mandato em curso: o jogador assume esse mandato.
+  let office = '';
+  const pol = h.politics;
+  if (pol?.status === 'eleito' && pol.since !== undefined && pol.until !== undefined && now(s) >= pol.since && now(s) <= pol.until) {
+    const ymd = (t: number, d: string) => `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}-${d}`;
+    if (pol.office === 'vereador') {
+      const seat = s.government.councillors.find((c) => c.id === `heir_${h.id}`);
+      if (seat) { seat.id = 'character_player'; seat.name = h.name; }
+      s.player.mandate = newMandate('vereador', ymd(pol.since, '01'), ymd(pol.until, '31'));
+      s.player.job = null;
+      s.player.careerHistory.push({ office: 'Vereador(a) de São Paulo', from: `${Math.floor(pol.since / 12)}-01`, to: null, note: 'Eleito(a) antes de herdar a partida' });
+      s.finances.monthlyIncome = SALARY_VEREADOR;
+      if (seat) initLegislature(s, s.rng);
+    } else {
+      startUpperMandate(s, 'deputado_estadual', ymd(pol.since, '15'), ymd(pol.until, '14'), 'Eleito(a) antes de herdar a partida');
+    }
+    s.player.recognition = clamp(Math.max(s.player.recognition, 18));
+    office = pol.office === 'vereador' ? ' Você segue no mandato de vereador(a).' : ' Você segue no mandato de deputado(a) estadual.';
+  }
   s.personal.exposure = computeExposure(s);
   s.flags.passouBastao = generation;
-  return `${old.name} se aposentou da política (${oldPeak}). A partida continua com ${h.name}, ${characterAge(s)} anos — ${generation}ª geração da família na política.`;
+  return `${old.name} se aposentou da política (${oldPeak}). A partida continua com ${h.name}, ${characterAge(s)} anos — ${generation}ª geração da família na política.${office}`;
+}
+
+const SALARY_VEREADOR = 18991.68;
+export function heirInOffice(s: GameState, m: FamilyMember): boolean {
+  const pol = m.politics;
+  return !!pol && pol.status === 'eleito' && pol.since !== undefined && pol.until !== undefined && now(s) >= pol.since && now(s) <= pol.until;
+}
+
+/** Parente eleito(a) vereador(a) ocupa uma cadeira na Câmara na posse (SIMPLIFICAÇÃO: substitui um vereador fictício, de preferência do mesmo partido). */
+export function seatHeirs(s: GameState): string[] {
+  const out: string[] = [];
+  for (const m of s.personal?.family ?? []) {
+    const pol = m.politics;
+    if (!pol || pol.status !== 'eleito' || pol.office !== 'vereador' || pol.seated || pol.since === undefined || now(s) < pol.since || now(s) > (pol.until ?? 0)) continue;
+    const pool = s.government.councillors.filter((c) => !c.real && c.id !== 'character_player' && !c.id.startsWith('heir_'));
+    const same = pool.filter((c) => c.partyId === s.player.partyId).sort((a, b) => a.votes - b.votes);
+    const target = same[0] ?? [...pool].sort((a, b) => a.votes - b.votes)[0];
+    pol.seated = true;
+    if (!target) { out.push(`${m.name} tomou posse como vereador(a) de São Paulo (a cadeira não é mostrada na lista da Câmara, que só tem vereadores reais nesta legislatura).`); continue; }
+    Object.assign(target, { id: `heir_${m.id}`, name: m.name, partyId: s.player.partyId ?? target.partyId, electedIn: pol.year, birthDate: `${m.birthYear}-06-15`, birthPrecision: 'ano' });
+    s.government.councilSeatsByParty = seatsByParty(s.government.councillors);
+    out.push(`${m.name} tomou posse como vereador(a) de São Paulo.`);
+  }
+  return out;
 }

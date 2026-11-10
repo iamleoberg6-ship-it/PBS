@@ -33,7 +33,7 @@ const clamp = (v: number, a = 0, b = 100) => Math.max(a, Math.min(b, v));
 const mi = (m: GameMonth) => m.year * 12 + (m.month - 1);
 
 export type TeamTask = 'redes' | 'imprensa' | 'base' | 'atendimento' | 'articulacao' | 'legislativo' | 'gestao';
-export type TeamOrigin = 'mercado' | 'partido' | 'cabo' | 'militante';
+export type TeamOrigin = 'mercado' | 'partido' | 'cabo' | 'militante' | 'parente';
 export type TeamSkill = 'communication' | 'politicalKnowledge' | 'articulation' | 'management';
 
 export interface TeamMember {
@@ -58,6 +58,8 @@ export interface TeamMember {
   progress: number;
   hiredAt: GameMonth;
   lastOutput: string;
+  /** Familiar do jogador nomeado irregularmente (Súmula Vinculante 13). */
+  relativeId?: string;
 }
 
 export interface TeamState {
@@ -93,6 +95,7 @@ export const ORIGIN_LABEL: Record<TeamOrigin, string> = {
   partido: 'Indicação do partido',
   cabo: 'Cabo eleitoral da base',
   militante: 'Militante da campanha',
+  parente: 'Parente (nomeação ilegal — nepotismo)',
 };
 
 /** Limites reais (informativos) e da equipe-chave (jogo). */
@@ -138,8 +141,8 @@ function makeCandidate(s: GameState, rng: RngState, i: number, role: 'chefe' | '
   const office = teamOffice(s) ?? 'vereador';
   const lim = TEAM_LIMITS[office];
   const origin: TeamOrigin = pick(rng, ['mercado', 'mercado', 'partido', 'cabo', 'militante'] as TeamOrigin[]);
-  const base = { mercado: 55, partido: 42, cabo: 38, militante: 40 }[origin];
-  const honestyMean = { mercado: 62, partido: 50, cabo: 40, militante: 70 }[origin];
+  const base = { mercado: 55, partido: 42, cabo: 38, militante: 40, parente: 30 }[origin];
+  const honestyMean = { mercado: 62, partido: 50, cabo: 40, militante: 70, parente: 60 }[origin];
   const sk = (bonus = 0) => Math.round(clamp(base + bonus + normal(rng, 0, 14), 10, 95));
   const skills: Record<TeamSkill, number> = { communication: sk(), politicalKnowledge: sk(), articulation: sk(origin === 'cabo' ? 12 : origin === 'partido' ? 8 : 0), management: sk(role === 'chefe' ? 10 : 0) };
   // Especialidade: um atributo mais forte.
@@ -203,11 +206,37 @@ export function hireMember(s: GameState, _rng: RngState, param: string): string 
   return `${c.name} nomeado(a) ${c.role === 'chefe' ? 'chefe de gabinete' : 'assessor(a)'} (${ORIGIN_LABEL[c.origin].toLowerCase()}, R$ ${c.salary.toLocaleString('pt-BR')}).${extra}`;
 }
 
+/** Nomear um parente na equipe do gabinete — ILEGAL (nepotismo, Súmula Vinculante 13; improbidade, Lei 8.429/92, art. 11, XI). */
+export function hireRelative(s: GameState, rng: RngState, famId: string): string {
+  const office = teamOffice(s);
+  if (!office) return 'Só com mandato legislativo você nomeia assessores.';
+  const t = ensureTeam(s);
+  const lim = TEAM_LIMITS[office];
+  const f = s.personal?.family.find((x) => x.id === famId);
+  if (!f) return 'Parente não encontrado.';
+  if (f.employedByPlayer) return `${f.name} já tem um cargo irregular.`;
+  if (t.members.length >= lim.slots) return `Sua equipe-chave está completa (${lim.slots}). Exonere alguém para abrir vaga.`;
+  const salary = Math.round(((lim.salary[0] + lim.salary[1]) / 2) / 50) * 50;
+  if (teamPayroll(t) + salary > lim.budget) return 'O salário não cabe na verba da equipe-chave.';
+  const sk = () => Math.round(clamp(30 + normal(rng, 0, 12), 10, 70));
+  t.members.push({
+    id: `tm_par_${f.id}_${mi(s.month)}`, name: f.name, role: 'assessor', origin: 'parente', salary,
+    skills: { communication: sk(), politicalKnowledge: sk(), articulation: sk(), management: sk() },
+    honesty: 60, honestyEstimate: 60, loyalty: 92, task: 'atendimento', taskParam: null, status: 'ativo', rachadinha: 0, progress: 0,
+    hiredAt: { ...s.month }, lastOutput: '', relativeId: f.id,
+  });
+  f.employedByPlayer = 'direto';
+  f.mood = clamp(f.mood + 15);
+  s.flags.parentesNomeados = Number(s.flags.parentesNomeados ?? 0) + 1;
+  return `${f.name} nomeado(a) assessor(a) (R$ ${salary.toLocaleString('pt-BR')}). ILEGAL: nepotismo (Súmula Vinculante 13 do STF). Se vier a público, ${f.name.split(' ')[0]} é exonerado(a) e sua credibilidade despenca.`;
+}
+
 export function fireMember(s: GameState, _rng: RngState, id: string): string {
   const t = ensureTeam(s);
   const m = t.members.find((x) => x.id === id);
   if (!m) return 'Assessor não encontrado.';
   t.members = t.members.filter((x) => x.id !== id);
+  if (m.relativeId) { const f = s.personal?.family.find((x) => x.id === m.relativeId); if (f) { f.employedByPlayer = undefined; f.mood = clamp(f.mood - 8); } }
   if (m.origin === 'partido') s.player.partyRel.leadershipTrust = clamp(s.player.partyRel.leadershipTrust - 3);
   let note = `${m.name} foi exonerado(a).`;
   if (m.rachadinha > 0) {

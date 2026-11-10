@@ -2,8 +2,8 @@
 
 import { monthIndex } from '../calendar';
 import { next, type RngState } from '../rng';
-import { TEAM_LIMITS } from './team';
-import { adultRelatives, children, divorce, firstName, marry, memberAge, partner, startLeave, leaveBlock, type FamilyMember } from './personal';
+import { TEAM_LIMITS, hireRelative } from './team';
+import { adultRelatives, characterAge, children, divorce, firstName, marry, memberAge, partner, startLeave, leaveBlock, type FamilyMember } from './personal';
 import type { EventOption, EventTemplate } from './events';
 import type { GameState } from './types';
 
@@ -140,7 +140,7 @@ export const PERSONAL_EVENTS: EventTemplate[] = [
     body: (s) => `${jobSeeker(s)?.name} está sem trabalho e pede um cargo de confiança com você. Nomear parente em cargo comissionado — inclusive por troca de nomeações com outro gabinete — é vedado (Súmula Vinculante 13 do STF) e pode ser improbidade (Lei 8.429/92, art. 11, XI).`,
     weight: 0.04, condition: (s) => !!s.player.mandate && !!TEAM_LIMITS[s.player.mandate.office] && !!jobSeeker(s) && !s.personal?.family.some((m) => m.employedByPlayer),
     options: () => [
-      { label: 'Nomear no gabinete (ILEGAL)', hint: 'Agrada em casa; risco de escândalo', apply: (st: GameState) => { const m = jobSeeker(st)!; m.employedByPlayer = 'direto'; m.mood = clamp(m.mood + 15); return `${m.name} foi nomeado(a). Se vier a público, é nepotismo.`; } },
+      { label: 'Nomear na sua equipe (ILEGAL)', hint: 'Ocupa uma vaga da equipe; agrada em casa; risco de escândalo', apply: (st: GameState, rng) => { const m = jobSeeker(st)!; const r = hireRelative(st, rng, m.id); if (m.employedByPlayer) return r; m.employedByPlayer = 'direto'; m.mood = clamp(m.mood + 15); return `${m.name} foi nomeado(a) num cargo comissionado do gabinete. Se vier a público, é nepotismo.`; } },
       { label: 'Pedir a um colega que contrate, em troca de um favor (ILEGAL)', hint: 'Nepotismo cruzado: mais difícil de descobrir', apply: (st: GameState) => { const m = jobSeeker(st)!; m.employedByPlayer = 'cruzado'; m.mood = clamp(m.mood + 12); return `${m.name} foi contratado(a) no gabinete de um colega, que agora espera retribuição.`; } },
       { label: 'Recusar e explicar a regra', apply: (st: GameState) => { const m = jobSeeker(st)!; m.mood = clamp(m.mood - 8); return `${m.name} não gostou, mas entendeu.`; } },
     ],
@@ -154,6 +154,36 @@ export const PERSONAL_EVENTS: EventTemplate[] = [
       { label: 'Apoiar e orientar', hint: 'Vira seu(sua) herdeiro(a) político(a)', apply: (st: GameState) => { const c = ambitiousChild(st)!; c.politicalInterest = Math.max(c.politicalInterest, 75); c.mood = clamp(c.mood + 10); P(st).heirId = c.id; return `${c.name} vai se preparar para uma candidatura. Use "Lançar um parente na política" num ano eleitoral.`; } },
       { label: 'Desencorajar', apply: (st: GameState) => { const c = ambitiousChild(st)!; c.politicalInterest = Math.max(0, c.politicalInterest - 30); c.mood = clamp(c.mood - 8); return `${c.name} desistiu por enquanto.`; } },
     ],
+  },
+  {
+    id: 'planejar_filho',
+    title: () => 'A família vai crescer?',
+    body: (s) => `Você e ${partner(s)?.name.split(' ')[0]} conversam sobre ${children(s).length ? 'ter mais um filho' : 'ter um filho'}. A rotina política não ajuda, mas a vontade existe.`,
+    weight: 0.05,
+    condition: (s) => !!partner(s) && partner(s)!.mood >= 50 && !s.personal!.babyDue && children(s).length < 5 && characterAge(s) <= 50 && (s.character.gender !== 'Feminino' || characterAge(s) <= 45) && memberAge(s, partner(s)!) <= 50 && !children(s).some((c) => memberAge(s, c) < 1),
+    options: (s) => {
+      const fem = s.character.gender === 'Feminino';
+      const ptF = partner(s)?.gender === 'F';
+      return [
+        ...(fem || ptF ? [{ label: 'Sim, vamos ter um filho', hint: 'Nasce em cerca de 9 meses', apply: (st: GameState) => { P(st).babyDue = now(st) + 9; P(st).babyBy = fem ? 'player' : 'partner'; partner(st)!.mood = clamp(partner(st)!.mood + 10); return `${fem ? 'Você está grávida' : `${partner(st)!.name.split(' ')[0]} está grávida`}! O bebê chega em uns 9 meses.`; } }] : []),
+        { label: 'Adotar uma criança', hint: 'Processo de adoção: cerca de 12 meses (parâmetro)', apply: (st: GameState) => { P(st).babyDue = now(st) + 12; P(st).babyBy = 'adocao'; partner(st)!.mood = clamp(partner(st)!.mood + 10); return 'Vocês entraram com o pedido de adoção (Estatuto da Criança e do Adolescente, Lei 8.069/90). A chegada deve levar cerca de um ano.'; } },
+        { label: 'Agora não', apply: (st: GameState) => { partner(st)!.mood = clamp(partner(st)!.mood - 4); return 'Vocês decidiram esperar.'; } },
+      ];
+    },
+  },
+  {
+    id: 'nascimento',
+    title: (_s, v) => `${String(v.name ?? 'O bebê')} chegou!`,
+    body: (s) => `A família cresceu. ${s.player.mandate ? 'E o mandato? Você pode tirar uns dias ou seguir a agenda.' : 'As primeiras semanas vão ser puxadas.'} Trabalhadoras têm licença-gestante de 120 dias e trabalhadores, licença-paternidade (CF art. 7º, XVIII e XIX); para quem tem mandato, quem regula é a própria Casa ou o Executivo — o jogo usa uma licença remunerada.`,
+    weight: 0, condition: () => false,
+    options: (s) => {
+      const gave = s.character.gender === 'Feminino' && s.personal?.babyBy !== 'adocao';
+      const opts = [] as { label: string; hint?: string; apply: (st: GameState) => string }[];
+      if (!leaveBlock(s)) opts.push({ label: `Tirar licença de ${gave ? '4 meses' : '1 mês'}`, hint: 'Com salário; o substituto assume', apply: (st: GameState) => { P(st).lastFamilyTime = now(st); return startLeave(st, gave ? 4 : 1, 'nascimento'); } });
+      opts.push({ label: 'Ficar em casa nas primeiras semanas', hint: 'Custa 2 compromissos pessoais', apply: (st: GameState) => { st.actionPoints = Math.max(0, st.actionPoints - 2); P(st).stress = clamp(P(st).stress - 5); const pt = partner(st); if (pt) pt.mood = clamp(pt.mood + 8); return 'Você ficou com a família nas primeiras semanas.'; } });
+      opts.push({ label: 'Voltar logo para a agenda', apply: (st: GameState) => { const pt = partner(st); if (pt) pt.mood = clamp(pt.mood - 12); P(st).stress = clamp(P(st).stress + 6); return 'Você voltou ao trabalho no dia seguinte. Em casa, isso pesou.'; } });
+      return opts;
+    },
   },
   {
     id: 'novo_amor',

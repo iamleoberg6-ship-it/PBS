@@ -13,7 +13,8 @@ import { applyEffects, PORTFOLIOS, freeBudget, disputeBudget, manageCrisis, meet
 import { PLAYER, adjustRel, standing } from './relations';
 import { contestBlock } from './partyorg';
 import { fatigueMultiplier, registerUse, dampenGains } from './fatigue';
-import { onLeave } from './personal';
+import { adultRelatives, onLeave, relationLabel } from './personal';
+const relativesForTeam = (s: GameState) => adultRelatives(s).filter((m) => !m.employedByPlayer && !m.ex);
 import { PERSONAL_ACTIONS } from './personalActions';
 import { snapshot, recordDiff } from './ledger';
 import { REGIONS, SEGMENTS } from '../data/regions';
@@ -30,7 +31,7 @@ import { RESPONSE_LABEL, lapseCampaignPromises, makePromise, promiseCapacity, re
 import { computeEnding } from './endings';
 import { BR_REGIONS, brName, isFederal, nationalAgenda } from './national';
 import { MINISTRIES, PRES_AGENDA, leaveMinistry, ministerCommon, ministryAction, ministryById, playerIsPresident, playerIsVice, playerMinistry, presAppoint, presEmendas, presFiscal, presInternational, presMeasure, presSetStyle, presSpeech, viceAction } from './federal';
-import { TASK_LABEL, assignTask, fireMember, hireMember, proposeRachadinha, regularizeGhost, stopRachadinha, teamOffice, themeOptionsForTeam, type TeamTask } from './team';
+import { TASK_LABEL, assignTask, fireMember, hireMember, hireRelative, proposeRachadinha, regularizeGhost, stopRachadinha, teamOffice, themeOptionsForTeam, type TeamTask } from './team';
 import { resignForCandidacy } from './careers';
 import type { AttributeKey, Bill, CrisisResponse, GameState } from './types';
 
@@ -1034,6 +1035,13 @@ export const ACTIONS: ActionDef[] = [
     availability: (s) => (teamOffice(s) ? null : 'hidden'),
     params: (s) => (s.player.team?.pool ?? []).flatMap((c) => [{ value: `${c.id}|ativo`, label: c.name }, { value: `${c.id}|fantasma`, label: `${c.name} (fantasma)` }]),
     apply: (s, rng, param) => hireMember(s, rng, param!),
+  },
+  {
+    id: 'eq_parente', panel: true, fatigue: false, label: 'Nomear parente na equipe', category: 'Gabinete', cost: 0,
+    description: 'ILEGAL: nepotismo (Súmula Vinculante 13 do STF; improbidade, Lei 8.429/92, art. 11, XI). O parente ocupa uma vaga e recebe salário; a família agradece. Todo mês há risco de a imprensa descobrir.',
+    availability: (s) => (teamOffice(s) && relativesForTeam(s).length ? null : 'hidden'),
+    params: (s) => relativesForTeam(s).map((m) => ({ value: m.id, label: `${m.name} (${relationLabel(m).toLowerCase()})` })),
+    apply: (s, rng, param) => hireRelative(s, rng, param!),
   },
   {
     id: 'eq_exonerar', panel: true, fatigue: false, label: 'Exonerar assessor(a)', category: 'Gabinete', cost: 0,

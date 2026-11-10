@@ -17,7 +17,7 @@ Integração em:
 
 A vida pessoal tem **sorteio próprio** (`personal.rng`), para não mudar o resto da simulação.
 
-Testes: 164 passando, 9 deles em `personal.test.ts`.
+Testes: 168 passando, 13 deles em `personal.test.ts`.
 
 ---
 
@@ -169,8 +169,34 @@ A licença termina sozinha no prazo, ou antes, com "Reassumir o cargo". Outro ca
 | Exposição, chance de ameaça, estresse, saúde, humor, valores de segurança, terapia, partilha e pensão; chances de eleição do herdeiro | PROPOSTA / PARÂMETRO |
 | Familiares, pretendentes, amigos, adversários e autores de ameaças | Ficção (personagens do jogo) |
 
-## 8. Pendências
+## 8. Fase 8b: herdeiro com mandato, parente na equipe, nascimento
 
-1. Herdeiro com mandato próprio (vereador eleito) jogável depois de passar o bastão: hoje, só filhos sem mandato podem herdar a partida.
-2. Nepotismo também na equipe do gabinete (o painel de equipe ainda não lista parentes).
-3. Filhos nascendo durante a partida.
+**Herdeiro com mandato**
+- Um parente eleito vereador toma posse em janeiro e ocupa uma cadeira na Câmara, no lugar de um vereador fictício, de preferência do mesmo partido.
+- Na primeira legislatura (2025–2028), a lista da Câmara só tem vereadores reais. Nesse caso o mandato existe, mas não aparece na lista.
+- Ao passar o bastão a um filho com mandato em curso, o jogador continua com esse mandato: vereador, ou deputado estadual com a ficha da Alesp.
+- A reeleição do parente pode ser lançada no ciclo seguinte. Por ser candidato à reeleição, ele não sofre a inelegibilidade reflexa.
+- SIMPLIFICAÇÃO: a eleição do parente é sorteada à parte da apuração geral.
+
+**Parente na equipe (ILEGAL)**
+- O painel "Minha equipe de gabinete" mostra os parentes adultos pedindo vaga.
+- Nomear um parente ocupa uma vaga da equipe-chave, com salário médio da faixa, lealdade alta e atributos modestos. O cartão aparece com a origem em vermelho: "Parente (nomeação ilegal — nepotismo)".
+- Todo mês há chance de a imprensa descobrir: exoneração automática, credibilidade −12, perda de aprovação e mancha no final.
+- O evento "parente pede emprego" usa o mesmo caminho. A alternativa "nepotismo cruzado", troca de nomeações com outro gabinete, também é vedada e é mais difícil de descobrir.
+- Exonerar o parente antes que a história vaze encerra o risco.
+
+**Nascimento e adoção**
+- O evento "A família vai crescer?" aparece com cônjuge ou companheiro de bem com você e idades compatíveis.
+- Opções:
+  - ter um filho: nasce em cerca de 9 meses, quando a personagem ou o parceiro pode gestar;
+  - adotar (ECA, Lei 8.069/90): cerca de 12 meses, parâmetro;
+  - esperar.
+- No nascimento, o evento "chegou!" oferece:
+  - licença remunerada: 4 meses para quem gestou, 1 mês para os demais (SIMPLIFICAÇÃO, inspirada na CF art. 7º, XVIII e XIX, que vale para trabalhadores);
+  - ficar em casa nas primeiras semanas;
+  - voltar logo para a agenda.
+
+## 9. Pendências
+
+1. A eleição do parente ainda não entra na apuração geral (lista de candidatos e votos nominais).
+2. Filhos crescendo mudam de perfil com o tempo (hoje o perfil é sorteado ao nascer).
