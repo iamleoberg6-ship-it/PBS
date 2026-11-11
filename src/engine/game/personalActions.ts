@@ -252,6 +252,8 @@ export function seatHeirs(s: GameState): string[] {
   for (const m of s.personal?.family ?? []) {
     const pol = m.politics;
     if (!pol || pol.status !== 'eleito' || pol.office !== 'vereador' || pol.seated || pol.since === undefined || now(s) < pol.since || now(s) > (pol.until ?? 0)) continue;
+    // Eleito(a) na apuração: a cadeira já veio na posse da nova legislatura.
+    if (s.government.councillors.some((c) => c.id === `heir_${m.id}`)) { pol.seated = true; out.push(`${m.name} tomou posse como vereador(a) de São Paulo.`); continue; }
     const pool = s.government.councillors.filter((c) => !c.real && c.id !== 'character_player' && !c.id.startsWith('heir_'));
     const same = pool.filter((c) => c.partyId === s.player.partyId).sort((a, b) => a.votes - b.votes);
     const target = same[0] ?? [...pool].sort((a, b) => a.votes - b.votes)[0];

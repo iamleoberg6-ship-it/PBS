@@ -28,7 +28,7 @@ export interface FamilyMember {
   trait: Trait;
   /** Interesse em seguir carreira política (0–100). */
   politicalInterest: number;
-  politics?: { office: 'vereador' | 'deputado_estadual'; year: number; status: 'pre' | 'eleito' | 'derrotado'; since?: number; until?: number; seated?: boolean } | null;
+  politics?: { office: 'vereador' | 'deputado_estadual'; year: number; status: 'pre' | 'eleito' | 'derrotado'; since?: number; until?: number; seated?: boolean; votes?: number } | null;
   /** Ex-político (pais de quem começa como herdeiro): só contexto. */
   formerOffice?: string;
   employedByPlayer?: 'direto' | 'cruzado';
@@ -291,6 +291,14 @@ export function launchHeir(s: GameState, param: string): string {
   s.personal!.heirId = m.id;
   return `${m.name} vai disputar ${office === 'vereador' ? 'a Câmara Municipal' : 'a Alesp'} em ${s.month.year} pelo seu partido. Seu reconhecimento ajuda — e sua rejeição também pesa. Resultado em outubro.`;
 }
+/** Parentes na urna deste ano para o cargo (entram na lista do partido do jogador, na apuração real do jogo). */
+export function heirsOnBallot(s: GameState, office: 'vereador' | 'deputado_estadual'): FamilyMember[] {
+  if (!s.player.partyId || !s.personal) return [];
+  return s.personal.family.filter((m) => m.politics?.status === 'pre' && m.politics.office === office && m.politics.year === s.month.year && !reflexBlock(s, office, m));
+}
+/** Peso do parente na disputa, relativo à força eleitoral do jogador (PROPOSTA). */
+export const heirVoteFactor = (m: FamilyMember) => 0.18 + m.politicalInterest / 320;
+
 function resolveHeirs(s: GameState, rng: RngState): string[] {
   const out: string[] = [];
   if (s.month.month !== 10) return out;
@@ -298,12 +306,15 @@ function resolveHeirs(s: GameState, rng: RngState): string[] {
     if (m.politics?.status !== 'pre' || m.politics.year !== s.month.year) continue;
     const block = reflexBlock(s, m.politics.office, m);
     if (block) { m.politics.status = 'derrotado'; out.push(`Candidatura de ${m.name} indeferida. ${block}`); continue; }
+    const res = m.politics.office === 'vereador' ? s.elections.find((e) => e.year === s.month.year)?.proportional : s.generalElections.find((e) => e.year === s.month.year)?.alesp;
+    const onBallot = m.politics.votes !== undefined && !!res;
     const chance = Math.min(0.85, 0.12 + s.player.recognition / 160 + s.player.base / 300 + m.politicalInterest / 500 + ((s.player.credibility ?? 60) - 60) / 300);
-    const won = next(rng) < chance;
+    const won = onBallot ? res!.elected.some((e) => e.candidateId === `heir_${m.id}`) : next(rng) < chance;
+    const votes = onBallot ? ` com ${m.politics.votes!.toLocaleString('pt-BR')} votos` : '';
     m.politics.status = won ? 'eleito' : 'derrotado';
     if (won) { const Y = m.politics.year; m.politics.since = m.politics.office === 'vereador' ? (Y + 1) * 12 : (Y + 1) * 12 + 2; m.politics.until = m.politics.office === 'vereador' ? (Y + 4) * 12 + 11 : (Y + 5) * 12 + 2; m.politics.seated = false; }
     m.mood = clamp(m.mood + (won ? 15 : -10));
-    out.push(won ? `${m.name} foi eleito(a) ${m.politics.office === 'vereador' ? 'vereador(a)' : 'deputado(a) estadual'}! O sobrenome agora está em mais de um mandato.` : `${m.name} não se elegeu ${m.politics.office === 'vereador' ? 'vereador(a)' : 'deputado(a) estadual'}.`);
+    out.push(won ? `${m.name} foi eleito(a) ${m.politics.office === 'vereador' ? 'vereador(a)' : 'deputado(a) estadual'}${votes}! O sobrenome agora está em mais de um mandato.` : `${m.name} não se elegeu ${m.politics.office === 'vereador' ? 'vereador(a)' : 'deputado(a) estadual'}${votes}.`);
   }
   return out;
 }

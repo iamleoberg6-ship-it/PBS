@@ -17,7 +17,7 @@ Integração em:
 
 A vida pessoal tem **sorteio próprio** (`personal.rng`), para não mudar o resto da simulação.
 
-Testes: 168 passando, 13 deles em `personal.test.ts`.
+Testes: 169 passando, 14 deles em `personal.test.ts`.
 
 ---
 
@@ -176,7 +176,7 @@ A licença termina sozinha no prazo, ou antes, com "Reassumir o cargo". Outro ca
 - Na primeira legislatura (2025–2028), a lista da Câmara só tem vereadores reais. Nesse caso o mandato existe, mas não aparece na lista.
 - Ao passar o bastão a um filho com mandato em curso, o jogador continua com esse mandato: vereador, ou deputado estadual com a ficha da Alesp.
 - A reeleição do parente pode ser lançada no ciclo seguinte. Por ser candidato à reeleição, ele não sofre a inelegibilidade reflexa.
-- SIMPLIFICAÇÃO: a eleição do parente é sorteada à parte da apuração geral.
+- A eleição do parente sai da apuração do jogo (ver 8c).
 
 **Parente na equipe (ILEGAL)**
 - O painel "Minha equipe de gabinete" mostra os parentes adultos pedindo vaga.
@@ -196,7 +196,17 @@ A licença termina sozinha no prazo, ou antes, com "Reassumir o cargo". Outro ca
   - ficar em casa nas primeiras semanas;
   - voltar logo para a agenda.
 
+## 8c. Parente na apuração
+
+A candidatura do parente agora passa pela mesma apuração proporcional do jogo:
+- **Vereador:** o parente entra na lista do partido (ou federação) do jogador na eleição da Câmara Municipal, com votos nominais próprios. Esses votos saem do total nominal da lista, sem inventar votos novos, e o teto é de 30% do nominal disponível.
+- **Deputado estadual:** a mesma coisa na eleição da Alesp, com o alcance estadual de votos.
+- **Votos do parente:** a força eleitoral do jogador (a mesma fórmula do voto do jogador) × fator do parente, que é 0,18 + interesse por política ÷ 320 (PROPOSTA), com ruído.
+- **Quem se elege:** o quociente eleitoral, as sobras e as cláusulas de desempenho (regras reais do sistema proporcional, já usadas no jogo) decidem. Eleito vereador, o parente aparece na nova Câmara na posse.
+- **Fallback:** sem registro de apuração (save antigo no meio do ciclo), vale o sorteio da versão anterior.
+- **Inelegibilidade reflexa:** quem esbarra nela não vai para a urna e tem a candidatura indeferida.
+
 ## 9. Pendências
 
-1. A eleição do parente ainda não entra na apuração geral (lista de candidatos e votos nominais).
-2. Filhos crescendo mudam de perfil com o tempo (hoje o perfil é sorteado ao nascer).
+1. Filhos crescendo mudam de perfil com o tempo (hoje o perfil é sorteado ao nascer).
+2. Marcar "seu parente" nas tabelas de resultado da eleição.

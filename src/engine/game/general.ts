@@ -19,6 +19,7 @@ import { next, normal, pareto, type RngState } from '../rng';
 import { apportion } from '../util/apportion';
 import { ballotName, fictionalName, randomBirthDate } from './names';
 import { campaignFactor, distributeVotes } from './campaign';
+import { heirVoteFactor, heirsOnBallot } from './personal';
 import { estimateVereadorVotes, playerElectoralScore } from './elections';
 import { PLAYER } from './relations';
 import { genCycle, mi } from './cycle';
@@ -224,6 +225,17 @@ function simulateHouse(s: GameState, rng: RngState, house: 'alesp' | 'camara', r
     listVotes[pIdx] += taken.reduce((a, b) => a + b, 0);
     playerVotes = Math.min(desired, Math.round(listVotes[pIdx] * (1 - GAMEPLAY.legendVoteShare.value) * 0.9));
   }
+  // Parentes do jogador (Fase 8) na lista do partido do jogador, só para a Alesp.
+  const heirs = house === 'alesp' ? heirsOnBallot(s, 'deputado_estadual') : [];
+  const heirIdx = heirs.length ? listIds.indexOf(listIdForParty(s.player.partyId!)) : -1;
+  const heirBase = heirs.length ? estimateVereadorVotes(playerElectoralScore(s)) * GAMEPLAY.deputyStateReach.value.deputado_estadual : 0;
+  const heirVotes = heirs.map((m) => Math.round(heirBase * heirVoteFactor(m) * Math.max(0.4, 1 + normal(rng, 0, 0.2))));
+  if (heirIdx >= 0) {
+    const room = Math.round((listVotes[heirIdx] * (1 - GAMEPLAY.legendVoteShare.value) - (heirIdx === pIdx ? playerVotes : 0)) * 0.3);
+    const tot = heirVotes.reduce((a, b) => a + b, 0);
+    if (tot > room) for (let k = 0; k < heirVotes.length; k++) heirVotes[k] = Math.floor((heirVotes[k] * room) / tot);
+    heirs.forEach((m, k) => { m.politics!.votes = heirVotes[k]; });
+  }
   const councillors = new Map(s.government.councillors.map((x) => [x.id, x]));
   const myRuns = runs.filter((r) => r.office === office);
   const lists: PropList[] = listIds.map((listId, i) => {
@@ -244,12 +256,16 @@ function simulateHouse(s: GameState, rng: RngState, house: 'alesp' | 'camara', r
       for (let j = 0; j < members.length; j++) { roll -= ws[j]; if (roll <= 0) { partyId = members[j]; break; } }
       pool.push({ id: `${house}_${listId}_${pool.length}`, name: ballotName(rng), birthDate: randomBirthDate(rng, 1950, 2004), partyId, w: Math.min(16, pareto(rng, 1.5)) * (0.85 + next(rng) * 0.3) });
     }
-    const split = apportion(nominal - (i === pIdx ? playerVotes : 0), pool.map((x) => x.w));
+    const split = apportion(nominal - (i === pIdx ? playerVotes : 0) - (i === heirIdx ? heirVotes.reduce((a, b) => a + b, 0) : 0), pool.map((x) => x.w));
     const candidates = pool.map((x, k) => { candidatePartyById[x.id] = x.partyId; return { id: x.id, name: x.name, votes: split[k], birthDate: x.birthDate }; });
     if (i === pIdx) {
       candidatePartyById[PLAYER] = s.player.partyId!;
       candidates.push({ id: PLAYER, name: s.character.name, votes: playerVotes, birthDate: s.character.birthDate });
     }
+    if (i === heirIdx) heirs.forEach((m, k) => {
+      candidatePartyById[`heir_${m.id}`] = s.player.partyId!;
+      candidates.push({ id: `heir_${m.id}`, name: m.name, votes: heirVotes[k], birthDate: `${m.birthYear}-06-15` });
+    });
     return { listId, label: listName(listId), legendVotes: legend, candidates };
   });
   const result = allocateProportional(lists, {

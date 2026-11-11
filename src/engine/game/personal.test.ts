@@ -182,3 +182,20 @@ describe('Fase 8b — herdeiro com mandato, parente na equipe, nascimento', () =
     expect(s.personal!.leave?.paid).toBe(true);
   });
 });
+
+describe('Fase 8c — parente na apuração real', () => {
+  it('candidatura do parente entra na lista do partido, com votos nominais e resultado pela apuração', () => {
+    let s = mk(3, familyA);
+    const lia = s.personal!.family.find((m) => m.name.startsWith('Lia'))!;
+    lia.politicalInterest = 85;
+    while (!(s.month.year === 2028 && s.month.month === 3)) { s = advanceMonth(s); s.pendingEvents = []; }
+    expect(launchHeir(s, `${lia.id}|vereador`)).toContain('Câmara Municipal');
+    while (!(s.month.year === 2028 && s.month.month === 11)) { s = advanceMonth(s); s.pendingEvents = []; }
+    const m = s.personal!.family.find((x) => x.id === lia.id)!;
+    expect(m.politics?.votes).toBeGreaterThan(0);
+    const rec = s.elections.find((e) => e.year === 2028)!;
+    const elected = rec.proportional!.elected.some((e) => e.candidateId === `heir_${lia.id}`);
+    expect(m.politics?.status).toBe(elected ? 'eleito' : 'derrotado');
+    if (elected) expect(rec.candidatePartyById[`heir_${lia.id}`]).toBe(s.player.partyId);
+  });
+});

@@ -18,6 +18,7 @@ import { apportion } from '../util/apportion';
 import { conventionVote } from './partyorg';
 import { ideologicalDistance, partyIdeology } from '../data/ideology';
 import { campaignFactor } from './campaign';
+import { heirVoteFactor, heirsOnBallot } from './personal';
 
 const clamp = (v: number, a = 0, b = 100) => Math.max(a, Math.min(b, v));
 
@@ -155,6 +156,18 @@ export function simulateCouncil(state: GameState, rng: RngState): { record: Pick
     const nominalCap = Math.round(listVotes[pIdx] * (1 - GAMEPLAY.legendVoteShare.value) * 0.9);
     playerVotes = Math.min(desired, nominalCap);
   }
+  // Parentes do jogador lançados por ele (Fase 8): entram na lista do partido do jogador com votos nominais próprios.
+  const heirs = heirsOnBallot(state, 'vereador');
+  const heirList = heirs.length ? listIdForParty(state.player.partyId!) : null;
+  const heirIdx = heirList ? listIds.indexOf(heirList) : -1;
+  const heirBase = heirs.length ? estimateVereadorVotes(playerElectoralScore(state)) : 0;
+  const heirVotes = heirs.map((m) => Math.round(heirBase * heirVoteFactor(m) * Math.max(0.4, 1 + normal(rng, 0, 0.2))));
+  if (heirIdx >= 0) {
+    const room = Math.round((listVotes[heirIdx] * (1 - GAMEPLAY.legendVoteShare.value) - (heirIdx === pIdx ? playerVotes : 0)) * 0.3);
+    const tot = heirVotes.reduce((a, b) => a + b, 0);
+    if (tot > room) for (let k = 0; k < heirVotes.length; k++) heirVotes[k] = Math.floor((heirVotes[k] * room) / tot);
+    heirs.forEach((m, k) => { m.politics!.votes = heirVotes[k]; });
+  }
   // Vereadores em exercício concorrem à reeleição (premissa da simulação), com peso pela votação anterior.
   const incumbents = state.government.councillors.filter((c) => c.id !== 'character_player');
 
@@ -180,7 +193,7 @@ export function simulateCouncil(state: GameState, rng: RngState): { record: Pick
       pool.push({ id: `cand_${listId}_${k}`, name: ballotName(rng), birthDate: randomBirthDate(rng, 1955, 2004), partyId, w: Math.min(12, pareto(rng, 1.7)) * (0.85 + next(rng) * 0.3) });
     }
     // Votos nominais dos demais candidatos = nominal da lista menos os do jogador (soma exata).
-    const othersNominal = nominal - (i === pIdx ? playerVotes : 0);
+    const othersNominal = nominal - (i === pIdx ? playerVotes : 0) - (i === heirIdx ? heirVotes.reduce((a, b) => a + b, 0) : 0);
     const split = apportion(othersNominal, pool.map((c) => c.w));
     const candidates = pool.map((c, k) => {
       candidatePartyById[c.id] = c.partyId;
@@ -190,6 +203,10 @@ export function simulateCouncil(state: GameState, rng: RngState): { record: Pick
       candidatePartyById['character_player'] = state.player.partyId!;
       candidates.push({ id: 'character_player', name: state.character.name, votes: playerVotes, birthDate: state.character.birthDate, birthPrecision: 'exata' });
     }
+    if (i === heirIdx) heirs.forEach((m, k) => {
+      candidatePartyById[`heir_${m.id}`] = state.player.partyId!;
+      candidates.push({ id: `heir_${m.id}`, name: m.name, votes: heirVotes[k], birthDate: `${m.birthYear}-06-15`, birthPrecision: 'ano' });
+    });
     return { listId, label: listName(listId), legendVotes: legend, candidates };
   });
 
