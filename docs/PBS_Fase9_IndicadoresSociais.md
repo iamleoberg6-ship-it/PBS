@@ -81,13 +81,13 @@ A fórmula é: `valor = tendência de fundo × (1 ∓ melhora estrutural ∓ con
 | habitação / assistência | população de rua, pobreza e extrema pobreza |
 | zeladoria / meio ambiente / infraestrutura | esgoto |
 | economia | desocupação |
-
-Mobilidade e cultura ainda não mexem em nenhum indicador social.
+| mobilidade | tempo de deslocamento e mortes no trânsito |
+| cultura | pessoas sem atividade cultural |
 
 ## 3. Regiões da capital
 
-- A página mostra mortalidade infantil, Ideb, homicídios e esgoto nas 8 regiões do jogo, com destaque para a sua região de base.
-- **Diferença entre regiões (PARÂMETRO):** depende da renda da região, inspirada nos dados de desigualdade intraurbana.
+- A página mostra seis indicadores nas 8 regiões do jogo, com destaque para a sua região de base. Mortalidade infantil, homicídios e deslocamento usam dado real (ver seção 6).
+- **Diferença entre regiões nos demais (PARÂMETRO):** Ideb, esgoto e cultura dependem da renda da região, inspirada nos dados de desigualdade intraurbana.
   - Renda baixa: indicadores "quanto menor melhor" ×1,3, Ideb −0,35 e esgoto −6 p.p.
   - Renda alta: indicadores "quanto menor melhor" ×0,7, Ideb +0,4 e esgoto +7 p.p.
   - O valor da cidade é o dado oficial.
