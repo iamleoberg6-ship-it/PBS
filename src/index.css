@@ -363,3 +363,22 @@ details[open] > summary::marker { content: '▾ '; }
 @media (max-width: 900px) { .br-map { grid-template-columns: 1fr; grid-template-areas: "n" "ne" "co" "se" "s"; } }
 .g-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 @media (max-width: 900px) { .g-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ---------- Navegação por seções e abas (Fase 12) ---------- */
+.sidebar .nav-item { font-size: 16px; padding-top: 10px; padding-bottom: 10px; margin-bottom: 2px; }
+.nav-foot { display: flex; flex-direction: column; gap: 2px; }
+.nav-link { background: none; border: 0; color: #b3b8e0; text-align: left; padding: 5px 12px 5px 24px; cursor: pointer; font-size: 13.5px; }
+.nav-link:hover { color: #fff; text-decoration: underline; }
+.nav-link.on { color: var(--gold); font-weight: 600; }
+.section-tabs { position: sticky; top: -22px; z-index: 4; background: var(--paper); margin: -22px -26px 18px; padding: 14px 26px 0; }
+.section-tabs .tab { font-size: 14.5px; }
+.subnav { margin-bottom: 16px; }
+@media (max-width: 900px) {
+  .nav-foot { flex-direction: row; }
+  .nav-link { white-space: nowrap; padding: 6px 8px; flex: 0 0 auto; }
+  .sidebar .nav-item { font-size: 14px; padding: 6px 10px; margin: 0; }
+  .main { overflow: visible; }
+  .sidebar { height: 50px; flex-wrap: nowrap; }
+  .section-tabs { top: 50px; margin: -16px -14px 14px; padding: 10px 14px 0; flex-wrap: nowrap; overflow-x: auto; }
+  .section-tabs .tab { white-space: nowrap; flex: 0 0 auto; }
+}

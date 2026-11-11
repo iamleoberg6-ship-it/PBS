@@ -31,8 +31,8 @@ export const TIPS: Tip[] = [
   },
   {
     id: 'intro_menu', order: 1,
-    title: 'O menu muda com a sua carreira',
-    body: 'O menu lateral é dividido por esfera. "Você" tem sua agenda, ficha e imagem. "Meu cargo" aparece quando você assume um mandato ou emprego público. "Eleições" mostra primeiro a próxima eleição. Partido, imprensa e redes ficam em "Partido e mídia".',
+    title: 'Sete seções, cada uma com abas',
+    body: 'O menu lateral tem sete seções fixas; as abas de cada uma ficam no topo da página. "Agenda" é o seu mês. "Meu cargo" aparece quando você assume um mandato ou emprego público. "Eleições" mostra primeiro a próxima eleição. "Política e país" reúne São Paulo, o governo do estado, o federal e os indicadores. Regras e salvar ficam no rodapé do menu.',
     when: (s) => has(s, 'intro_agenda'),
   },
   {
@@ -73,7 +73,7 @@ export const TIPS: Tip[] = [
   {
     id: 'campanha', order: 21,
     title: 'Campanha registrada',
-    body: 'Na página Campanha você divide tempo e dinheiro entre regiões, segmentos de eleitores e canais. Os gastos têm limite legal e precisam ser declarados; doação de empresa é proibida. Acompanhe as pesquisas, que têm margem de erro e não garantem o resultado.',
+    body: 'Na aba Minha campanha (seção Eleições) você divide tempo e dinheiro entre regiões, segmentos de eleitores e canais. Os gastos têm limite legal e precisam ser declarados; doação de empresa é proibida. Acompanhe as pesquisas, que têm margem de erro e não garantem o resultado.',
     page: 'campanha', pageLabel: 'Campanha',
     when: (s) => s.player.candidacy?.status === 'registrada',
   },
@@ -134,7 +134,7 @@ export const TIPS: Tip[] = [
   {
     id: 'crise', order: 6,
     title: 'Crise de imagem',
-    body: 'Uma notícia sobre você está circulando. Você sabe se ela é verdadeira, falsa ou distorcida; o público não. Responda na aba Imagem: negar algo verdadeiro pode virar mentira exposta, e isso pesa mais que o escândalo original.',
+    body: 'Uma notícia sobre você está circulando. Você sabe se ela é verdadeira, falsa ou distorcida; o público não. Responda em Imagem e mídia › Imagem e promessas: negar algo verdadeiro pode virar mentira exposta, e isso pesa mais que o escândalo original.',
     page: 'imagem', pageLabel: 'Imagem e promessas',
     when: (s) => s.crises.some((c) => c.status === 'ativa' && c.targetId === 'character_player'),
   },
