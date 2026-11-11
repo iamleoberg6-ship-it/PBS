@@ -8,6 +8,8 @@
 //    tradicionalmente associadas ao eixo esquerda–direita são DERIVADAS da escala geral (provisório);
 //    3 dimensões que não se alinham a esse eixo ficam sem valor. Calibração futura: votações nominais por tema.
 
+import { ROLLCALL_POSITIONS } from './rollcall';
+
 export const IDEOLOGY_SOURCE = 'Bolognesi, Ribeiro, Codato e Silva — Opinião Pública (2025), survey de especialistas, posições de 2022';
 
 export type AxisId =
@@ -82,11 +84,33 @@ export function categoryLabel(v: number | null): string {
 export type IdeologyVector = Record<AxisId, number | null>;
 
 /** Converte a escala geral (0–10) em vetor −100..+100 nas dimensões deriváveis. */
-export function partyIdeology(partyId: string): IdeologyVector {
+/** Valor derivado da escala geral de especialistas (provisório, antes da calibração por votações). */
+export function expertDerived(partyId: string, axis: AxisId): number | null {
   const v = EXPERT_SCALE[partyId]?.value ?? null;
+  const a = AXES.find((x) => x.id === axis)!;
+  return v === null || !a.derivable ? null : Math.round((v - 5) * 20);
+}
+
+/**
+ * Vetor ideológico do partido (Fase 10): combina votações nominais da Câmara (data/rollcall.ts) com a escala de especialistas.
+ * Regra (PARÂMETRO do método, documentado): com 2 ou mais votações no eixo, 75% votações + 25% escala; com 1 votação, 50% + 50%;
+ * sem votação (partido pequeno, novo ou sem deputados), só a escala. Sem escala, só as votações.
+ */
+export function partyIdeology(partyId: string): IdeologyVector {
   const out = {} as IdeologyVector;
-  for (const a of AXES) out[a.id] = v === null || !a.derivable ? null : Math.round((v - 5) * 20);
+  for (const a of AXES) out[a.id] = axisPosition(partyId, a.id).value;
   return out;
+}
+export function axisPosition(partyId: string, axis: AxisId): { value: number | null; basis: 'votacoes' | 'votacoes+escala' | 'escala' | 'sem dado'; votes: number } {
+  const ex = expertDerived(partyId, axis);
+  const rc = ROLLCALL_POSITIONS[partyId]?.[axis];
+  if (rc && ex !== null) {
+    const w = rc.n >= 2 ? 0.75 : 0.5;
+    return { value: Math.round(rc.v * w + ex * (1 - w)), basis: 'votacoes+escala', votes: rc.n };
+  }
+  if (rc) return { value: rc.v, basis: 'votacoes', votes: rc.n };
+  if (ex !== null) return { value: ex, basis: 'escala', votes: 0 };
+  return { value: null, basis: 'sem dado', votes: 0 };
 }
 
 export function neutralIdeology(): Record<AxisId, number> {

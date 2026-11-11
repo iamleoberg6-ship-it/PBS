@@ -10,6 +10,7 @@ import { brl, listColor, num, partyColor, pct } from './format';
 import { Headlines, compact } from './media';
 import { CausesModal, MonthReport } from './causes';
 import { Votacoes } from './votacoes';
+import { IdeologiaPorTema } from './ideologia';
 
 type Props = { s: GameState; act: (id: string, param?: string) => void };
 
@@ -238,10 +239,11 @@ export function Partidos({ s, changeParty }: { s: GameState; changeParty: (id: s
             <p className="small muted">Federação atua como um só partido na eleição proporcional e dura no mínimo 4 anos. Coligação só existe na eleição majoritária.</p>
           </div>
           <div className="callout">
-            <b>Como a posição ideológica foi definida.</b> Escala esquerda–direita de 0 a 10 vinda de pesquisa com cientistas políticos: {IDEOLOGY_SOURCE}. O jogo não opina: usa a mesma fonte para todos. * Partido renomeado herda o valor da sigla anterior; fusão usa a média das siglas. O Missão (2025) não estava na pesquisa. As 10 dimensões detalhadas ainda são derivadas dessa escala (provisório) e serão calibradas por votações nominais.
+            <b>Como a posição ideológica foi definida.</b> Escala esquerda–direita de 0 a 10 vinda de pesquisa com cientistas políticos: {IDEOLOGY_SOURCE}. O jogo não opina: usa a mesma fonte para todos. * Partido renomeado herda o valor da sigla anterior; fusão usa a média das siglas. O Missão (2025) não estava na pesquisa. Por tema, as posições agora combinam essa escala com votações nominais reais da Câmara (veja "Ideologia por tema", abaixo); três dimensões (organização do Estado, relações internacionais e direitos individuais) ainda não têm dado.
           </div>
         </div>
       </div>
+      <IdeologiaPorTema highlight={s.player.partyId} />
       {confirm !== undefined && (
         <div className="overlay" onClick={() => setConfirm(undefined)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
