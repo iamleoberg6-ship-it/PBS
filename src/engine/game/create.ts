@@ -32,6 +32,7 @@ import { ideologicalDistance, neutralIdeology, partyIdeology, type AxisId } from
 import type { Attributes, Character, GameState, ProfessionId, StartStatus } from './types';
 import { SAVE_VERSION } from './types';
 import { initPersonal } from './personal';
+import { initIndicators } from './indicators';
 
 // Origens profissionais (PROPOSTA de balanceamento). Nenhuma bloqueia caminhos.
 // Origens profissionais (PROPOSTA de balanceamento). Cada uma tem pontos fortes e fracos;
@@ -201,6 +202,7 @@ export function createGame(input: NewGameInput): GameState {
     stateWorld: initStateWorld(),
     national: initNational(),
     federal: initFederal(),
+    indicators: initIndicators(),
     personal: initPersonal(input.family, character, input.startStatus, input.profession, seed),
     generalElections: [],
     crises: [],

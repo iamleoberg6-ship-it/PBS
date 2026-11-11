@@ -762,6 +762,8 @@ export interface GameState {
   national?: import('./national').NationalState;
   /** Vida pessoal (Fase 8): família, relacionamentos, exposição, ameaças, saúde. */
   personal?: import('./personal').PersonalState;
+  /** Indicadores sociais (Fase 9): cidade, estado e Brasil. */
+  indicators?: import('./indicators').IndicatorsState;
   /** Governo federal (Presidência, ministérios, economia nacional). */
   federal?: import('./federal').FederalState;
   /** Resumo do último mês (Fase 6): o que mudou e por quê. */

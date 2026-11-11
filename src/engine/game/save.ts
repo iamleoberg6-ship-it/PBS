@@ -15,6 +15,7 @@ import { neutralIdeology } from '../data/ideology';
 import { createRng } from '../rng';
 import { SAVE_VERSION, type GameState } from './types';
 import { initPersonal } from './personal';
+import { initIndicators } from './indicators';
 import { initialCouncillors, seatsByParty } from './council';
 import { initialSocial } from './social';
 import { recomputeNetWorth } from './finance';
@@ -298,6 +299,7 @@ function upgradeWithinV8(s: Raw, report: LoadReport) {
     report.repairs.push('Vereadores reais eleitos deputados em 2026 deixam a Câmara; suplentes fictícios do mesmo partido assumem.');
   }
   s.floorVotes ??= [];
+  s.indicators ??= initIndicators();
   // Vida pessoal (Fase 8): partidas antigas começam solteiras, com os pais, sem filhos — a família cresce em eventos.
   if (!s.personal && s.character) {
     s.personal = initPersonal(undefined, s.character, s.character.startStatus ?? 'independente', s.character.profession, Number(s.flags?.seed ?? 1));

@@ -14,6 +14,8 @@ import { PLAYER, adjustRel, standing } from './relations';
 import { contestBlock } from './partyorg';
 import { fatigueMultiplier, registerUse, dampenGains } from './fatigue';
 import { adultRelatives, onLeave, relationLabel } from './personal';
+import { addImpulse } from './indicators';
+const regionName = (id: string) => REGIONS.find((r) => r.id === id)?.name ?? id;
 const relativesForTeam = (s: GameState) => adultRelatives(s).filter((m) => !m.employedByPlayer && !m.ex);
 import { PERSONAL_ACTIONS } from './personalActions';
 import { snapshot, recordDiff } from './ledger';
@@ -789,7 +791,8 @@ export const ACTIONS: ActionDef[] = [
       if (next(rng) < p) {
         s.player.base = grow(s.player.base, 3);
         m.approval = clamp(m.approval + 1);
-        return `A prefeitura atendeu sua indicação (${theme.toLowerCase()}). Base +3.`;
+        const hit = addImpulse(s, 'cidade', param ?? 'zeladoria', 0.8, 6, `Indicação atendida (${theme.toLowerCase()})`, s.player.homeRegion);
+        return `A prefeitura atendeu sua indicação (${theme.toLowerCase()}). Base +3.${hit.length ? ` O efeito aparece aos poucos nos indicadores de ${regionName(s.player.homeRegion)} (página Indicadores).` : ''}`;
       }
       s.player.base = grow(s.player.base, 0.8);
       return `Indicação enviada (${theme.toLowerCase()}); a prefeitura ainda não atendeu.`;
@@ -859,14 +862,18 @@ export const ACTIONS: ActionDef[] = [
   },
   {
     id: 'emendas', label: 'Indicar emendas ao orçamento', category: 'Mandato de vereador', cost: 1,
-    description: 'Durante a tramitação da lei orçamentária (setembro a dezembro). A execução depende da prefeitura.',
+    description: 'Durante a tramitação da lei orçamentária (setembro a dezembro). A execução depende da prefeitura. Emenda executada melhora os indicadores sociais da sua região no tema escolhido.',
     availability: (s) => (inMandate(s, 'vereador') ? (s.month.month >= 9 ? null : 'Só durante a tramitação do orçamento (set–dez).') : 'hidden'),
-    apply: (s, rng) => {
+    paramLabel: 'Área', params: () => THEMES.filter((t) => ['saude', 'educacao', 'habitacao', 'gcm', 'zeladoria', 'meioambiente'].includes(t.value)),
+    apply: (s, rng, param) => {
       const exec = s.player.mandate!.relationExecutive / 100;
       if (next(rng) < 0.35 + exec * 0.6) {
         s.player.base = grow(s.player.base, 4);
         s.player.mandate!.approval = clamp(s.player.mandate!.approval + 2);
-        return 'Emendas aprovadas e com execução prometida para seus bairros. Base +4.';
+        const pr = REGIONS.find((r) => r.id === s.player.homeRegion)?.priorities ?? [];
+        const theme = (param && param !== 'auto' ? param : pr.find((t) => ['saude', 'educacao', 'habitacao', 'gcm', 'zeladoria', 'meioambiente'].includes(t))) ?? 'saude';
+        addImpulse(s, 'cidade', theme, 1.6, 9, `Emendas ao orçamento (${THEMES.find((t) => t.value === theme)?.label.toLowerCase() ?? theme})`, s.player.homeRegion);
+        return `Emendas aprovadas e com execução prometida para seus bairros. Base +4. Efeito nos indicadores de ${regionName(s.player.homeRegion)} ao longo dos próximos meses.`;
       }
       return 'Emendas aprovadas no papel, mas a prefeitura não priorizou a execução.';
     },

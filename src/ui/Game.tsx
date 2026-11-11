@@ -13,6 +13,7 @@ import { Governo } from './governo';
 import { Campanha, GabineteParlamentar } from './campanha';
 import { Equipe } from './equipe';
 import { VidaPessoal } from './pessoal';
+import { Indicadores } from './indicadores';
 import { Brasil } from './brasil';
 import { GovernoFederal } from './federal';
 import { GuideCard } from './guide';
@@ -20,7 +21,7 @@ import { CausesModal } from './causes';
 import { exportSave, isDesktop, mirrorToFile } from './desktop';
 import { Conquistas, EleicoesGerais, EstadoUniao, Imagem, MeuMandato } from './estado';
 
-const PAGE_IDS = ['gabinete', 'mandato', 'personagem', 'meupartido', 'partidos', 'redes', 'noticias', 'campanha', 'eleicoes', 'gerais', 'estado', 'imagem', 'gabparl', 'governo', 'camara', 'secretaria', 'cidade', 'conquistas', 'historico', 'regras', 'equipe', 'brasil', 'federal', 'pessoal'] as const;
+const PAGE_IDS = ['gabinete', 'mandato', 'personagem', 'meupartido', 'partidos', 'redes', 'noticias', 'campanha', 'eleicoes', 'gerais', 'estado', 'imagem', 'gabparl', 'governo', 'camara', 'secretaria', 'cidade', 'conquistas', 'historico', 'regras', 'equipe', 'brasil', 'federal', 'pessoal', 'indicadores'] as const;
 type PageId = (typeof PAGE_IDS)[number];
 type NavGroup = { title: string; items: [PageId, string][] };
 
@@ -48,6 +49,7 @@ function navGroups(s: GameState): NavGroup[] {
   if (m && TEAM_LIMITS[m.office]) cargo.push(['equipe', `Minha equipe de gabinete (${s.player.team?.members.length ?? 0})`]);
   const federal = ['deputado_federal', 'senador', 'presidente', 'vice_presidente', 'ministro'].includes(m?.office ?? '');
   if (federal) cargo.push(['brasil', 'Brasil — minha projeção']);
+  if (m) cargo.push(['indicadores', 'Indicadores sociais do meu território']);
   if (cargo.length) groups.push({ title: 'Meu cargo', items: cargo });
   const ne = nextElection(monthIndex(s.month));
   const munY = munCycle(monthIndex(s.month));
@@ -60,7 +62,7 @@ function navGroups(s: GameState): NavGroup[] {
   groups.push({ title: 'Eleições', items: el });
   const upper = !!m && ['deputado_estadual', 'deputado_federal', 'senador', 'governador', 'secretario_estadual', 'presidente', 'vice_presidente', 'ministro'].includes(m.office);
   const fedPage = ['presidente', 'vice_presidente', 'ministro'].includes(m?.office ?? '');
-  const state: NavGroup = { title: 'Estado e União', items: [['estado', 'Governo de SP e Congresso'] as [PageId, string], ...(fedPage ? [] : [['federal', 'Governo federal'] as [PageId, string]]), ...(federal ? [] : [['brasil', 'Brasil por regiões'] as [PageId, string]])] };
+  const state: NavGroup = { title: 'Estado e União', items: [...(m ? [] : [['indicadores', 'Indicadores sociais'] as [PageId, string]]), ['estado', 'Governo de SP e Congresso'] as [PageId, string], ...(fedPage ? [] : [['federal', 'Governo federal'] as [PageId, string]]), ...(federal ? [] : [['brasil', 'Brasil por regiões'] as [PageId, string]])] };
   const city: NavGroup = { title: 'Cidade de São Paulo', items: ([['governo', 'Prefeitura'], ['camara', 'Câmara Municipal'], ['cidade', 'Vereadores e cidade']] as [PageId, string][]).filter(([id]) => !cargo.some(([c]) => c === id)) };
   groups.push(...(upper ? [state, city] : [city, state]));
   groups.push({ title: 'Partido e mídia', items: [['meupartido', 'Meu partido'], ['partidos', 'Partidos'], ['redes', 'Redes sociais'], ['noticias', 'Notícias']] });
@@ -169,6 +171,7 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
         {page === 'gabparl' && <GabineteParlamentar s={s} act={act} />}
         {page === 'equipe' && <Equipe s={s} act={act} />}
         {page === 'pessoal' && <VidaPessoal s={s} act={act} />}
+        {page === 'indicadores' && <Indicadores s={s} />}
         {page === 'brasil' && <Brasil s={s} />}
         {page === 'federal' && <GovernoFederal s={s} act={act} decide={(id, d) => setS(decideSanction(s, id, d))} />}
         {page === 'governo' && <Governo s={s} openDraft={() => setS(openDraft(s))} adjust={(k, p) => setS(adjustDraft(s, k, p))} />}

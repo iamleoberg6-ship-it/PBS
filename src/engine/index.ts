@@ -45,3 +45,4 @@ export * from './game/endings';
 export * from './game/careers';
 export * from './game/pauta';
 export * from './game/personal';
+export * from './game/indicators';
