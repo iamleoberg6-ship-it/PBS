@@ -169,7 +169,7 @@ export function Personagem({ s }: { s: GameState }) {
           {AXES.map((ax) => (
             <div key={ax.id} style={{ marginBottom: 8 }}>
               <div className="meter-label"><span>{ax.label}</span><span className="mono">{c.ideology[ax.id] > 0 ? '+' : ''}{c.ideology[ax.id]}</span></div>
-              <div style={{ position: 'relative', height: 6, background: 'var(--paper-2)', borderRadius: 3 }}><i style={{ position: 'absolute', left: `calc(${(c.ideology[ax.id] + 100) / 2}% - 4px)`, top: -2, width: 8, height: 10, borderRadius: 2, background: 'var(--ink)' }} /></div>
+              <div style={{ position: 'relative', height: 6, background: 'var(--paper-2)', borderRadius: 0 }}><i style={{ position: 'absolute', left: `calc(${(c.ideology[ax.id] + 100) / 2}% - 4px)`, top: -2, width: 8, height: 10, borderRadius: 0, background: 'var(--ink)' }} /></div>
               <div className="small muted" style={{ display: 'flex', justifyContent: 'space-between' }}><span>{ax.minus}</span><span>{ax.plus}</span></div>
             </div>
           ))}
@@ -205,15 +205,15 @@ export function Partidos({ s, changeParty }: { s: GameState; changeParty: (id: s
               <tbody>
                 {rows.map((p) => (
                   <tr key={p.id} className={p.id === s.player.partyId ? 'mine' : ''}>
-                    <td><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 4, background: partyColor(p.id), marginRight: 6 }} /><b>{p.acronym}</b></td>
+                    <td><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 0, background: partyColor(p.id), marginRight: 6 }} /><b>{p.acronym}</b></td>
                     <td>{p.name}</td>
                     <td className="num">{p.number}</td>
                     <td>{p.federationId ? <span className="tag fed">{FEDERATIONS.find((f) => f.id === p.federationId)!.name.replace('Federação ', '')}</span> : <span className="muted">—</span>}</td>
                     <td style={{ minWidth: 150 }} title={EXPERT_SCALE[p.id]?.basis}>
                       {EXPERT_SCALE[p.id]?.value != null ? (
                         <>
-                          <div style={{ position: 'relative', height: 6, background: 'linear-gradient(90deg, #b4432f33, #e8e2d4, #2b5c8a33)', borderRadius: 3 }}>
-                            <i style={{ position: 'absolute', left: `calc(${EXPERT_SCALE[p.id].value! * 10}% - 4px)`, top: -2, width: 8, height: 10, borderRadius: 2, background: 'var(--ink)' }} />
+                          <div style={{ position: 'relative', height: 6, background: 'linear-gradient(90deg, #e43b4455, #f1e2bf, #2a78dc55)', borderRadius: 0 }}>
+                            <i style={{ position: 'absolute', left: `calc(${EXPERT_SCALE[p.id].value! * 10}% - 4px)`, top: -2, width: 8, height: 10, borderRadius: 0, background: 'var(--ink)' }} />
                           </div>
                           <div className="small muted">{EXPERT_SCALE[p.id].value!.toLocaleString('pt-BR')} · {categoryLabel(EXPERT_SCALE[p.id].value)}{EXPERT_SCALE[p.id].basis !== 'Valor da fonte (2022)' ? '*' : ''}</div>
                         </>
@@ -239,7 +239,7 @@ export function Partidos({ s, changeParty }: { s: GameState; changeParty: (id: s
             <p className="small muted">Federação atua como um só partido na eleição proporcional e dura no mínimo 4 anos. Coligação só existe na eleição majoritária.</p>
           </div>
           <div className="callout">
-            <b>Como a posição ideológica foi definida.</b> Escala esquerda–direita de 0 a 10 vinda de pesquisa com cientistas políticos: {IDEOLOGY_SOURCE}. O jogo não opina: usa a mesma fonte para todos. * Partido renomeado herda o valor da sigla anterior; fusão usa a média das siglas. O Missão (2025) não estava na pesquisa. Por tema, as posições agora combinam essa escala com votações nominais reais da Câmara (veja "Ideologia por tema", abaixo); três dimensões (organização do Estado, relações internacionais e direitos individuais) ainda não têm dado.
+            <b>Como a posição ideológica foi definida.</b> Escala esquerda–direita de 0 a 10 vinda de pesquisa com cientistas políticos: {IDEOLOGY_SOURCE}. O jogo não opina: usa a mesma fonte para todos. * Partido renomeado herda o valor da sigla anterior; fusão usa a média das siglas. O Missão (2025) não estava na pesquisa. Por tema, as posições combinam essa escala com votações nominais reais da Câmara e do Senado (veja "Ideologia por tema", abaixo); relações internacionais ainda não têm dado.
           </div>
         </div>
       </div>
@@ -455,7 +455,7 @@ function CouncilResult({ rec }: { rec: ElectionRecord }) {
             <tbody>
               {r.lists.filter((l) => l.totalVotes > 0).map((l) => (
                 <tr key={l.listId}>
-                  <td><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 4, background: listColor(l.listId), marginRight: 6 }} />{l.label}</td>
+                  <td><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 0, background: listColor(l.listId), marginRight: 6 }} />{l.label}</td>
                   <td className="num">{num(l.totalVotes)}</td>
                   <td className="num">{(l.totalVotes / r.electoralQuotient).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</td>
                   <td className="num">{l.partyQuotient}</td>
@@ -562,7 +562,7 @@ export function Cidade({ s }: { s: GameState }) {
               {[...g.councillors].sort((a, b) => b.votes - a.votes).map((c) => (
                 <tr key={c.id} className={c.id === 'character_player' ? 'mine' : ''}>
                   <td><b>{c.name}</b>{c.real && councillorFacts(c.id).slice(1).map((f, i) => <div key={i} className="small muted">{f}</div>)}</td>
-                  <td><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 4, background: partyColor(c.partyId), marginRight: 6 }} />{partyById(c.partyId)?.acronym}</td>
+                  <td><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 0, background: partyColor(c.partyId), marginRight: 6 }} />{partyById(c.partyId)?.acronym}</td>
                   <td className="small">{c.birthDate ? (c.birthPrecision === 'exata' ? formatIsoPt(c.birthDate) : `${c.birthDate.slice(0, 4)}`) : '—'} {c.birthPrecision && c.birthPrecision !== 'exata' && <span className={`tag ${c.birthPrecision === 'estimada' ? 'proposta' : 'derivada'}`}>{c.birthPrecision === 'estimada' ? 'estimado' : 'só o ano'}</span>}</td>
                   <td className="num">{num(c.votes)} <span className="small muted">({c.electedIn})</span></td>
                   <td>{c.id === 'character_player' ? <span className="tag ok">você</span> : c.real ? <span className="tag real">real</span> : <span className="tag">do jogo</span>}</td>

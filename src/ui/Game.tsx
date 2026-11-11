@@ -131,7 +131,7 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
         {officePointsFor(s) > 0 && (
           <div className="ap" title="Agenda do cargo: compromissos só para o trabalho do cargo" style={{ marginLeft: 8 }}>
             <span className="small" style={{ color: 'var(--paper-2, #ddd)', marginRight: 4 }}>cargo</span>
-            {Array.from({ length: officePointsFor(s) }, (_, i) => <span key={i} className={`ap-dot ${i < (s.officePoints ?? 0) ? 'on' : ''}`} style={{ borderRadius: 2, transform: 'rotate(45deg)' }} />)}
+            {Array.from({ length: officePointsFor(s) }, (_, i) => <span key={i} className={`ap-dot ${i < (s.officePoints ?? 0) ? 'on' : ''}`} style={{ borderRadius: 0, transform: 'rotate(45deg)' }} />)}
           </div>
         )}
         <button className="top-stat top-stat-btn" onClick={() => setWhyCash(true)} title="Por que o caixa mudou?" aria-label={`Caixa pessoal: ${brl(s.finances.cash)}. Ver por que mudou`}><b>{brl(s.finances.cash)}</b><small>caixa pessoal</small></button>

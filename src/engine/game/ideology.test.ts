@@ -4,7 +4,7 @@ import { axisPosition, partyIdeology, ROLLCALL_VOTES, ROLLCALL_POSITIONS } from 
 describe('Fase 10 — ideologia por votações nominais', () => {
   it('tem votações com placar e sentido definidos', () => {
     expect(ROLLCALL_VOTES.length).toBeGreaterThanOrEqual(10);
-    for (const v of ROLLCALL_VOTES) { expect(v.sim + v.nao).toBeGreaterThan(300); expect([1, -1]).toContain(v.dir); }
+    for (const v of ROLLCALL_VOTES) { expect(v.sim + v.nao).toBeGreaterThan(v.house === 'SF' ? 50 : 300); expect([1, -1]).toContain(v.dir); }
   });
   it('esquerda negativa e direita positiva nos eixos calibrados', () => {
     for (const ax of ['economia', 'fiscal', 'social', 'seguranca', 'ambiente'] as const) {
@@ -24,5 +24,22 @@ describe('Fase 10 — ideologia por votações nominais', () => {
   it('eixos sem dado ficam nulos e valores dentro de [-100,100]', () => {
     const v = partyIdeology('party_real_pt');
     for (const x of Object.values(v)) if (x !== null) { expect(x).toBeGreaterThanOrEqual(-100); expect(x).toBeLessThanOrEqual(100); }
+  });
+});
+
+describe('Fase 11 — Senado e novos eixos', () => {
+  it('inclui votações das duas casas', () => {
+    expect(ROLLCALL_VOTES.some((v) => v.house === 'SF')).toBe(true);
+    expect(ROLLCALL_VOTES.some((v) => v.house === 'CD')).toBe(true);
+  });
+  it('organização do Estado e direitos usam só votações', () => {
+    const e = axisPosition('party_real_pt', 'estado');
+    expect(e.basis).toBe('votacoes');
+    expect(axisPosition('party_real_pt', 'direitos').value!).toBeLessThan(0);
+    expect(axisPosition('party_real_pl', 'direitos').value!).toBeGreaterThan(0);
+    expect(axisPosition('party_real_novo', 'estado').value!).toBeLessThan(axisPosition('party_real_pt', 'estado').value!);
+  });
+  it('relações internacionais seguem sem dado', () => {
+    expect(axisPosition('party_real_pt', 'internacional').value).toBeNull();
   });
 });

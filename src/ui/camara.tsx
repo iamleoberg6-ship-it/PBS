@@ -45,7 +45,7 @@ export function Camara({ s, vote }: { s: GameState; vote: (billId: string, c: Vo
       <div className="grid g-2">
         <div className="card">
           <div className="card-title"><h3>Blocos frente ao prefeito</h3><span className="small muted">simulação</span></div>
-          <div style={{ display: 'flex', height: 14, borderRadius: 7, overflow: 'hidden', marginBottom: 10 }}>
+          <div style={{ display: 'flex', height: 14, borderRadius: 0, overflow: 'hidden', marginBottom: 10 }}>
             {(Object.keys(counts) as Stance[]).map((k) => <i key={k} title={BLOC_LABEL[k]} style={{ width: `${(counts[k] / total) * 100}%`, background: BLOC_COLOR[k] }} />)}
           </div>
           <div className="legend">{(Object.keys(counts) as Stance[]).map((k) => <span key={k}><i style={{ background: BLOC_COLOR[k] }} />{BLOC_LABEL[k]} {counts[k]}</span>)}</div>
@@ -76,7 +76,7 @@ export function Camara({ s, vote }: { s: GameState; vote: (billId: string, c: Vo
                   <td><b>{c.name}</b>{c.members.includes(PLAYER) && <span className="tag ok" style={{ marginLeft: 6 }}>sua comissão</span>}</td>
                   <td className="num">{c.seats}</td>
                   <td className="small">{c.presidentId ? nameOf(s, c.presidentId) : '—'}</td>
-                  <td className="small">{Object.entries(byP).sort((a, b) => b[1] - a[1]).map(([p, n]) => <span key={p} style={{ marginRight: 8, whiteSpace: 'nowrap' }}><i style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 4, background: partyColor(p), marginRight: 3 }} />{partyById(p)?.acronym} {n}</span>)}</td>
+                  <td className="small">{Object.entries(byP).sort((a, b) => b[1] - a[1]).map(([p, n]) => <span key={p} style={{ marginRight: 8, whiteSpace: 'nowrap' }}><i style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 0, background: partyColor(p), marginRight: 3 }} />{partyById(p)?.acronym} {n}</span>)}</td>
                   <td className="num">{L.bills.filter((b) => isActive(b) && b.committeeId === c.id && ['ccj', 'merito', 'financas'].includes(b.stage)).length}</td>
                 </tr>
               );
@@ -154,7 +154,7 @@ function BillRow({ s, b, open, toggle, vote, canVote }: { s: GameState; b: Bill;
             {f && (
               <>
                 <div className="small muted">Placar provável {ctx === 'comissao' ? 'na comissão' : ctx === 'veto' ? 'pela derrubada do veto' : 'no plenário'} (sem ruído)</div>
-                <div style={{ display: 'flex', height: 12, borderRadius: 6, overflow: 'hidden', margin: '4px 0' }}>
+                <div style={{ display: 'flex', height: 12, borderRadius: 0, overflow: 'hidden', margin: '4px 0' }}>
                   <i style={{ width: `${(f.yes / Math.max(1, f.yes + f.no + f.undecided)) * 100}%`, background: 'var(--accent)' }} />
                   <i style={{ width: `${(f.undecided / Math.max(1, f.yes + f.no + f.undecided)) * 100}%`, background: '#c9c2b4' }} />
                   <i style={{ width: `${(f.no / Math.max(1, f.yes + f.no + f.undecided)) * 100}%`, background: 'var(--red)' }} />

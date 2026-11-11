@@ -76,7 +76,7 @@ export function Secretaria({ s }: { s: GameState }) {
           {sec.programs.map((p) => (
             <div key={p.id} style={{ marginBottom: 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><b>{p.label}</b><span className={`tag ${p.phase === 'entregue' ? 'ok' : p.delayed ? 'no' : ''}`}>{PHASE_LABEL[p.phase]}{p.delayed ? ' · atrasado' : ''}</span></div>
-              <div style={{ display: 'flex', gap: 3, margin: '5px 0' }}>{PHASES.map((ph, k) => <i key={ph} style={{ flex: 1, height: 6, borderRadius: 3, background: PHASES.indexOf(p.phase) >= k ? 'var(--accent)' : 'var(--paper-2)' }} />)}</div>
+              <div style={{ display: 'flex', gap: 3, margin: '5px 0' }}>{PHASES.map((ph, k) => <i key={ph} style={{ flex: 1, height: 6, borderRadius: 0, background: PHASES.indexOf(p.phase) >= k ? 'var(--accent)' : 'var(--paper-2)' }} />)}</div>
               <div className="small muted">R$ {p.cost} mi{p.phase !== 'entregue' ? ` · ${p.monthsLeft} mês(es) nesta fase` : ''} · efeito: {Object.entries(p.effects).map(([k, v]) => `${sec.indicators.find((i) => i.key === k)?.label.toLowerCase()} ${v > 0 ? '+' : ''}${fmt(v)}`).join('; ')}</div>
             </div>
           ))}
