@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import {
-  INDICATORS, INDICATOR_RULES, REGIONAL_IDS, REGIONS, indicatorById, indicatorChange, indicatorValue, playerEffect, playerSphere, regionalValue,
-  type GameState, type Sphere,
+  GOVPROFILE_RULES, GOV_AREA_LABEL, INDICATORS, INDICATOR_RULES, MOBILITY_SOURCE, REGIONAL_IDS, REGIONAL_REAL, REGIONS, SUBPREF_SOURCE, aiModeled, governments,
+  indicatorById, indicatorChange, indicatorValue, partyById, playerEffect, playerSphere, profileForParty, regionalValue, subprefValue,
+  type GameState, type GovArea, type Sphere,
 } from '../engine';
 
 const SPHERE_LABEL: Record<Sphere, string> = { cidade: 'Cidade de São Paulo', estado: 'Estado de São Paulo', brasil: 'Brasil' };
@@ -26,6 +27,8 @@ export function Indicadores({ s }: { s: GameState }) {
           <button key={k} className="btn btn-sm" style={sphere === k ? { background: 'var(--accent)', color: '#fff', borderColor: 'transparent' } : undefined} onClick={() => setSphere(k)}>{SPHERE_LABEL[k]}{playerSphere(s) === k && s.player.mandate ? ' · seu mandato' : ''}</button>
         ))}
       </div>
+
+      <GovCard s={s} sphere={sphere} />
 
       <div className="grid g-3">
         {defs.map((d) => {
@@ -53,7 +56,7 @@ export function Indicadores({ s }: { s: GameState }) {
         <div className="card" style={{ marginTop: 16 }}>
           <h3>Por região da capital</h3>
           <div className="table-wrap"><table>
-            <thead><tr><th>Região</th>{REGIONAL_IDS.map((id) => <th key={id} className="num">{indicatorById(id)!.label}</th>)}</tr></thead>
+            <thead><tr><th>Região</th>{REGIONAL_IDS.map((id) => <th key={id} className="num">{indicatorById(id)!.label}<div><span className={`tag ${REGIONAL_REAL.has(id) ? 'real' : 'proposta'}`}>{REGIONAL_REAL.has(id) ? 'DADO REAL' : 'PARÂMETRO'}</span></div></th>)}</tr></thead>
             <tbody>{REGIONS.map((r) => (
               <tr key={r.id} className={r.id === s.player.homeRegion ? 'mine' : ''}>
                 <td><b>{r.name}</b>{r.id === s.player.homeRegion && <span className="tag ok" style={{ marginLeft: 4 }}>sua base</span>}<div className="small muted">renda {r.income}</div></td>
@@ -61,7 +64,21 @@ export function Indicadores({ s }: { s: GameState }) {
               </tr>
             ))}</tbody>
           </table></div>
-          <p className="small muted"><span className="tag proposta" style={{ marginRight: 4 }}>PARÂMETRO</span>A diferença entre regiões é estimada pelo jogo (renda da região), inspirada nos dados de desigualdade intraurbana. O valor da cidade é o dado oficial.</p>
+          <p className="small muted">Mortalidade infantil e homicídios: {SUBPREF_SOURCE}, agregados por região pela população (Censo 2022). Deslocamento: {MOBILITY_SOURCE}, por zona. Colunas marcadas como PARÂMETRO usam a renda da região (estimativa do jogo).</p>
+          <details style={{ marginTop: 8 }}>
+            <summary className="small"><b>Ver as 32 subprefeituras</b></summary>
+            <div className="table-wrap"><table>
+              <thead><tr><th>Subprefeitura</th><th>Região do jogo</th><th className="num">Mortalidade infantil (por mil)</th><th className="num">Homicídios (por 100 mil)</th><th className="num">População (2022)</th></tr></thead>
+              <tbody>{REGIONS.flatMap((r) => r.subprefeituras.map((sp) => (
+                <tr key={sp.name} className={r.id === s.player.homeRegion ? 'mine' : ''}>
+                  <td>{sp.name}</td><td className="small">{r.name}</td>
+                  <td className="num">{fmt(subprefValue(s, 'c_mortinf', sp.name, r.id) ?? 0, 1)}</td>
+                  <td className="num">{fmt(subprefValue(s, 'c_homic', sp.name, r.id) ?? 0, 1)}</td>
+                  <td className="num">{sp.pop2022.toLocaleString('pt-BR')}</td>
+                </tr>
+              )))}</tbody>
+            </table></div>
+          </details>
         </div>
       )}
 
@@ -86,8 +103,29 @@ export function Indicadores({ s }: { s: GameState }) {
 
       <div className="card" style={{ marginTop: 16 }}>
         <h3>Regras</h3>
-        {INDICATOR_RULES.map((r) => <p key={r} className="small">{r}</p>)}
+        {[...INDICATOR_RULES, ...GOVPROFILE_RULES].map((r) => <p key={r} className="small">{r}</p>)}
       </div>
     </>
+  );
+}
+
+function GovCard({ s, sphere }: { s: GameState; sphere: Sphere }) {
+  const g = governments(s)[sphere];
+  const party = g.partyId ? partyById(g.partyId) : null;
+  const prof = aiModeled(g) ? profileForParty(g.partyId) : null;
+  const top = prof ? (Object.keys(prof.priority) as GovArea[]).sort((a, b) => prof.priority[b] - prof.priority[a]).slice(0, 3) : [];
+  return (
+    <div className="card" style={{ marginBottom: 16 }}>
+      <h3>Quem governa: {g.office}</h3>
+      <p className="small"><b>{g.name}</b>{party ? ` (${party.acronym})` : ''} — {g.isPlayer ? 'você' : g.real ? 'pessoa real' : 'personagem do jogo'}</p>
+      {g.isPlayer && <p className="small muted">As decisões são suas: secretarias, orçamento, programas e impostos.</p>}
+      {g.real && <p className="small muted">Pessoa real em exercício: o jogo não decide por ela. Os indicadores desta esfera seguem a tendência de fundo e a economia.</p>}
+      {prof && (
+        <>
+          <p className="small"><span className="tag proposta" style={{ marginRight: 4 }}>PERFIL DO PARTIDO</span>{prof.summary}</p>
+          {prof.classified && <p className="small muted">Postura fiscal: {prof.fiscal === 'ajuste' ? 'ajuste' : prof.fiscal === 'expansao' ? 'expansão' : 'neutra'} · Impostos: {prof.tax} · Segurança: {prof.security} · Mais peso em: {top.map((a) => GOV_AREA_LABEL[a]).join(', ')}</p>}
+        </>
+      )}
+    </div>
   );
 }

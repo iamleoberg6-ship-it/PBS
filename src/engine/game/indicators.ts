@@ -10,6 +10,8 @@
 // A desigualdade entre as regiões da capital é PARÂMETRO (inspirada no Mapa da Desigualdade da Rede Nossa São Paulo).
 
 import { REGIONS, regionWeights } from '../data/regions';
+import { REGION_ZONE, SUBPREF_DATA, ZONE_COMMUTE } from '../data/subprefeituras';
+import { stateGovIndices } from './govprofile';
 import { monthIndex } from '../calendar';
 import type { GameState } from './types';
 
@@ -37,17 +39,22 @@ export interface IndicatorDef {
 
 export const INDICATORS: IndicatorDef[] = [
   // ---------------- Cidade de São Paulo ----------------
-  { id: 'c_mortinf', sphere: 'cidade', label: 'Mortalidade infantil', unit: 'por mil nascidos vivos', better: 'down', base: 11.4, year: 2024, source: 'Seade / SMDU-Deinfo (Prefeitura de SP)', trend: -0.01, decimals: 1, competence: 'Atenção básica e pré-natal: município (SUS)', levers: 'Indicações e emendas de saúde, leis de saúde, Secretaria da Saúde' },
+  { id: 'c_mortinf', sphere: 'cidade', label: 'Mortalidade infantil', unit: 'por mil nascidos vivos', better: 'down', base: 10.0, year: 2025, source: 'SMS-SP, Boletim CEInfo por Subprefeitura (2026)', trend: -0.01, decimals: 1, competence: 'Atenção básica e pré-natal: município (SUS)', levers: 'Indicações e emendas de saúde, leis de saúde, Secretaria da Saúde' },
   { id: 'c_ideb', sphere: 'cidade', label: 'Ideb anos iniciais (rede municipal)', unit: 'nota 0–10', better: 'up', base: 5.6, year: 2023, source: 'Inep (Ideb 2023)', trend: 0.004, max: 10, decimals: 1, competence: 'Ensino fundamental I: rede municipal', levers: 'Indicações e emendas de educação, leis de educação, Secretaria da Educação' },
-  { id: 'c_homic', sphere: 'cidade', label: 'Homicídios dolosos', unit: 'vítimas por 100 mil hab.', better: 'down', base: 4.36, year: 2024, source: 'SSP-SP', trend: -0.02, decimals: 2, competence: 'Polícias: governo do estado. A GCM municipal ajuda na prevenção', levers: 'Ações de segurança/GCM, Segurança Urbana municipal; mais forte pelo governo do estado' },
+  { id: 'c_homic', sphere: 'cidade', label: 'Homicídios', unit: 'por 100 mil hab. (padronizado por idade)', better: 'down', base: 5.1, year: 2024, source: 'SMS-SP, Boletim CEInfo por Subprefeitura (2026), dados do SIM', trend: -0.02, decimals: 1, competence: 'Polícias: governo do estado. A GCM municipal ajuda na prevenção', levers: 'Ações de segurança/GCM, Segurança Urbana municipal; mais forte pelo governo do estado' },
   { id: 'c_esgoto', sphere: 'cidade', label: 'Domicílios urbanos com coleta de esgoto', unit: '%', better: 'up', base: 89.1, year: 2024, source: 'Cetesb / SMDU-Deinfo (Prefeitura de SP)', trend: 0.4, additive: true, max: 99.5, decimals: 1, competence: 'Concessão de saneamento (Sabesp) com o município e o estado', levers: 'Emendas e indicações de infraestrutura/zeladoria, leis de meio ambiente' },
   { id: 'c_poprua', sphere: 'cidade', label: 'Pessoas em situação de rua (CadÚnico)', unit: 'pessoas', better: 'down', base: 93355, year: 2025, source: 'CadÚnico, jan/2025 (via OBPopRua/UFMG). O censo da prefeitura de 2021 contou 31.884, com outro método', trend: 0.02, decimals: 0, competence: 'Assistência social e habitação: município, com estado e União', levers: 'Indicações e emendas de assistência/habitação, leis de habitação, Secretarias de Assistência e Habitação' },
+  { id: 'c_desloc', sphere: 'cidade', label: 'Tempo diário em deslocamentos', unit: 'minutos (ida e volta)', better: 'down', base: 145, year: 2024, source: 'Rede Nossa SP / Ipec, Viver em São Paulo: Mobilidade Urbana 2024 (pesquisa de opinião)', trend: 0, decimals: 0, competence: 'Ônibus municipais e trânsito: prefeitura; metrô e trens: governo do estado', levers: 'Indicações, emendas e leis de mobilidade; Secretaria de Mobilidade e Trânsito; transporte metropolitano (estado)' },
+  { id: 'c_transito', sphere: 'cidade', label: 'Mortes no trânsito', unit: 'por 100 mil hab.', better: 'down', base: 4.3, year: 2024, source: 'Ministério da Saúde, SIM/DataSUS (via Observatório da Saúde Pública/Umane)', trend: 0.01, decimals: 1, competence: 'Engenharia e fiscalização do trânsito: prefeitura (CET); policiamento rodoviário: estado', levers: 'Leis e ações de mobilidade, Secretaria de Mobilidade e Trânsito' },
+  { id: 'c_cultura', sphere: 'cidade', label: 'Moradores sem nenhuma atividade cultural no ano', unit: '%', better: 'down', base: 24, year: 2017, source: 'Rede Nossa SP / Ibope, Viver em São Paulo: Cultura (dez/2017; edição mais recente com esse recorte)', trend: 0.005, decimals: 0, competence: 'Equipamentos e programação culturais: prefeitura (CEUs, casas de cultura), estado e União', levers: 'Indicações, emendas e leis de cultura; Secretaria de Cultura' },
   // ---------------- Estado de São Paulo ----------------
   { id: 'e_mortinf', sphere: 'estado', label: 'Mortalidade infantil', unit: 'por mil nascidos vivos', better: 'down', base: 11.45, year: 2024, source: 'Fundação Seade', trend: -0.01, decimals: 1, competence: 'Hospitais e rede regional: estado; atenção básica: municípios', levers: 'Projetos e emendas de saúde na Alesp; programas do governador' },
   { id: 'e_ideb', sphere: 'estado', label: 'Ideb anos iniciais (todas as redes)', unit: 'nota 0–10', better: 'up', base: 6.5, year: 2023, source: 'Inep (Ideb 2023)', trend: 0.004, max: 10, decimals: 1, competence: 'Redes municipais e estadual', levers: 'Projetos e emendas de educação; programas do governador' },
   { id: 'e_homic', sphere: 'estado', label: 'Homicídios', unit: 'por 100 mil hab.', better: 'down', base: 6.6, year: 2024, source: 'Atlas da Violência 2026 (Ipea/FBSP)', trend: -0.02, decimals: 1, competence: 'Polícias Civil e Militar: governo do estado', levers: 'Projetos de segurança na Alesp; programas do governador' },
   { id: 'e_desemp', sphere: 'estado', label: 'Taxa de desocupação', unit: '%', better: 'down', base: 5.0, year: 2025, source: 'IBGE, PNAD Contínua (média anual)', trend: 0, decimals: 1, competence: 'Economia: principalmente União; o estado influencia investimento e qualificação', levers: 'Segue a economia nacional; projetos de emprego e economia' },
   { id: 'e_esgoto', sphere: 'estado', label: 'Domicílios ligados à rede de esgoto', unit: '%', better: 'up', base: 94.1, year: 2024, source: 'IBGE, PNAD Contínua 2024', trend: 0.3, additive: true, max: 99.5, decimals: 1, competence: 'Concessão estadual (Sabesp) e municípios', levers: 'Emendas de infraestrutura; programas do governador' },
+  { id: 'e_transito', sphere: 'estado', label: 'Mortes no trânsito', unit: 'por 100 mil hab.', better: 'down', base: 11.7, year: 2024, source: 'Atlas da Violência 2026 (Ipea/FBSP)', trend: 0.01, decimals: 1, competence: 'Rodovias estaduais, Detran e polícia rodoviária: estado; vias urbanas: municípios', levers: 'Projetos de transporte e segurança viária; programas de transporte do governador' },
+  { id: 'e_cultura', sphere: 'estado', label: 'Pessoas sem nenhuma atividade cultural no ano', unit: '%', better: 'down', base: 26, year: 2025, source: 'Fundação Seade, pesquisa de oferta e uso dos serviços de cultura', trend: 0, decimals: 0, competence: 'Estado (equipamentos estaduais, fomento) e municípios', levers: 'Projetos e emendas de cultura' },
   // ---------------- Brasil ----------------
   { id: 'b_mortinf', sphere: 'brasil', label: 'Mortalidade infantil', unit: 'por mil nascimentos', better: 'down', base: 12.5, year: 2023, source: 'IBGE, Tábua de Mortalidade 2023', trend: -0.015, decimals: 1, competence: 'SUS: União, estados e municípios', levers: 'Ministério da Saúde, emendas de saúde, projetos no Congresso' },
   { id: 'b_ideb', sphere: 'brasil', label: 'Ideb anos iniciais', unit: 'nota 0–10', better: 'up', base: 6.0, year: 2023, source: 'Inep (Ideb 2023)', trend: 0.004, max: 10, decimals: 1, competence: 'Redes municipais; a União financia (Fundeb) e coordena', levers: 'Ministério da Educação, emendas de educação' },
@@ -55,6 +62,8 @@ export const INDICATORS: IndicatorDef[] = [
   { id: 'b_desemp', sphere: 'brasil', label: 'Taxa de desocupação', unit: '%', better: 'down', base: 5.6, year: 2025, source: 'IBGE, PNAD Contínua (média anual)', trend: 0, decimals: 1, competence: 'Política econômica: União (o Banco Central é autônomo)', levers: 'Segue a economia simulada do governo federal' },
   { id: 'b_pobreza', sphere: 'brasil', label: 'População na pobreza (US$ 6,85 PPC/dia)', unit: '%', better: 'down', base: 23.1, year: 2024, source: 'IBGE, Síntese de Indicadores Sociais 2025', trend: -0.01, decimals: 1, competence: 'Transferência de renda: União; emprego e renda', levers: 'Ministério do Desenvolvimento Social, emprego, emendas de assistência' },
   { id: 'b_extrema', sphere: 'brasil', label: 'Extrema pobreza (US$ 2,15 PPC/dia)', unit: '%', better: 'down', base: 3.5, year: 2024, source: 'IBGE, Síntese de Indicadores Sociais 2025', trend: -0.01, decimals: 1, competence: 'Bolsa Família e assistência: União com municípios', levers: 'Ministério do Desenvolvimento Social, emendas de assistência' },
+  { id: 'b_transito', sphere: 'brasil', label: 'Mortes no trânsito', unit: 'por 100 mil hab.', better: 'down', base: 17.5, year: 2024, source: 'Atlas da Violência 2026 (Ipea/FBSP)', trend: 0.015, decimals: 1, competence: 'Rodovias federais (PRF, DNIT) e coordenação nacional (Senatran); estados e municípios nas suas vias', levers: 'Ministério dos Transportes, emendas de infraestrutura, projetos de trânsito' },
+  { id: 'b_cultura', sphere: 'brasil', label: 'Sem atividade cultural presencial em 12 meses', unit: '%', better: 'down', base: 12, year: 2026, source: 'Observatório Fundação Itaú / Datafolha, Hábitos Culturais (7ª ed.): 88% fizeram ao menos uma', trend: 0, decimals: 0, competence: 'Ministério da Cultura (fomento, Lei Rouanet, Política Nacional Aldir Blanc), estados e municípios', levers: 'Emendas e projetos de cultura' },
   { id: 'b_esgoto', sphere: 'brasil', label: 'Domicílios ligados à rede de esgoto', unit: '%', better: 'up', base: 70.4, year: 2024, source: 'IBGE, PNAD Contínua 2024', trend: 0.5, additive: true, max: 99.5, decimals: 1, competence: 'Concessões municipais/estaduais; a União financia e regula (Marco Legal, Lei 14.026/2020: meta de 90% até 2033)', levers: 'Ministério das Cidades, emendas de infraestrutura' },
 ];
 export const indicatorById = (id: string) => INDICATORS.find((i) => i.id === id);
@@ -67,6 +76,8 @@ const THEME_MAP: Record<string, string[]> = {
   habitacao: ['poprua', 'pobreza'], 'assistência social': ['poprua', 'pobreza', 'extrema'], assistencia: ['poprua', 'pobreza', 'extrema'], social: ['pobreza', 'extrema', 'poprua'],
   zeladoria: ['esgoto'], meioambiente: ['esgoto'], infraestrutura: ['esgoto'],
   economia: ['desemp'],
+  mobilidade: ['desloc', 'transito'], infraestrutura_viaria: ['transito'],
+  cultura: ['cultura'],
 };
 const PREFIX: Record<Sphere, string> = { cidade: 'c_', estado: 'e_', brasil: 'b_' };
 export function themeIndicators(sphere: Sphere, theme: string): string[] {
@@ -121,15 +132,38 @@ const INCOME_FACTOR: Record<string, { down: number; ideb: number; esgoto: number
   'média': { down: 1.0, ideb: 0, esgoto: 2 },
   baixa: { down: 1.3, ideb: -0.35, esgoto: -6 },
 };
-export const REGIONAL_IDS = ['c_mortinf', 'c_ideb', 'c_homic', 'c_esgoto'];
+export const REGIONAL_IDS = ['c_mortinf', 'c_homic', 'c_desloc', 'c_ideb', 'c_esgoto', 'c_cultura'];
+/** Indicadores com dado regional REAL (subprefeituras ou zonas); os demais usam o parâmetro de renda. */
+export const REGIONAL_REAL = new Set(['c_mortinf', 'c_homic', 'c_desloc']);
+
+/** Média por região do jogo, ponderada pela população das subprefeituras (Censo 2022). */
+export function regionBaseReal(id: string, regionId: string): number | null {
+  const r = REGIONS.find((x) => x.id === regionId);
+  if (!r) return null;
+  if (id === 'c_desloc') return ZONE_COMMUTE[REGION_ZONE[regionId]] ?? null;
+  const key = id === 'c_mortinf' ? 'mortinf' : id === 'c_homic' ? 'homic' : null;
+  if (!key) return null;
+  let w = 0, sum = 0;
+  for (const sp of r.subprefeituras) { const d = SUBPREF_DATA[sp.name]; if (d) { sum += d[key] * sp.pop2022; w += sp.pop2022; } }
+  return w ? sum / w : null;
+}
 export function regionalValue(s: GameState, id: string, regionId: string): number {
   const d = indicatorById(id)!;
   const r = REGIONS.find((x) => x.id === regionId);
   const f = INCOME_FACTOR[r?.income ?? 'média'] ?? INCOME_FACTOR['média'];
   const city = indicatorValue(s, id);
   const extra = s.indicators?.mineRegion[regionId]?.[id] ?? 0;
-  const v = id === 'c_ideb' ? city + f.ideb : id === 'c_esgoto' ? city + f.esgoto : city * f.down;
+  const real = regionBaseReal(id, regionId);
+  const v = real !== null ? real * (city / d.base) : id === 'c_ideb' ? city + f.ideb : id === 'c_esgoto' ? city + f.esgoto : city * f.down;
   return apply(d, Math.max(0, d.max !== undefined ? Math.min(d.max, v) : v), extra);
+}
+/** Valor de uma subprefeitura (dado real × evolução da cidade × efeito do jogador na região). */
+export function subprefValue(s: GameState, id: 'c_mortinf' | 'c_homic', name: string, regionId: string): number | null {
+  const d = indicatorById(id)!;
+  const sp = SUBPREF_DATA[name];
+  if (!sp) return null;
+  const base = id === 'c_mortinf' ? sp.mortinf : sp.homic;
+  return apply(d, base * (indicatorValue(s, id) / d.base), s.indicators?.mineRegion[regionId]?.[id] ?? 0);
 }
 
 // ---------------- Impulsos do jogador ----------------
@@ -198,13 +232,19 @@ function structural(s: GameState): Record<string, number> {
   out.c_homic = secProgress(s, 'seguranca') * 8;
   out.c_esgoto = (secProgress(s, 'subprefeituras') + secProgress(s, 'meioambiente')) * 6;
   out.c_poprua = (secProgress(s, 'assistencia') + secProgress(s, 'habitacao') * 0.5) * 20;
+  out.c_desloc = secProgress(s, 'mobilidade') * 12;
+  out.c_transito = secProgress(s, 'mobilidade') * 15;
+  out.c_cultura = secProgress(s, 'cultura') * 15;
   // Estado: índices do governo estadual quando o jogador governa; senão, só a tendência.
-  const ind = s.player.mandate?.upper?.stateIndicators;
+  // Estado: índices do governo estadual — do jogador governador, ou do governador personagem do jogo (perfil ideológico).
+  const ind = s.player.mandate?.upper?.stateIndicators ?? stateGovIndices(s);
   if (ind) {
     out.e_mortinf = idx(ind.saude) * 12;
     out.e_ideb = idx(ind.educacao) * 8;
     out.e_homic = idx(ind.seguranca) * 15;
     out.e_esgoto = idx(ind.habitacao) * 4;
+    out.e_transito = idx(ind.mobilidade) * 10;
+    out.c_desloc += idx(ind.mobilidade) * 8;
     // A segurança do estado também chega à capital.
     out.c_homic += idx(ind.seguranca) * 12;
   }
@@ -217,6 +257,8 @@ function structural(s: GameState): Record<string, number> {
     out.b_pobreza = idx(f.social) * 15 + ((5.6 - (s.federal?.economy.unemployment ?? 5.6)) * 2);
     out.b_extrema = idx(f.social) * 25;
     out.b_esgoto = idx(f.infraestrutura) * 6;
+    out.b_transito = idx(f.infraestrutura) * 8;
+    out.b_cultura = idx(f.social) * 5;
   }
   return out;
 }
@@ -302,6 +344,6 @@ export const INDICATOR_RULES = [
   'Daqui para frente, a evolução é SIMULAÇÃO do jogo: tendência de fundo (PARÂMETRO) + desempenho dos governos simulados + o que você faz.',
   'Indicações atendidas, emendas executadas e leis aprovadas geram efeito gradual (meses) no tema e na região; sem renovação, perdem força devagar (PROPOSTA).',
   'Cada indicador mostra quem tem a competência real: vereador não comanda a polícia, e prefeito não define a taxa de juros.',
-  'A diferença entre regiões da capital é PARÂMETRO, inspirada nos dados de desigualdade intraurbana; os dados oficiais por região não são carregados no jogo.',
+  'Por região da capital: mortalidade infantil e homicídios vêm dos dados oficiais das 32 subprefeituras (SMS-SP/CEInfo), agregados pela população; tempo de deslocamento vem da pesquisa Viver em SP por zona. Ideb, esgoto e cultura por região ainda usam um PARÂMETRO de renda.',
   'Melhoras no seu território rendem aprovação do mandato, reconhecimento e simpatia regional (PROPOSTA).',
 ];

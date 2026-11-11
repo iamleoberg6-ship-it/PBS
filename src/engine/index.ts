@@ -46,3 +46,5 @@ export * from './game/careers';
 export * from './game/pauta';
 export * from './game/personal';
 export * from './game/indicators';
+export * from './game/govprofile';
+export * from './data/subprefeituras';

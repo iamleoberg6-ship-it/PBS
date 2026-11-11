@@ -14,7 +14,7 @@ Com mandato, a página aparece em "Meu cargo" como "Indicadores sociais do meu t
 - leis do jogador, emendas pagas e projetos aprovados na Alesp e no Congresso;
 - save: partidas antigas recebem o módulo ao carregar.
 
-**Testes:** 173 passando, 4 deles em `indicators.test.ts`.
+**Testes:** 176 passando, 7 deles em `indicators.test.ts`.
 
 ---
 
@@ -22,9 +22,12 @@ Com mandato, a página aparece em "Meu cargo" como "Indicadores sociais do meu t
 
 | Esfera | Indicador | Partida | Fonte |
 |---|---|---|---|
-| Cidade de SP | Mortalidade infantil | 11,4 por mil nascidos vivos (2024) | Seade / SMDU-Deinfo |
+| Cidade de SP | Mortalidade infantil | 10,0 por mil nascidos vivos (2025) | SMS-SP, Boletim CEInfo por Subprefeitura (2026) |
 | Cidade de SP | Ideb anos iniciais, rede municipal | 5,6 (2023) | Inep |
-| Cidade de SP | Homicídios dolosos | 4,36 vítimas por 100 mil (2024) | SSP-SP |
+| Cidade de SP | Homicídios | 5,1 por 100 mil, padronizado por idade (2024) | SMS-SP, Boletim CEInfo (SIM) |
+| Cidade de SP | Tempo diário em deslocamentos | 145 min, ida e volta (2024) | Rede Nossa SP / Ipec, Viver em SP: Mobilidade (pesquisa de opinião) |
+| Cidade de SP | Mortes no trânsito | 4,3 por 100 mil (2024) | SIM/DataSUS, via Observatório Umane |
+| Cidade de SP | Moradores sem atividade cultural no ano | 24% (dez/2017) | Rede Nossa SP / Ibope, Viver em SP: Cultura (edição mais recente com esse recorte) |
 | Cidade de SP | Domicílios urbanos com coleta de esgoto | 89,1% (2024) | Cetesb / SMDU-Deinfo |
 | Cidade de SP | Pessoas em situação de rua | 93.355 (jan/2025) | CadÚnico, via OBPopRua/UFMG (o censo municipal de 2021, com outro método, contou 31.884) |
 | Estado de SP | Mortalidade infantil | 11,45 (2024) | Fundação Seade |
@@ -32,6 +35,8 @@ Com mandato, a página aparece em "Meu cargo" como "Indicadores sociais do meu t
 | Estado de SP | Homicídios | 6,6 por 100 mil (2024) | Atlas da Violência 2026 |
 | Estado de SP | Desocupação | 5,0% (2025) | IBGE, PNAD Contínua |
 | Estado de SP | Domicílios ligados à rede de esgoto | 94,1% (2024) | IBGE, PNAD Contínua |
+| Estado de SP | Mortes no trânsito | 11,7 por 100 mil (2024) | Atlas da Violência 2026 |
+| Estado de SP | Sem atividade cultural no ano | 26% (2025) | Fundação Seade |
 | Brasil | Mortalidade infantil | 12,5 por mil (2023) | IBGE, Tábua de Mortalidade |
 | Brasil | Ideb anos iniciais | 6,0 (2023) | Inep |
 | Brasil | Mortes violentas intencionais | 19,1 por 100 mil (2025) | Anuário FBSP 2026 |
@@ -39,6 +44,8 @@ Com mandato, a página aparece em "Meu cargo" como "Indicadores sociais do meu t
 | Brasil | Pobreza (US$ 6,85 PPC/dia) | 23,1% (2024) | IBGE, SIS 2025 |
 | Brasil | Extrema pobreza (US$ 2,15 PPC/dia) | 3,5% (2024) | IBGE, SIS 2025 |
 | Brasil | Domicílios ligados à rede de esgoto | 70,4% (2024) | IBGE, PNAD Contínua |
+| Brasil | Mortes no trânsito | 17,5 por 100 mil (2024) | Atlas da Violência 2026 |
+| Brasil | Sem atividade cultural presencial em 12 meses | 12% (2026) | Observatório Fundação Itaú / Datafolha |
 
 Cada indicador mostra também:
 - quem tem a **competência real**, por exemplo polícias com o estado e Ideb municipal com a rede da prefeitura;
@@ -109,9 +116,44 @@ O log avisa quando o efeito de uma ação termina de entrar.
 - Evolução anual, com fechamento em dezembro.
 - Regras.
 
-## 6. Pendências
+## 6. Fase 9b: mobilidade, cultura, subprefeituras e ideologia dos governos da IA
 
-1. Indicadores para mobilidade e cultura, como tempo de viagem e acesso a equipamentos, com dado real.
-2. Dados oficiais por subprefeitura ou distrito, no lugar do parâmetro de renda.
-3. Indicadores estaduais para quando o governador é personagem do jogo, com um modelo de governo estadual da IA.
-4. Notícias quando um indicador bate recorde ou piora muito.
+**Mobilidade e cultura**
+- Os indicadores novos estão na tabela da seção 1.
+- Os temas mobilidade e cultura das ações agora movem esses indicadores. As secretarias municipais de Mobilidade e Cultura também contam, assim como o transporte metropolitano do governo do estado (deslocamento na capital e trânsito no estado) e a infraestrutura federal (trânsito no Brasil).
+
+**Dados por região vindos das subprefeituras (dado real)**
+- **Mortalidade infantil (2025) e homicídios (2024):** vêm das 32 subprefeituras, segundo o Boletim CEInfo da Secretaria Municipal da Saúde. A média de cada região do jogo é ponderada pela população do Censo 2022.
+  - Exemplos: Pinheiros 1,4 e Freguesia-Brasilândia 15,8 de mortalidade infantil; M'Boi Mirim 8,6 e Vila Prudente 1,3 de homicídios.
+- **Tempo de deslocamento:** vem da pesquisa Viver em SP 2024 por zona: Norte 131 min, Leste 135, Oeste 141, Centro 143, Sul 166.
+- **Página:** a tabela por região marca cada coluna como DADO REAL ou PARÂMETRO. Há também uma tabela das 32 subprefeituras.
+- **Evolução:** cada subprefeitura acompanha a evolução da cidade e o efeito do jogador na região.
+- **Ainda por parâmetro de renda:** Ideb, esgoto e cultura por região.
+
+**Perfil ideológico dos governos da IA (PROPOSTA)**
+
+Quando quem governa é **personagem do jogo**, as decisões automáticas seguem o vetor ideológico do partido (escala de especialistas, Bolognesi et al. 2025, eixos derivados):
+
+| Eixo | Efeito |
+|---|---|
+| Fiscal (expansão ↔ disciplina) | Postura fiscal: ajuste / neutra / expansão. Na prefeitura, muda a regra de contingenciamento e o tamanho do reforço ou corte no orçamento; na União, a política fiscal do ano |
+| Econômico (intervenção ↔ mercado) | Carga tributária: reduzir / manter / aumentar |
+| Econômico, social, segurança e ambiente | Peso de cada área (0,75 a 1,3): à esquerda, mais assistência, habitação, saúde, educação e cultura; à direita, mais infraestrutura, mobilidade e segurança |
+
+**Carga tributária, por esfera:**
+- **Prefeito:** no 3º mês do mandato, envia à Câmara uma redução do ISS (−4%) ou uma atualização do IPTU (+5%). O projeto precisa ser aprovado e respeita a anterioridade (CF art. 150).
+- **Presidente:** pequenos efeitos mensais em crescimento, resultado primário e índice social.
+
+**Como o perfil age em cada esfera:**
+- **Prefeitura:** as secretarias da área prioritária lançam programas e ações com mais frequência, e a proposta de orçamento reforça a área prioritária.
+- **Governo do estado:** quando o governador é personagem do jogo, há um modelo novo de índices estaduais (segurança, saúde, educação, mobilidade e habitação) que tende às prioridades do perfil e alimenta os indicadores do estado.
+- **União:** a política fiscal do ano e os índices dos ministérios tendem às prioridades do perfil.
+- **Página:** o cartão "Quem governa" mostra o nome, o partido, se é você, pessoa real ou personagem do jogo, e o resumo do perfil.
+
+**Pessoas reais:** o prefeito, o governador e o presidente reais em exercício **não** são simulados por dentro. O jogo não decide por eles, e nessas esferas os indicadores seguem a tendência de fundo e a economia. Partidos sem classificação na fonte geram um perfil neutro.
+
+## 7. Pendências
+
+1. Ideb, esgoto e cultura com dado oficial por subprefeitura ou distrito.
+2. Calibrar os eixos ideológicos com votações nominais por tema, como já previsto na metodologia de ideologia.
+3. Notícias quando um indicador bate recorde ou piora muito.

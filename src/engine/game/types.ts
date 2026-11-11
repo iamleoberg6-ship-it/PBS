@@ -616,6 +616,8 @@ export interface StateWorld {
   camaraSeats: Record<string, number>;
   /** Avaliação simulada (personagens reais: número de jogo, não pesquisa real). */
   governorApproval: number;
+  /** Índices do governo estadual quando o governador é personagem do jogo (perfil ideológico). */
+  govIndices?: Record<string, number>;
   presidentApproval: number;
   governorCoalition: string[];
   presidentCoalition: string[];

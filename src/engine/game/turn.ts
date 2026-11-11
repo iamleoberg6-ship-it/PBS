@@ -13,6 +13,7 @@ import { PROFESSIONS } from './create';
 import { onLeave, personalMonthlyStep } from './personal';
 import { seatHeirs } from './personalActions';
 import { indicatorsMonthlyStep } from './indicators';
+import { aiGovernmentsStep } from './govprofile';
 import { ensureMonthlyFloorVote, blocCounts, electMesa, initLegislature, legislatureMonthlyStep, legislatureNews, mesaWindow, playerIsCouncillor } from './legislature';
 import { createSecretariat, inviteAffinity, secretariatMonthlyStep } from './secretariat';
 import { campaignMonthlyStep, distributeVotes, electoralLawsuit, enrichMayorPoll, enrichNationalPoll, judgeAccounts, mayorRegionalShares } from './campaign';
@@ -218,7 +219,8 @@ function advanceMonthInner(state: GameState): GameState {
   // 7c) Vida pessoal: família, estresse, saúde, exposição, ameaças, licença.
   for (const n of personalMonthlyStep(s)) log(s, 'pessoal', n);
   for (const n of seatHeirs(s)) log(s, 'camara', n);
-  // 7d) Indicadores sociais: cidade, estado e Brasil.
+  // 7d) Governos da IA (personagens do jogo) seguem o perfil ideológico do partido; depois, indicadores sociais.
+  for (const n of aiGovernmentsStep(s, rng)) log(s, 'mandato', n);
   for (const n of indicatorsMonthlyStep(s)) log(s, 'mandato', n);
   mark('Indicadores sociais e efeitos do seu trabalho');
   if (!onLeave(s) && !s.officePoints) s.officePoints = officePointsFor(s);

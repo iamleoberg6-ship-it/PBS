@@ -12,7 +12,7 @@ const mk = () => createGame({ name: 'Ana Lima', birthDate: '1980-01-01', gender:
 describe('Indicadores sociais', () => {
   it('começam nos dados reais de partida', () => {
     const s = mk();
-    expect(indicatorValue(s, 'c_mortinf')).toBeCloseTo(11.4, 0);
+    expect(indicatorValue(s, 'c_mortinf')).toBeCloseTo(10.0, 0);
     expect(indicatorValue(s, 'b_pobreza')).toBeCloseTo(23.1, 0);
     expect(indicatorValue(s, 'b_desemp')).toBe(5.6);
     for (const d of INDICATORS) expect(Number.isFinite(indicatorValue(s, d.id))).toBe(true);
@@ -47,5 +47,39 @@ describe('Indicadores sociais', () => {
     delete (s as Partial<GameState>).indicators;
     const { state } = loadSave(serialize(s));
     expect(state.indicators).toBeTruthy();
+  });
+});
+
+import { aiGovernmentsStep, governments, mayorProfile, profileForParty } from './govprofile';
+import { regionBaseReal, subprefValue } from './indicators';
+
+describe('Fase 9b — perfil ideológico dos governos da IA e dados por subprefeitura', () => {
+  it('partidos à esquerda e à direita geram perfis de governo opostos', () => {
+    const left = profileForParty('party_real_psol');
+    const right = profileForParty('party_real_novo');
+    expect(left.tax).toBe('aumentar');
+    expect(left.fiscal).toBe('expansao');
+    expect(right.tax).toBe('reduzir');
+    expect(right.fiscal).toBe('ajuste');
+    expect(left.priority.social).toBeGreaterThan(right.priority.social);
+    expect(right.priority.seguranca).toBeGreaterThan(left.priority.seguranca);
+  });
+  it('pessoa real no cargo não é simulada; personagem do jogo segue o perfil', () => {
+    const s = mk();
+    expect(governments(s).cidade.real).toBe(true);
+    expect(mayorProfile(s)).toBeNull();
+    s.government.mayor = { personId: 'ai_mayor', name: 'Prefeito Fictício', partyId: 'party_real_novo', real: false };
+    expect(mayorProfile(s)?.tax).toBe('reduzir');
+    s.stateWorld.governor = { ...s.stateWorld.governor, real: false, isPlayer: false, partyId: 'party_real_psol', name: 'Governadora Fictícia' };
+    for (let i = 0; i < 24; i++) aiGovernmentsStep(s, s.rng);
+    const gi = s.stateWorld.govIndices!;
+    expect(gi.habitacao).toBeGreaterThan(gi.seguranca);
+  });
+  it('regiões usam os dados reais das subprefeituras e da pesquisa de mobilidade', () => {
+    const s = mk();
+    expect(regionBaseReal('c_mortinf', 'oeste')!).toBeLessThan(regionBaseReal('c_mortinf', 'norte2')!);
+    expect(subprefValue(s, 'c_mortinf', 'Freguesia-Brasilândia', 'norte2')).toBeCloseTo(15.8, 0);
+    expect(regionBaseReal('c_desloc', 'sul2')).toBe(166);
+    expect(indicatorValue(s, 'b_transito')).toBeGreaterThan(17);
   });
 });

@@ -30,6 +30,7 @@
 //   personagens do jogo (a partir de 2031) ou com o jogador na Presidência.
 // - As matérias, MPs e escândalos são genéricos e fictícios.
 
+import { presidentProfile } from './govprofile';
 import { next, normal, pick, type RngState } from '../rng';
 import { PARTIES, listIdForParty, partyById } from '../data/parties';
 import { fictionalName } from './names';
@@ -698,7 +699,7 @@ export function federalMonthlyStep(s: GameState, rng: RngState): string[] {
   if (s.month.month === 1) {
     const ms = playerMinistry(s);
     if (ms) ms.budgetLeft = ministryById(ms.ministry)!.budget;
-    if (ec.stanceYear !== s.month.year && !playerIsPresident(s)) ec.stance = 'neutra';
+    if (ec.stanceYear !== s.month.year && !playerIsPresident(s)) ec.stance = presidentProfile(s)?.fiscal ?? 'neutra';
   }
 
   // Programas maduros.

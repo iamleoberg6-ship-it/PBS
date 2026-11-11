@@ -14,6 +14,7 @@ import {
 import { applyEffects, pressureOf, createSecretariat, freeBudget, performance, portfolioById, stepSecretariatCore } from './secretariat';
 import { fictionalName } from './names';
 import { pushNews } from './news';
+import { mayorProfile, secretariatPriority } from './govprofile';
 import { partyById } from '../data/parties';
 import type { Bill, City, CitySecretary, GameState, LoaBudget, Secretariat, YearResult } from './types';
 
@@ -168,14 +169,14 @@ function aiSecretariatStep(s: GameState, rng: RngState, k: AreaKey, sec: Secreta
   sec.approval = clamp(sec.approval + (target - sec.approval) * 0.15 + normal(rng, 0, 0.8));
   // Gestão da IA: lança programas, faz a ação própria da pasta e responde a crises conforme a competência.
   const def = portfolioById(k)!;
-  if (next(rng) < 0.12 + comp / 400 && !sec.programs.some((p) => ['planejamento', 'licitacao', 'execucao'].includes(p.phase))) {
+  if (next(rng) < (0.12 + comp / 400) * secretariatPriority(s, k) && !sec.programs.some((p) => ['planejamento', 'licitacao', 'execucao'].includes(p.phase))) {
     const opt = def.programs.filter((p) => !sec.programs.some((x) => x.id === p.id) && p.cost <= freeBudget(sec));
     if (opt.length) {
       const p = pick(rng, opt);
       sec.programs.push({ id: p.id, label: p.label, phase: 'planejamento', monthsLeft: p.plan, cost: p.cost, effects: p.effects, delayed: false });
     }
   }
-  if (next(rng) < 0.2 && freeBudget(sec) >= def.special.cost) {
+  if (next(rng) < 0.2 * secretariatPriority(s, k) && freeBudget(sec) >= def.special.cost) {
     sec.extraSpent += def.special.cost;
     applyEffects(sec, def.special.effects, 0.4 + comp / 200);
   }
@@ -568,6 +569,11 @@ export function fiscalCalendar(s: GameState, rng: RngState): string[] {
     if (!s.city.draft || !draftChecks(s, s.city.draft).ok) s.city.draft = forecastLoa(s, y + 1);
     notes.push(sendPloa(s, rng));
   }
+  // Prefeito personagem do jogo: no 3º mês do mandato, envia à Câmara a mudança tributária do seu perfil (precisa ser aprovada).
+  const prof = mayorProfile(s);
+  if (prof && prof.tax !== 'manter' && (y - 2029) % 4 === 0 && mo === 3) {
+    notes.push(prof.tax === 'reduzir' ? sendTaxBill(s, rng, 'iss', -0.04) : sendTaxBill(s, rng, 'iptu', 0.05));
+  }
   if (mo === 11 || mo === 6) {
     // A LOA precisa ser votada até 31/12 e a LDO no 1º semestre: a Presidência inclui na Ordem do Dia.
     for (const b of s.legislature.bills) if (b.kind === 'orcamento' && b.stage === 'plenario') b.scheduled = true;
@@ -581,8 +587,12 @@ export function fiscalCalendar(s: GameState, rng: RngState): string[] {
 
 function aiAdjustDraft(s: GameState, rng: RngState) {
   const d = forecastLoa(s, s.month.year + 1);
-  const pri = pick(rng, AREA_KEYS);
-  d.areas[pri] = r0(d.areas[pri] * 1.04);
+  // Prefeito personagem do jogo: reforça a área prioritária do perfil ideológico; corta um pouco a menos prioritária se fizer ajuste.
+  const prof = mayorProfile(s);
+  const ranked = prof ? [...AREA_KEYS].sort((a, b) => secretariatPriority(s, b) - secretariatPriority(s, a)) : null;
+  const pri = ranked ? ranked[0] : pick(rng, AREA_KEYS);
+  d.areas[pri] = r0(d.areas[pri] * (prof?.fiscal === 'expansao' ? 1.06 : 1.04));
+  if (ranked && prof?.fiscal === 'ajuste') { const low = ranked[ranked.length - 1]; d.areas[low] = r0(d.areas[low] * 0.97); }
   d.reserve = 0;
   d.reserve = r0(loaBalance(d));
   if (d.reserve < 0) { d.other = r0(d.other + d.reserve); d.reserve = 0; }
@@ -595,7 +605,8 @@ export function aiFiscalPolicy(s: GameState) {
   const c = s.city;
   if (c.ytd.months >= 4) {
     const expected = (totalRevenue(c.loa) / 12) * c.ytd.months;
-    c.contingency = c.ytd.revenue < expected * 0.97 ? 0.08 : 0;
+    const prof = mayorProfile(s);
+    c.contingency = c.ytd.revenue < expected * (prof?.fiscal === 'ajuste' ? 0.99 : 0.97) ? (prof?.fiscal === 'ajuste' ? 0.1 : prof?.fiscal === 'expansao' ? 0.05 : 0.08) : 0;
   }
 }
 
