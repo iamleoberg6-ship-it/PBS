@@ -771,6 +771,8 @@ export interface GameState {
   tutorial?: { enabled: boolean; seen: string[] };
   /** Brasil por grandes regiões (esfera federal). */
   national?: import('./national').NationalState;
+  /** Fase 16b: saldos migratórios simulados (desvio em relação à tendência 2010–2022). */
+  migration?: import('./migracao').MigrationState;
   /** Vida pessoal (Fase 8): família, relacionamentos, exposição, ameaças, saúde. */
   personal?: import('./personal').PersonalState;
   /** Indicadores sociais (Fase 9): cidade, estado e Brasil. */

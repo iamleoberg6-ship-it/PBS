@@ -1,6 +1,6 @@
 # PBS — Fases 14 e 15: salvar sem medo, mapas e mandatos acima da Prefeitura
 
-**Status:** implementado · 195 testes passando · balanceamento OK · build OK · conferido no navegador (desktop e celular)
+**Status:** implementado · 198 testes passando · balanceamento OK · build OK · conferido no navegador (desktop e celular)
 
 ## 0. Salvar sem medo e correções
 - **Voltar no tempo:** a cada mês avançado o jogo guarda uma cópia da partida no IndexedDB do navegador.
@@ -122,3 +122,30 @@ Os indicadores sociais (Fase 9) já mudavam todo mês, com tendência real e efe
   - `src/engine/game/demografia.ts`: funções puras, sem novo estado no save;
   - taxas em `src/engine/data/maps.ts`;
   - testes em `demografia.test.ts`.
+
+## 4. Migração entre regiões, estados e com o exterior (Fase 16b)
+A projeção de população já repete a migração de 2010 a 2022. O jogo soma só o **desvio** provocado pela partida: áreas que melhoram mais que as outras atraem gente, as que pioram perdem. É MECÂNICA DO JOGO; os pesos são PARÂMETROS e vão ao jogador em "Como os números andam com o tempo".
+
+| Fluxo | Motor | Peso (% da população ao ano) |
+|---|---|---|
+| Entre UFs (soma zero) | desocupação e renda da grande região; SP usa a desocupação e os homicídios estaduais simulados (é o único estado com governo simulado) | −0,12 × Δdesocupação (p.p.) + 1,2 × Δln(renda), comparado com a média do país; SP ainda −0,05 × variação relativa de homicídios |
+| Entre as 11 regiões de SP (soma zero) | IDHM estimado, que inclui o investimento do governador | 20 × (ΔIDHM da região − média do estado) |
+| Brasil ↔ exterior | desocupação nacional e renda média | −0,05 × Δdesocupação (p.p.) + 0,5 × Δln(renda); 3 p.p. a mais de desemprego ≈ −0,15% ao ano (≈ 300 mil pessoas) |
+
+- **Estado no save:** `s.migration`, com saldo acumulado por UF, região de SP e exterior, saldo do ano corrente e balanço do ano anterior. Saves antigos começam do zero, sem migração de formato.
+- **População final:**
+  - **UF:** projeção 2010–2022 + saldo acumulado.
+  - **Região de SP:** projeção + saldo interno + parte proporcional do saldo do estado.
+  - **Subprefeituras:** recebem a parte da capital na região metropolitana.
+- **Em janeiro sai o balanço do ano:**
+  - entra no histórico quando o saldo com o exterior passa de 100 mil pessoas, ou quando São Paulo ganha ou perde mais de 50 mil;
+  - o saldo com o exterior acima de 100 mil também vira notícia marcada "(simulação)".
+- **Nos mapas:**
+  - camada "Migração (ano)", em saldo por mil habitantes, nas vistas do estado e do Brasil;
+  - linhas de saldo do ano e desde o início do jogo na ficha;
+  - resumo com o saldo do Brasil com o exterior e os estados que mais ganharam e mais perderam gente.
+- **Ordem de grandeza observada** num teste de 6 anos com o desemprego subindo 1 p.p.:
+  - cerca de 50 mil pessoas por ano saindo do país;
+  - Minas Gerais e Rio de Janeiro perdendo; Pará e Amazonas ganhando com a renda do Norte;
+  - São Paulo passando a perder quando o desemprego estadual piorou.
+- **Arquivos:** `src/engine/game/migracao.ts`; integração em `demografia.ts` e `turn.ts`; testes em `migracao.test.ts`.

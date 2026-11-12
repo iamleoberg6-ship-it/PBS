@@ -27,9 +27,15 @@ import { BR_REGIONS } from './national';
 export const yearsSinceCensus = (s: GameState) => s.month.year + (s.month.month - 8) / 12 - 2022;
 export const projectPop = (s: GameState, pop2022: number, rate: number) => Math.round(pop2022 * Math.pow(1 + rate, yearsSinceCensus(s)));
 
-export const rgPop = (s: GameState, rg: string) => projectPop(s, STATE_REGION_STATS[rg]?.pop ?? 0, POP_RATE_RG[rg] ?? 0);
-export const ufPop = (s: GameState, uf: string) => projectPop(s, UF_STATS[uf]?.pop ?? 0, POP_RATE_UF[uf] ?? POP_RATE_BR);
-export const capitalAreaPop = (s: GameState, pop2022: number) => projectPop(s, pop2022, POP_RATE_CAPITAL);
+/** Sem migração simulada (só a tendência 2010–2022). */
+export const rgPopBase = (s: GameState, rg: string) => projectPop(s, STATE_REGION_STATS[rg]?.pop ?? 0, POP_RATE_RG[rg] ?? 0);
+export const ufPopBase = (s: GameState, uf: string) => projectPop(s, UF_STATS[uf]?.pop ?? 0, POP_RATE_UF[uf] ?? POP_RATE_BR);
+const spRgBaseTotal = (s: GameState) => Object.keys(STATE_REGION_STATS).reduce((a, r) => a + rgPopBase(s, r), 0);
+/** Com migração simulada (Fase 16b). */
+export const ufPop = (s: GameState, uf: string) => Math.round(ufPopBase(s, uf) + (s.migration?.uf[uf] ?? 0));
+export const rgPop = (s: GameState, rg: string) => { const b = rgPopBase(s, rg); return Math.round(b + (s.migration?.rg[rg] ?? 0) + (s.migration?.uf.SP ?? 0) * b / (spRgBaseTotal(s) || 1)); };
+/** Subprefeituras: tendência da capital + a parte da capital na migração da região metropolitana (3501). */
+export const capitalAreaPop = (s: GameState, pop2022: number) => { const b = projectPop(s, pop2022, POP_RATE_CAPITAL); const rb = rgPopBase(s, '3501'); return Math.round(b * (rgPop(s, '3501') / (rb || 1))); };
 export const brRegionPop = (s: GameState, region: string) => Object.entries(UF_REGION).filter(([, r]) => r === region).reduce((a, [uf]) => a + ufPop(s, uf), 0);
 export const brPop = (s: GameState) => BR_REGIONS.reduce((a, r) => a + brRegionPop(s, r), 0);
 
@@ -81,3 +87,9 @@ export const DEMO_RULES = [
   '[REAL] IDHM-Renda: R = [ln(renda) − ln(8)] / [ln(4.033,33) − ln(8)] (metodologia do Atlas 2013).',
   '[JOGO] O IDHM estimado só muda com o que a simulação produz desde o início da partida: mortalidade infantil, Ideb, desocupação/renda, investimentos regionais e verbas federais (elasticidades são parâmetros do jogo).',
 ];
+
+// ---- migração (Fase 16b) ----
+import { migrationMonthlyStep } from './migracao';
+export function demographyMonthlyStep(s: GameState): string[] {
+  return migrationMonthlyStep(s, { uf: (uf) => ufPopBase(s, uf), rg: (rg) => rgPopBase(s, rg) }, (rg) => { const x = rgIdhm(s, rg); return x ? x.idhm - x.base.idhm : 0; });
+}

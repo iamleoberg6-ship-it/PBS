@@ -43,13 +43,15 @@ export interface NationalState {
   funds: Record<BrRegion, number>;
 }
 
-const BASE: Record<BrRegion, Omit<BrRegionData, 'id'>> = {
+export const BR_REGION_BASE: Record<BrRegion, Omit<BrRegionData, 'id'>> = {
+
   norte: { name: 'Norte', states: 'AC, AP, AM, PA, RO, RR, TO', population: 17_349_619, electorate: 13_109_354, unemployment: 5.8, income: 2846 },
   nordeste: { name: 'Nordeste', states: 'AL, BA, CE, MA, PB, PE, PI, RN, SE', population: 54_644_582, electorate: 43_529_845, unemployment: 7.1, income: 2475 },
   centro_oeste: { name: 'Centro-Oeste', states: 'DF, GO, MT, MS', population: 16_287_809, electorate: 11_997_001, unemployment: 3.9, income: 4046 },
   sudeste: { name: 'Sudeste', states: 'ES, MG, RJ, SP', population: 84_847_187, electorate: 66_329_375, unemployment: 4.8, income: 4033 },
   sul: { name: 'Sul', states: 'PR, RS, SC', population: 29_933_315, electorate: 22_861_012, unemployment: 3.1, income: 4036 },
 };
+const BASE = BR_REGION_BASE;
 
 export const NATIONAL_SOURCES = {
   population: 'IBGE, Censo Demográfico 2022 — população residente por grande região.',

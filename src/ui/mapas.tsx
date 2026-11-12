@@ -5,7 +5,7 @@
 import { Fragment, useMemo, useState } from 'react';
 import {
   CITY_META, MAP_BR, MAP_CITY, MAP_STATE, STATE_REGION_STATS, SUBPREF_DATA, UF_REGION, UF_STATS,
-  indicatorById, indicatorValue, regionalValue, subprefValue, capitalAreaPop, rgPop, rgIdhm, ufPop, ufIdhm, brRegionPop, DEMO_RULES, type GameState, type MapLayer,
+  indicatorById, indicatorValue, regionalValue, subprefValue, capitalAreaPop, rgPop, rgIdhm, ufPop, ufIdhm, brRegionPop, DEMO_RULES, MIGRATION_RULES, type GameState, type MapLayer,
 } from '../engine';
 import { REGIONS } from '../engine/data/regions';
 
@@ -78,6 +78,29 @@ function IdhmRows({ x, year }: { x: ReturnType<typeof rgIdhm>; year: number }) {
   </>;
 }
 
+function MigRows({ s, last, total }: { s: GameState; last: number | null; total: number }) {
+  if (!s.migration) return null;
+  const f = (v: number) => `${v >= 0 ? '+' : '−'}${Math.round(Math.abs(v)).toLocaleString('pt-BR')}`;
+  return <>
+    {last !== null && <><dt>Saldo migratório ({s.migration.lastYear!.year})</dt><dd>{f(last)} <span className="muted small">pessoas</span></dd></>}
+    <dt>Saldo desde o início do jogo</dt><dd>{f(total)} <span className="muted small">pessoas</span></dd>
+  </>;
+}
+
+function MigSummary({ s }: { s: GameState }) {
+  const m = s.migration; if (!m) return null;
+  const ly = m.lastYear;
+  const ranked = ly ? Object.entries(ly.uf).filter(([u]) => u !== '').sort((a, b) => b[1] - a[1]) : [];
+  const f = (v: number) => `${v >= 0 ? '+' : '−'}${Math.round(Math.abs(v) / 1000).toLocaleString('pt-BR')} mil`;
+  return (
+    <div className="callout small" style={{ marginTop: 10 }}>
+      <b>Migração (estimativa do jogo)</b> · Brasil e exterior: {ly ? <>{f(ly.intl)} em {ly.year}; </> : null}{f(m.intl)} desde o início.
+      {ranked.length > 0 && <> Mais atraíram gente em {ly!.year}: {ranked.slice(0, 3).map(([u, v]) => `${u} ${f(v)}`).join(', ')}. Mais perderam: {ranked.slice(-3).reverse().map(([u, v]) => `${u} ${f(v)}`).join(', ')}.</>}
+      {!ly && <> O primeiro balanço anual sai em janeiro.</>}
+    </div>
+  );
+}
+
 function Tag({ t }: { t: Metric['tag'] }) { return <span className={`tag ${t === 'DADO REAL' ? 'real' : t === 'DERIVADA' ? 'derivada' : 'proposta'}`}>{t}</span>; }
 
 // ---------------------------------------------------------------------------------------------
@@ -143,6 +166,7 @@ function StateMap({ s }: { s: GameState }) {
     { id: 'idhm_l', label: 'IDHM Longevidade', unit: 'índice', better: 'up', tag: 'DERIVADA', source: 'Atlas 2010 + efeito simulado da mortalidade infantil e de investimentos', decimals: 3 },
     { id: 'idhm_r', label: 'IDHM Renda', unit: 'índice', better: 'up', tag: 'DERIVADA', source: 'Atlas 2010 + efeito simulado da desocupação e de investimentos', decimals: 3 },
     { id: 'pop', label: `População (${s.month.year})`, unit: 'habitantes', better: null, tag: 'DERIVADA', source: 'Censo 2022 projetado com a taxa 2010–2022 de cada região', decimals: 0 },
+    ...(s.migration?.lastYear ? [{ id: 'mig', label: `Migração (${s.migration.lastYear.year})`, unit: 'saldo por mil hab.', better: 'up' as const, tag: 'DO JOGO' as const, source: 'saldo migratório simulado do último ano (entre regiões, estados e exterior)', decimals: 1 }] : []),
     ...(gov ? [
       { id: 'inv', label: 'Investido pelo seu governo', unit: 'R$ mi', better: null, tag: 'DO JOGO' as const, source: 'ações "Investir numa região do estado"', decimals: 0 },
       { id: 'aprov', label: 'Sua aprovação', unit: '0–100', better: 'up' as const, tag: 'DO JOGO' as const, source: 'aprovação do governo por região (simulação)', decimals: 0 },
@@ -151,7 +175,7 @@ function StateMap({ s }: { s: GameState }) {
   const [m, setM] = useState(gov ? 'aprov' : 'idhm');
   const metric = METRICS.find((x) => x.id === m)!;
   const [sel, setSel] = useState<string | null>(null);
-  const est = (id: string, k: string): number | null => { if (k === 'pop') return rgPop(s, id); const x = rgIdhm(s, id); if (!x) return null; return k === 'idhm' ? x.idhm : k === 'idhm_e' ? x.e : k === 'idhm_l' ? x.l : x.r; };
+  const est = (id: string, k: string): number | null => { if (k === 'mig') { const ly = s.migration?.lastYear; if (!ly) return null; const b = rgPop(s, id); const spShare = (ly.uf.SP ?? 0) * b / Object.keys(STATE_REGION_STATS).reduce((x, r) => x + rgPop(s, r), 0); return ((ly.rg[id] ?? 0) + spShare) / b * 1000; } if (k === 'pop') return rgPop(s, id); const x = rgIdhm(s, id); if (!x) return null; return k === 'idhm' ? x.idhm : k === 'idhm_e' ? x.e : k === 'idhm_l' ? x.l : x.r; };
   const values = Object.fromEntries(MAP_STATE.shapes.map((sh) => [sh.id, m === 'inv' ? Number(s.flags[`invRG_${sh.id}`] ?? gov?.regionInvest?.[sh.id] ?? 0) : m === 'aprov' ? (gov?.regionApproval?.[sh.id] ?? s.player.mandate?.approval ?? null) : est(sh.id, m)]));
   const st = sel ? STATE_REGION_STATS[sel] : null;
   const name = sel ? MAP_STATE.shapes.find((x) => x.id === sel)?.name : '';
@@ -172,6 +196,7 @@ function StateMap({ s }: { s: GameState }) {
             <dl className="kv" style={{ marginTop: 10 }}>
               <dt>População ({s.month.year}, estimada)</dt><dd>{rgPop(s, sel!).toLocaleString('pt-BR')}</dd>
               <dt className="muted">Censo 2022</dt><dd className="muted">{st.pop.toLocaleString('pt-BR')}</dd>
+              <MigRows s={s} last={s.migration?.lastYear ? (s.migration.lastYear.rg[sel!] ?? 0) : null} total={(s.migration?.rg[sel!] ?? 0) + (s.migration?.uf.SP ?? 0) * (st.pop / total)} />
               <dt>Peso no estado</dt><dd>{fmt((st.pop / total) * 100, 1)}%</dd>
               <dt>Municípios</dt><dd>{st.nmun}</dd>
               <IdhmRows x={rgIdhm(s, sel!)} year={s.month.year} />
@@ -197,6 +222,7 @@ function BrazilMap({ s }: { s: GameState }) {
     { id: 'pop', label: `População (${s.month.year}, por UF)`, unit: 'habitantes', better: null, tag: 'DERIVADA', source: 'Censo 2022 projetado com a taxa 2010–2022 de cada UF', decimals: 0 },
     { id: 'desemp', label: 'Desocupação (região)', unit: '%', better: 'down', tag: 'DADO REAL', source: 'IBGE/PNAD Contínua por região, atualizada pela simulação', decimals: 1 },
     { id: 'renda', label: 'Renda média (região)', unit: 'R$', better: 'up', tag: 'DADO REAL', source: 'IBGE/PNAD Contínua por região, atualizada pela simulação', decimals: 0 },
+    ...(s.migration?.lastYear ? [{ id: 'mig', label: `Migração (${s.migration.lastYear.year})`, unit: 'saldo por mil hab.', better: 'up' as const, tag: 'DO JOGO' as const, source: 'saldo migratório simulado do último ano (entre estados e exterior)', decimals: 1 }] : []),
     ...(nat ? [{ id: 'proj', label: 'Sua projeção (região)', unit: 'reconhecimento 0–100', better: 'up' as const, tag: 'DO JOGO' as const, source: 'projeção nacional do jogador', decimals: 0 }] : []),
   ];
   const [m, setM] = useState('idhm');
@@ -209,6 +235,7 @@ function BrazilMap({ s }: { s: GameState }) {
     if (id === 'desemp') return rd?.unemployment ?? null;
     if (id === 'renda') return rd?.income ?? null;
     if (id === 'proj') return nat?.player?.[r]?.recognition ?? null;
+    if (id === 'mig') { const ly = s.migration?.lastYear; return ly ? (ly.uf[uf] ?? 0) / ufPop(s, uf) * 1000 : null; }
     return null;
   };
   const values = useMemo(() => Object.fromEntries(MAP_BR.shapes.map((sh) => [sh.id, valueOf(sh.id, m)])), [s, m]);
@@ -231,6 +258,7 @@ function BrazilMap({ s }: { s: GameState }) {
               <dt>População ({s.month.year}, estimada)</dt><dd>{ufPop(s, sel).toLocaleString('pt-BR')}</dd>
               <dt className="muted">Censo 2022</dt><dd className="muted">{UF_STATS[sel]?.pop.toLocaleString('pt-BR')}</dd>
               <IdhmRows x={ufIdhm(s, sel)} year={s.month.year} />
+              <MigRows s={s} last={s.migration?.lastYear ? (s.migration.lastYear.uf[sel] ?? 0) : null} total={s.migration?.uf[sel] ?? 0} />
             </dl>
             {rd && <>
               <h4 style={{ marginTop: 12 }}>Região {rd.name}</h4>
@@ -268,7 +296,8 @@ export function Mapas({ s }: { s: GameState }) {
       {v === 'cidade' && <CityMap s={s} />}
       {v === 'estado' && <StateMap s={s} />}
       {v === 'brasil' && <BrazilMap s={s} />}
-      <details style={{ marginTop: 10 }}><summary className="small"><b>Como os números andam com o tempo</b></summary>{DEMO_RULES.map((r) => <div key={r} className="small">{r}</div>)}</details>
+      {v !== 'cidade' && <MigSummary s={s} />}
+      <details style={{ marginTop: 10 }}><summary className="small"><b>Como os números andam com o tempo</b></summary>{[...DEMO_RULES, ...MIGRATION_RULES].map((r) => <div key={r} className="small">{r}</div>)}</details>
     </div>
   );
 }
