@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { isDesktop, listSaveFiles, readSaveFile, savesFolder, type SaveFileInfo } from './desktop';
 import { backupText, listBackups, loadSave, localSaveStatus, type GameState } from '../engine';
+import { listSnapshots, snapshotText, type Snapshot } from './snapshots';
 
 export function Start({ hasSave, onNew, onContinue, onImport }: { hasSave: boolean; onNew: () => void; onContinue: () => void; onImport: (s: GameState) => void }) {
   const [importing, setImporting] = useState(false);
@@ -13,6 +14,9 @@ export function Start({ hasSave, onNew, onContinue, onImport }: { hasSave: boole
   const [files, setFiles] = useState<SaveFileInfo[]>([]);
   const [folder, setFolder] = useState<string | null>(null);
   useEffect(() => { if (isDesktop) { listSaveFiles().then(setFiles); savesFolder().then(setFolder); } }, []);
+  const [snaps, setSnaps] = useState<Snapshot[]>([]);
+  const [showAllSnaps, setShowAllSnaps] = useState(false);
+  useEffect(() => { listSnapshots().then(setSnaps); }, []);
   const openFile = (f: File) => {
     f.text().then((t) => { setText(t); setErr(''); setImporting(true); try { const { state, report } = loadSave(t); if (report.repairs.length || report.migratedFrom !== null) setPending({ state, repairs: report.repairs, from: report.migratedFrom }); else onImport(state); } catch (e) { setErr((e as Error).message || 'Arquivo inválido.'); } });
   };
@@ -53,6 +57,18 @@ export function Start({ hasSave, onNew, onContinue, onImport }: { hasSave: boole
                 <button className="btn btn-sm" onClick={() => { readSaveFile(f.name).then((t) => { if (t) restore(t); }); }}>Carregar</button>
               </div>
             ))}
+          </div>
+        )}
+        {snaps.length > 0 && (
+          <div className="callout" style={{ marginTop: 16, color: 'var(--ink)' }}>
+            <b>Voltar no tempo</b> <span className="small">(cópias automáticas neste navegador: últimos 6 meses e o janeiro de cada ano)</span>
+            {(showAllSnaps ? snaps : snaps.slice(0, 4)).map((x) => (
+              <div key={x.key} style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6, flexWrap: 'wrap' }}>
+                <span className="small"><b>{x.name}</b> · {x.monthLabel}</span>
+                <button className="btn btn-sm" onClick={() => { snapshotText(x.key).then((t) => { if (t) restore(t); }); }}>Restaurar</button>
+              </div>
+            ))}
+            {snaps.length > 4 && <button className="btn btn-sm btn-ghost" style={{ marginTop: 6 }} onClick={() => setShowAllSnaps(!showAllSnaps)}>{showAllSnaps ? 'Mostrar menos' : `Ver todas (${snaps.length})`}</button>}
           </div>
         )}
         {backups.length > 0 && (

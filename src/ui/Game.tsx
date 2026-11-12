@@ -22,6 +22,7 @@ import { CausesModal } from './causes';
 import { exportSave, isDesktop, mirrorToFile } from './desktop';
 import { Conquistas, EleicoesGerais, EstadoUniao, Imagem, MeuMandato } from './estado';
 import { SceneQueue, Apuracao, soundOn, setSoundOn } from './cenas';
+import { saveSnapshot, markExported, monthsSinceExport } from './snapshots';
 
 const PAGE_IDS = ['gabinete', 'mandato', 'personagem', 'meupartido', 'partidos', 'redes', 'noticias', 'campanha', 'eleicoes', 'gerais', 'estado', 'imagem', 'gabparl', 'governo', 'camara', 'secretaria', 'cidade', 'conquistas', 'historico', 'regras', 'equipe', 'brasil', 'federal', 'pessoal', 'indicadores'] as const;
 type PageId = (typeof PAGE_IDS)[number];
@@ -106,6 +107,8 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
   const [exporting, setExporting] = useState(false);
 
   useEffect(() => { saveLocal(s); void mirrorToFile(s); }, [s]);
+  useEffect(() => { void saveSnapshot(s); }, [s.createdAt, s.month.year, s.month.month]);
+  const exportDue = monthsSinceExport(s) >= 12;
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(''), 3200); return () => clearTimeout(t); }, [toast]);
 
   const act = (id: string, param?: string) => {
@@ -128,6 +131,7 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
     if (nm && nm !== om && MANDATE_PAGE[nm]) setPageRaw(MANDATE_PAGE[nm][0]);
     if (next.gameOver) setPage('conquistas');
     setToast(fresh[fresh.length - 1]?.text ?? `Avançou para ${monthLabel(next.month)}.`);
+    if (monthsSinceExport(next) >= 12 && (next.month.year * 12 + next.month.month) % 6 === 0) setToast('Faz um ano de jogo que você não exporta o save. Use "Salvar / exportar" no menu para guardar um arquivo.');
     if (next.crises.some((c) => c.status === 'ativa' && c.targetId === 'character_player') && !s.crises.some((c) => c.status === 'ativa' && c.targetId === 'character_player')) setToast('Crise de imagem: veja a aba Imagem e promessas.');
 
   };
@@ -167,7 +171,7 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
         <div className="nav-sep" />
         <div className="nav-foot">
           <button className={`nav-link ${page === 'regras' ? 'on' : ''}`} onClick={() => setPageRaw('regras')}>Regras</button>
-          <button className="nav-link" onClick={() => setExporting(true)}>Salvar / exportar</button>
+          <button className={`nav-link ${exportDue ? 'on' : ''}`} onClick={() => setExporting(true)}>Salvar / exportar{exportDue ? ' ●' : ''}</button>
           <button className="nav-link" onClick={() => { setSoundOn(!som); setSom(!som); }}>Som: {som ? 'ligado' : 'desligado'}</button>
           <button className="nav-link" onClick={onExit}>Menu inicial</button>
         </div>
@@ -241,11 +245,11 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
         <div className="overlay" onClick={() => setExporting(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h2>Exportar save</h2>
-            <p>{isDesktop ? 'A partida já é salva sozinha em arquivo (pasta Documentos › Political Brazilian Simulator), com uma cópia por ano de jogo. Você também pode gravar uma cópia agora ou copiar o texto.' : 'Baixe um arquivo .json da partida (recomendado) ou copie o texto para continuar em outro navegador ou computador.'}</p>
+            <p>{isDesktop ? 'A partida já é salva sozinha em arquivo (pasta Documentos › Political Brazilian Simulator), com uma cópia por ano de jogo. Você também pode gravar uma cópia agora ou copiar o texto.' : 'Baixe um arquivo .json da partida (recomendado) ou copie o texto para continuar em outro navegador ou computador. O jogo também guarda cópias automáticas neste navegador (últimos 6 meses e o janeiro de cada ano): ficam em "Voltar no tempo", na tela inicial.'}</p>
             <textarea readOnly value={serialize(s)} onFocus={(e) => e.currentTarget.select()} />
             <div className="modal-options" style={{ flexDirection: 'row' }}>
-              <button className="btn btn-gold" onClick={() => { exportSave(s).then(setToast); }}>{isDesktop ? 'Salvar cópia em arquivo' : 'Baixar arquivo .json'}</button>
-              <button className="btn btn-primary" onClick={() => { navigator.clipboard?.writeText(serialize(s)).then(() => setToast('Save copiado.'), () => setToast('Não deu para copiar automaticamente: selecione o texto e copie.')); }}>Copiar</button>
+              <button className="btn btn-gold" onClick={() => { exportSave(s).then((m) => { markExported(s); setToast(m); }); }}>{isDesktop ? 'Salvar cópia em arquivo' : 'Baixar arquivo .json'}</button>
+              <button className="btn btn-primary" onClick={() => { navigator.clipboard?.writeText(serialize(s)).then(() => { markExported(s); setToast('Save copiado.'); }, () => setToast('Não deu para copiar automaticamente: selecione o texto e copie.')); }}>Copiar</button>
               <button className="btn" onClick={() => setExporting(false)}>Fechar</button>
             </div>
           </div>

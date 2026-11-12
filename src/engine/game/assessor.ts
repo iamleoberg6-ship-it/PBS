@@ -35,7 +35,8 @@ export function hireAsStaff(s: GameState, bossId: string): StaffJob | null {
   const c = s.government.councillors.find((x) => x.id === bossId);
   if (!c) return null;
   const job: StaffJob = {
-    bossId, bossName: c.name, bossPartyId: c.partyId, bossReal: c.real, rank: 'assessor', trust: 45, contacts: 10,
+    // A rede de bastidores é da pessoa, não do cargo: quem volta à assessoria mantém 70% dela (PROPOSTA).
+    bossId, bossName: c.name, bossPartyId: c.partyId, bossReal: c.real, rank: 'assessor', trust: 45, contacts: Math.max(10, Math.round(Number(s.flags.staffContacts ?? 0) * 0.7)),
     specialty: null, demands: [], completed: 0, failed: 0, draftedBills: [], since: { ...s.month },
   };
   s.player.staff = job;
@@ -48,6 +49,7 @@ export function hireAsStaff(s: GameState, bossId: string): StaffJob | null {
 export function leaveStaff(s: GameState, reason: string) {
   if (!s.player.staff) return;
   s.player.careerHistory.forEach((h) => { if (h.to === null && h.office.includes('ssessor') || (h.to === null && h.office.includes('Chefe de gabinete'))) h.to = `${s.month.year}-${String(s.month.month).padStart(2, '0')}`; });
+  s.flags.staffContacts = Math.round(s.player.staff.contacts);
   s.player.staff = null;
   if (s.player.job === 'assessor') s.player.job = 'profissao';
   s.log.push({ month: { ...s.month }, kind: 'acao', text: reason });

@@ -186,6 +186,7 @@ export function switchToHeir(s: GameState, rng: RngState, heirId: string): strin
   pl.credibility = clamp(55 + ((pl.credibility ?? 60) - 60) * 0.5);
   pl.candidacy = null;
   pl.staff = null;
+  s.flags.staffContacts = 0;
   pl.team = undefined;
   pl.job = 'profissao';
   pl.careerHistory = [];

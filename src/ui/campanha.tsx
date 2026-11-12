@@ -1,6 +1,6 @@
 import {
   BR_REGIONS, CAMPAIGN_RULES, NATIONAL_THEMES, NATIONAL_THEME_LABEL, REGIONS, SEGMENTS, STAFF_RANKS, STAFF_RULES, TEAM_ROLES, THEMES, THEME_LABEL,
-  campaignAreas, campaignFactor, campaignHome, currentPlan, demandChance, isNationalCampaign, monthLabel, partyById, regionalIntention, regionPop, spendingLimit, teamCost,
+  campaignAreas, campaignFactor, monthIndex, nextElection, campaignHome, currentPlan, demandChance, isNationalCampaign, monthLabel, partyById, regionalIntention, regionPop, spendingLimit, teamCost,
   type GameState, type TeamRole,
 } from '../engine';
 import { brl, num, pct } from './format';
@@ -154,7 +154,7 @@ export function GabineteParlamentar({ s, act }: { s: GameState; act: Act }) {
           {j.draftedBills.length === 0 && <p className="small muted">Nenhum ainda. Minutas viram projetos da bancada do gabinete; se virarem lei, rendem prestígio.</p>}
           {j.draftedBills.map((id) => { const b = s.legislature.bills.find((x) => x.id === id); return b ? <div key={id} className="small">{b.number} — {b.title} · <b>{b.stage}</b></div> : null; })}
           <h4 style={{ marginTop: 12 }}>Caminho até a candidatura</h4>
-          <p className="small">Com confiança ≥ 60, o gabinete apoia sua pré-candidatura na convenção de 2028: base, reconhecimento e lideranças das regiões onde você organizou agenda.</p>
+          <p className="small">Com confiança ≥ 60, o gabinete apoia sua pré-candidatura na convenção da próxima eleição ({nextElection(monthIndex(s.month)).year}): base, reconhecimento e lideranças das regiões onde você organizou agenda.</p>
           <h4 style={{ marginTop: 12 }}>Regras</h4>
           {STAFF_RULES.map((r) => <div key={r} className="small">{r}</div>)}
         </div>

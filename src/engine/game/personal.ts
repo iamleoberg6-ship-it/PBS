@@ -23,6 +23,8 @@ export interface FamilyMember {
   relation: FamilyRelation;
   gender: 'F' | 'M';
   birthYear: number;
+  /** Mês de nascimento (1–12), quando conhecido: deixa a idade exata. */
+  birthMonth?: number;
   /** Como a pessoa está com você (0–100). */
   mood: number;
   trait: Trait;
@@ -108,7 +110,7 @@ function randTrait(rng: RngState, minor: boolean): Trait {
   if (minor) return x < 0.55 ? 'apoiador' : x < 0.85 ? 'reservado' : 'problematico';
   return x < 0.45 ? 'apoiador' : x < 0.73 ? 'reservado' : x < 0.87 ? 'ambicioso' : 'problematico';
 }
-export const memberAge = (s: GameState, m: FamilyMember) => s.month.year - m.birthYear;
+export const memberAge = (s: GameState, m: FamilyMember) => m.birthMonth ? Math.floor((s.month.year * 12 + s.month.month - (m.birthYear * 12 + m.birthMonth)) / 12) : s.month.year - m.birthYear;
 export const characterAge = (s: GameState) => s.month.year - Number(s.character.birthDate.slice(0, 4));
 
 const newId = (s: GameState, p: string) => `${p}_${now(s)}_${Math.floor(next(s.rng) * 1e9)}`;
@@ -415,7 +417,7 @@ export function birth(s: GameState, rng: RngState): string {
   const g = randGender(rng);
   const surname = surnameOf(s.character.name);
   const adoption = p.babyBy === 'adocao';
-  const baby: FamilyMember = { id: newId(s, 'fam'), name: `${firstName(rng, g)} ${surname}`, relation: 'filho', gender: g, birthYear: s.month.year - (adoption ? Math.floor(next(rng) * 4) : 0), mood: 85, trait: randTrait(rng, true), politicalInterest: Math.round(next(rng) * 40) };
+  const baby: FamilyMember = { id: newId(s, 'fam'), name: `${firstName(rng, g)} ${surname}`, relation: 'filho', gender: g, birthYear: s.month.year - (adoption ? Math.floor(next(rng) * 4) : 0), birthMonth: adoption ? undefined : s.month.month, mood: 85, trait: randTrait(rng, true), politicalInterest: Math.round(next(rng) * 40) };
   p.family.push(baby);
   p.babyDue = 0;
   p.babyBy = undefined;
