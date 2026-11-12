@@ -2,6 +2,7 @@ import { Component, useEffect, useState, type ReactNode } from 'react';
 import {
   GAMEPLAY, TEAM_LIMITS, decideSanction, setFloorVote, officePointsFor, nextElection, munCycle, genCycle, monthIndex, advanceMonth, setPlayerVote, openDraft, adjustDraft, changeParty, setSocialFocus, currentPhaseLabel, eventById, monthLabel, performAction, resolveEvent, saveLocal, serialize,
   type GameState,
+  detectScenes, pastApuracoes, type Scene, type ApuracaoRef,
 } from '../engine';
 import { brl } from './format';
 import { Cidade, Eleicoes, Gabinete, Historico, Partidos, Personagem, Regras } from './pages';
@@ -20,6 +21,7 @@ import { GuideCard } from './guide';
 import { CausesModal } from './causes';
 import { exportSave, isDesktop, mirrorToFile } from './desktop';
 import { Conquistas, EleicoesGerais, EstadoUniao, Imagem, MeuMandato } from './estado';
+import { SceneQueue, Apuracao, soundOn, setSoundOn } from './cenas';
 
 const PAGE_IDS = ['gabinete', 'mandato', 'personagem', 'meupartido', 'partidos', 'redes', 'noticias', 'campanha', 'eleicoes', 'gerais', 'estado', 'imagem', 'gabparl', 'governo', 'camara', 'secretaria', 'cidade', 'conquistas', 'historico', 'regras', 'equipe', 'brasil', 'federal', 'pessoal', 'indicadores'] as const;
 type PageId = (typeof PAGE_IDS)[number];
@@ -90,6 +92,9 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
   const [s, setS] = useState<GameState>(initial);
   const [page, setPageRaw] = useState<PageId>('gabinete');
   const [sp, setSp] = useState<SpView>('visao');
+  const [scenes, setScenes] = useState<Scene[]>([]);
+  const [replay, setReplay] = useState<ApuracaoRef | null>(null);
+  const [som, setSom] = useState(soundOn());
   const [lastTab, setLastTab] = useState<Partial<Record<SectionId, PageId>>>({});
   const setPage = (p: PageId) => { const r = resolvePage(s, p); setPageRaw(r.page); if (r.sp) setSp(r.sp); };
   const secs = sections(s);
@@ -114,6 +119,8 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
     const before = s.log.length;
     const next = advanceMonth(s);
     setS(next);
+    const sc = detectScenes(s, next);
+    if (sc.length) setScenes(sc);
     const fresh = next.log.slice(before).filter((l) => l.kind === 'eleicao' || l.kind === 'mandato');
     if (fresh.some((l) => l.kind === 'eleicao') && next.elections.length > s.elections.length) setPage('eleicoes');
     if (next.generalElections.length > s.generalElections.length) setPage('gerais');
@@ -161,6 +168,7 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
         <div className="nav-foot">
           <button className={`nav-link ${page === 'regras' ? 'on' : ''}`} onClick={() => setPageRaw('regras')}>Regras</button>
           <button className="nav-link" onClick={() => setExporting(true)}>Salvar / exportar</button>
+          <button className="nav-link" onClick={() => { setSoundOn(!som); setSom(!som); }}>Som: {som ? 'ligado' : 'desligado'}</button>
           <button className="nav-link" onClick={onExit}>Menu inicial</button>
         </div>
         <div className="side-foot">{isDesktop ? "Salvo automaticamente em Documentos › Political Brazilian Simulator." : "Salvo automaticamente neste navegador. Use \"Salvar / exportar\" para guardar um arquivo."}</div>
@@ -171,6 +179,9 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
             {current.tabs.map(([id, label]) => <button key={id} role="tab" aria-selected={page === id} className={`tab ${page === id ? 'active' : ''}`} onClick={() => setPageRaw(id)}>{label}</button>)}
           </div>
         )}
+        {(page === 'eleicoes' || page === 'gerais' || page === 'campanha') && (() => { const past = pastApuracoes(s).filter((r) => page === 'campanha' || (page === 'eleicoes') === (r.level === 'municipal')); return past.length ? (
+          <div className="replay-row"><span>Rever a noite da apuração:</span>{past.map((r) => <button key={`${r.level}${r.year}${r.round}`} className="btn btn-sm" onClick={() => setReplay(r)}>{r.year}{r.round === 2 ? ' · 2º turno' : ''} · {r.office.replace('_', ' ')}</button>)}</div>
+        ) : null; })()}
         <PageBoundary resetKey={`${page}-${s.month.year}-${s.month.month}`}>
         <GuideCard s={s} setS={setS} go={(p) => { if ((PAGE_IDS as readonly string[]).includes(p)) setPage(p as PageId); }} />
         {page === 'gabinete' && <Gabinete s={s} act={act} voteBill={(id, c) => setS(setPlayerVote(s, id, c))} voteFloor={(id, c) => setS(setFloorVote(s, id, c))} />}
@@ -222,6 +233,9 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
           </div>
         </div>
       )}
+
+      {scenes.length > 0 && <SceneQueue s={s} scenes={scenes} onDone={() => setScenes([])} />}
+      {replay && <div className="scene-overlay"><Apuracao s={s} refe={replay} onClose={() => setReplay(null)} /></div>}
 
       {exporting && (
         <div className="overlay" onClick={() => setExporting(false)}>

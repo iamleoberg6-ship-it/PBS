@@ -49,3 +49,4 @@ export * from './game/indicators';
 export * from './game/govprofile';
 export * from './data/subprefeituras';
 export * from './data/rollcall';
+export * from './game/scenes';
