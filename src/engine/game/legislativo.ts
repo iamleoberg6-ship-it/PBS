@@ -298,6 +298,8 @@ export function govInvestRegion(s: GameState, rng: RngState, rg: string): string
   u.regionInvest ??= {}; u.regionApproval ??= Object.fromEntries(MAP_STATE.shapes.map((x) => [x.id, m.approval]));
   const before = u.regionInvest[rg] ?? 0;
   u.regionInvest[rg] = before + REGION_INVEST_VALUE;
+  // Fase 16: o investimento fica registrado na região mesmo depois do mandato (pesa no IDHM estimado).
+  s.flags[`invRG_${rg}`] = Number(s.flags[`invRG_${rg}`] ?? 0) + REGION_INVEST_VALUE;
   // Retorno decrescente: o mesmo valor pesa mais numa região pequena e menos onde já se investiu muito.
   const perCapita = (REGION_INVEST_VALUE * 1e6) / st.pop;
   const gain = Math.min(9, 1.5 + perCapita / 25) / (1 + before / 2000);

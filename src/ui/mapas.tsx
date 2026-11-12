@@ -5,7 +5,7 @@
 import { Fragment, useMemo, useState } from 'react';
 import {
   CITY_META, MAP_BR, MAP_CITY, MAP_STATE, STATE_REGION_STATS, SUBPREF_DATA, UF_REGION, UF_STATS,
-  indicatorById, indicatorValue, regionalValue, subprefValue, type GameState, type MapLayer,
+  indicatorById, indicatorValue, regionalValue, subprefValue, capitalAreaPop, rgPop, rgIdhm, ufPop, ufIdhm, brRegionPop, DEMO_RULES, type GameState, type MapLayer,
 } from '../engine';
 import { REGIONS } from '../engine/data/regions';
 
@@ -66,6 +66,18 @@ function MapSvg({ layer, values, metric, selected, onPick, outline }: { layer: M
 }
 const prettyName = (n: string) => (n === n.toUpperCase() ? n.toLowerCase().replace(/(^|[\s-])([a-zà-ú])/g, (_m, a, b) => a + b.toUpperCase()).replace(/\bDe\b|\bDo\b|\bDa\b/g, (x) => x.toLowerCase()) : n);
 
+function IdhmRows({ x, year }: { x: ReturnType<typeof rgIdhm>; year: number }) {
+  if (!x) return null;
+  const d = (v: number) => (Math.abs(v) < 0.0005 ? '' : ` (${v > 0 ? '+' : '−'}${Math.abs(v).toFixed(3).replace('.', ',')})`);
+  return <>
+    <dt>IDHM ({year}, estimado)</dt><dd><b>{fmt(x.idhm, 3)}</b></dd>
+    <dt className="muted">IDHM 2010 (Atlas)</dt><dd className="muted">{fmt(x.base.idhm, 3)}</dd>
+    <dt>Educação</dt><dd>{fmt(x.e, 3)}<span className="muted small">{d(x.delta.e)}</span></dd>
+    <dt>Longevidade</dt><dd>{fmt(x.l, 3)}<span className="muted small">{d(x.delta.l)}</span></dd>
+    <dt>Renda</dt><dd>{fmt(x.r, 3)}<span className="muted small">{d(x.delta.r)}</span></dd>
+  </>;
+}
+
 function Tag({ t }: { t: Metric['tag'] }) { return <span className={`tag ${t === 'DADO REAL' ? 'real' : t === 'DERIVADA' ? 'derivada' : 'proposta'}`}>{t}</span>; }
 
 // ---------------------------------------------------------------------------------------------
@@ -75,7 +87,7 @@ function CityMap({ s }: { s: GameState }) {
     { id: 'c_mortinf', label: 'Mortalidade infantil', unit: 'por mil nasc. vivos', better: 'down', tag: 'DADO REAL', source: 'SMS-SP, CEInfo (2025), atualizado pela simulação', decimals: 1 },
     { id: 'c_homic', label: 'Homicídios', unit: 'por 100 mil hab.', better: 'down', tag: 'DADO REAL', source: 'SMS-SP, CEInfo (2024), atualizado pela simulação', decimals: 1 },
     { id: 'c_desloc', label: 'Tempo de deslocamento', unit: 'min/dia', better: 'down', tag: 'DADO REAL', source: 'Rede Nossa São Paulo/Ipec 2024 (por zona)', decimals: 0 },
-    { id: 'densidade', label: 'Densidade', unit: 'hab./km²', better: null, tag: 'DADO REAL', source: 'IBGE Censo 2022 ÷ área GeoSampa', decimals: 0 },
+    { id: 'densidade', label: 'Densidade', unit: 'hab./km²', better: null, tag: 'DERIVADA', source: `Censo 2022 projetado para ${s.month.year} (taxa 2010–2022 da capital) ÷ área GeoSampa`, decimals: 0 },
     { id: 'c_ideb', label: 'Ideb (anos iniciais)', unit: 'nota', better: 'up', tag: 'PARÂMETRO', source: 'valor da cidade (Inep) com variação por renda da região (parâmetro do jogo)', decimals: 1 },
     { id: 'c_esgoto', label: 'Esgoto coletado', unit: '%', better: 'up', tag: 'PARÂMETRO', source: 'valor da cidade com variação por região (parâmetro do jogo)', decimals: 1 },
     { id: 'c_cultura', label: 'Acesso a cultura', unit: 'índice', better: 'up', tag: 'PARÂMETRO', source: 'valor da cidade com variação por região (parâmetro do jogo)', decimals: 1 },
@@ -86,7 +98,7 @@ function CityMap({ s }: { s: GameState }) {
   const [sel, setSel] = useState<string | null>(null);
   const valueOf = (mapId: string, id: string): number | null => {
     const info = cityInfo(mapId); if (!info) return null;
-    if (id === 'densidade') return info.pop / (CITY_META[mapId]?.km2 || 1);
+    if (id === 'densidade') return capitalAreaPop(s, info.pop) / (CITY_META[mapId]?.km2 || 1);
     if (id === 'votos') return lastVotes?.playerVotesByRegion?.[info.region] ?? 0;
     if (id === 'c_mortinf' || id === 'c_homic') return subprefValue(s, id, subprefKey(info.name), info.region);
     return regionalValue(s, id, info.region);
@@ -107,7 +119,8 @@ function CityMap({ s }: { s: GameState }) {
             <div className="scene-kicker" style={{ color: 'var(--ink-3)' }}>Subprefeitura · {region?.name}</div>
             <h3 style={{ fontSize: 20 }}>{info.name}</h3>
             <dl className="kv" style={{ marginTop: 10 }}>
-              <dt>População (2022)</dt><dd>{info.pop.toLocaleString('pt-BR')}</dd>
+              <dt>População ({s.month.year}, estimada)</dt><dd>{capitalAreaPop(s, info.pop).toLocaleString('pt-BR')}</dd>
+              <dt className="muted">Censo 2022</dt><dd className="muted">{info.pop.toLocaleString('pt-BR')}</dd>
               <dt>Área</dt><dd>{CITY_META[sel!]?.km2} km²</dd>
               {METRICS.filter((x) => x.id !== 'densidade').map((x) => <Fragment key={x.id}><dt>{x.label} <span className="muted small">{x.tag === 'DADO REAL' ? '●' : '○'}</span></dt><dd>{fmt(valueOf(sel!, x.id), x.decimals)} <span className="muted small">{x.unit}</span></dd></Fragment>)}
             </dl>
@@ -125,11 +138,11 @@ function CityMap({ s }: { s: GameState }) {
 function StateMap({ s }: { s: GameState }) {
   const gov = s.player.mandate?.office === 'governador' ? s.player.mandate.upper : null;
   const METRICS: Metric[] = [
-    { id: 'idhm', label: 'IDHM', unit: 'índice 0–1', better: 'up', tag: 'DERIVADA', source: 'Atlas do Desenvolvimento Humano (PNUD/IPEA/FJP), IDHM 2010 dos municípios, ponderado pela população de 2022', decimals: 3 },
-    { id: 'idhm_e', label: 'IDHM Educação', unit: 'índice', better: 'up', tag: 'DERIVADA', source: 'Atlas Brasil 2010, ponderado', decimals: 3 },
-    { id: 'idhm_l', label: 'IDHM Longevidade', unit: 'índice', better: 'up', tag: 'DERIVADA', source: 'Atlas Brasil 2010, ponderado', decimals: 3 },
-    { id: 'idhm_r', label: 'IDHM Renda', unit: 'índice', better: 'up', tag: 'DERIVADA', source: 'Atlas Brasil 2010, ponderado', decimals: 3 },
-    { id: 'pop', label: 'População', unit: 'habitantes', better: null, tag: 'DADO REAL', source: 'IBGE, Censo 2022 (soma dos municípios)', decimals: 0 },
+    { id: 'idhm', label: `IDHM (${s.month.year})`, unit: 'índice 0–1', better: 'up', tag: 'DERIVADA', source: 'IDHM 2010 dos municípios (Atlas Brasil, ponderado pela população) + mudanças simuladas desde o início do jogo', decimals: 3 },
+    { id: 'idhm_e', label: 'IDHM Educação', unit: 'índice', better: 'up', tag: 'DERIVADA', source: 'Atlas 2010 + efeito simulado do Ideb e de investimentos', decimals: 3 },
+    { id: 'idhm_l', label: 'IDHM Longevidade', unit: 'índice', better: 'up', tag: 'DERIVADA', source: 'Atlas 2010 + efeito simulado da mortalidade infantil e de investimentos', decimals: 3 },
+    { id: 'idhm_r', label: 'IDHM Renda', unit: 'índice', better: 'up', tag: 'DERIVADA', source: 'Atlas 2010 + efeito simulado da desocupação e de investimentos', decimals: 3 },
+    { id: 'pop', label: `População (${s.month.year})`, unit: 'habitantes', better: null, tag: 'DERIVADA', source: 'Censo 2022 projetado com a taxa 2010–2022 de cada região', decimals: 0 },
     ...(gov ? [
       { id: 'inv', label: 'Investido pelo seu governo', unit: 'R$ mi', better: null, tag: 'DO JOGO' as const, source: 'ações "Investir numa região do estado"', decimals: 0 },
       { id: 'aprov', label: 'Sua aprovação', unit: '0–100', better: 'up' as const, tag: 'DO JOGO' as const, source: 'aprovação do governo por região (simulação)', decimals: 0 },
@@ -138,7 +151,8 @@ function StateMap({ s }: { s: GameState }) {
   const [m, setM] = useState(gov ? 'aprov' : 'idhm');
   const metric = METRICS.find((x) => x.id === m)!;
   const [sel, setSel] = useState<string | null>(null);
-  const values = Object.fromEntries(MAP_STATE.shapes.map((sh) => [sh.id, m === 'inv' ? (gov?.regionInvest?.[sh.id] ?? 0) : m === 'aprov' ? (gov?.regionApproval?.[sh.id] ?? s.player.mandate?.approval ?? null) : (STATE_REGION_STATS[sh.id] as unknown as Record<string, number>)?.[m] ?? null]));
+  const est = (id: string, k: string): number | null => { if (k === 'pop') return rgPop(s, id); const x = rgIdhm(s, id); if (!x) return null; return k === 'idhm' ? x.idhm : k === 'idhm_e' ? x.e : k === 'idhm_l' ? x.l : x.r; };
+  const values = Object.fromEntries(MAP_STATE.shapes.map((sh) => [sh.id, m === 'inv' ? Number(s.flags[`invRG_${sh.id}`] ?? gov?.regionInvest?.[sh.id] ?? 0) : m === 'aprov' ? (gov?.regionApproval?.[sh.id] ?? s.player.mandate?.approval ?? null) : est(sh.id, m)]));
   const st = sel ? STATE_REGION_STATS[sel] : null;
   const name = sel ? MAP_STATE.shapes.find((x) => x.id === sel)?.name : '';
   const total = Object.values(STATE_REGION_STATS).reduce((a, x) => a + x.pop, 0);
@@ -156,13 +170,11 @@ function StateMap({ s }: { s: GameState }) {
             <div className="scene-kicker" style={{ color: 'var(--ink-3)' }}>Região intermediária (IBGE)</div>
             <h3 style={{ fontSize: 20 }}>{name}</h3>
             <dl className="kv" style={{ marginTop: 10 }}>
-              <dt>População (2022)</dt><dd>{st.pop.toLocaleString('pt-BR')}</dd>
+              <dt>População ({s.month.year}, estimada)</dt><dd>{rgPop(s, sel!).toLocaleString('pt-BR')}</dd>
+              <dt className="muted">Censo 2022</dt><dd className="muted">{st.pop.toLocaleString('pt-BR')}</dd>
               <dt>Peso no estado</dt><dd>{fmt((st.pop / total) * 100, 1)}%</dd>
               <dt>Municípios</dt><dd>{st.nmun}</dd>
-              <dt>IDHM (2010)</dt><dd>{fmt(st.idhm, 3)}</dd>
-              <dt>Educação</dt><dd>{fmt(st.idhm_e, 3)}</dd>
-              <dt>Longevidade</dt><dd>{fmt(st.idhm_l, 3)}</dd>
-              <dt>Renda</dt><dd>{fmt(st.idhm_r, 3)}</dd>
+              <IdhmRows x={rgIdhm(s, sel!)} year={s.month.year} />
               {gov && <><dt>Investido pelo seu governo</dt><dd>R$ {fmt(gov.regionInvest?.[sel!] ?? 0, 0)} mi</dd><dt>Sua aprovação</dt><dd>{fmt(gov.regionApproval?.[sel!] ?? s.player.mandate?.approval, 0)}</dd></>}
             </dl>
             {STATE_IND.length > 0 && <>
@@ -181,8 +193,8 @@ function StateMap({ s }: { s: GameState }) {
 function BrazilMap({ s }: { s: GameState }) {
   const nat = s.national;
   const METRICS: Metric[] = [
-    { id: 'idhm', label: 'IDHM (por UF)', unit: 'índice 0–1', better: 'up', tag: 'DERIVADA', source: 'Atlas Brasil 2010, municípios ponderados pela população de 2022', decimals: 3 },
-    { id: 'pop', label: 'População (por UF)', unit: 'habitantes', better: null, tag: 'DADO REAL', source: 'IBGE, Censo 2022', decimals: 0 },
+    { id: 'idhm', label: `IDHM (${s.month.year}, por UF)`, unit: 'índice 0–1', better: 'up', tag: 'DERIVADA', source: 'IDHM 2010 (Atlas Brasil, municípios ponderados) + mudanças simuladas: renda da região (fórmula do PNUD), mortalidade infantil, Ideb e verbas federais', decimals: 3 },
+    { id: 'pop', label: `População (${s.month.year}, por UF)`, unit: 'habitantes', better: null, tag: 'DERIVADA', source: 'Censo 2022 projetado com a taxa 2010–2022 de cada UF', decimals: 0 },
     { id: 'desemp', label: 'Desocupação (região)', unit: '%', better: 'down', tag: 'DADO REAL', source: 'IBGE/PNAD Contínua por região, atualizada pela simulação', decimals: 1 },
     { id: 'renda', label: 'Renda média (região)', unit: 'R$', better: 'up', tag: 'DADO REAL', source: 'IBGE/PNAD Contínua por região, atualizada pela simulação', decimals: 0 },
     ...(nat ? [{ id: 'proj', label: 'Sua projeção (região)', unit: 'reconhecimento 0–100', better: 'up' as const, tag: 'DO JOGO' as const, source: 'projeção nacional do jogador', decimals: 0 }] : []),
@@ -192,8 +204,8 @@ function BrazilMap({ s }: { s: GameState }) {
   const [sel, setSel] = useState<string | null>(null);
   const valueOf = (uf: string, id: string): number | null => {
     const r = UF_REGION[uf]; const rd = nat?.regions?.[r];
-    if (id === 'idhm') return UF_STATS[uf]?.idhm ?? null;
-    if (id === 'pop') return UF_STATS[uf]?.pop ?? null;
+    if (id === 'idhm') return ufIdhm(s, uf)?.idhm ?? null;
+    if (id === 'pop') return ufPop(s, uf);
     if (id === 'desemp') return rd?.unemployment ?? null;
     if (id === 'renda') return rd?.income ?? null;
     if (id === 'proj') return nat?.player?.[r]?.recognition ?? null;
@@ -216,13 +228,14 @@ function BrazilMap({ s }: { s: GameState }) {
             <div className="scene-kicker" style={{ color: 'var(--ink-3)' }}>Região {BR_NAME[reg!]}</div>
             <h3 style={{ fontSize: 20 }}>{MAP_BR.shapes.find((x) => x.id === sel)?.name} ({sel})</h3>
             <dl className="kv" style={{ marginTop: 10 }}>
-              <dt>População (2022)</dt><dd>{UF_STATS[sel]?.pop.toLocaleString('pt-BR')}</dd>
-              <dt>IDHM (derivado)</dt><dd>{fmt(UF_STATS[sel]?.idhm, 3)}</dd>
+              <dt>População ({s.month.year}, estimada)</dt><dd>{ufPop(s, sel).toLocaleString('pt-BR')}</dd>
+              <dt className="muted">Censo 2022</dt><dd className="muted">{UF_STATS[sel]?.pop.toLocaleString('pt-BR')}</dd>
+              <IdhmRows x={ufIdhm(s, sel)} year={s.month.year} />
             </dl>
             {rd && <>
               <h4 style={{ marginTop: 12 }}>Região {rd.name}</h4>
               <dl className="kv">
-                <dt>População</dt><dd>{rd.population.toLocaleString('pt-BR')}</dd>
+                <dt>População ({s.month.year})</dt><dd>{brRegionPop(s, reg!).toLocaleString('pt-BR')}</dd>
                 <dt>Eleitorado</dt><dd>{rd.electorate.toLocaleString('pt-BR')}</dd>
                 <dt>Desocupação</dt><dd>{fmt(rd.unemployment, 1)}%</dd>
                 <dt>Renda média</dt><dd>R$ {fmt(rd.income, 0)}</dd>
@@ -255,6 +268,7 @@ export function Mapas({ s }: { s: GameState }) {
       {v === 'cidade' && <CityMap s={s} />}
       {v === 'estado' && <StateMap s={s} />}
       {v === 'brasil' && <BrazilMap s={s} />}
+      <details style={{ marginTop: 10 }}><summary className="small"><b>Como os números andam com o tempo</b></summary>{DEMO_RULES.map((r) => <div key={r} className="small">{r}</div>)}</details>
     </div>
   );
 }

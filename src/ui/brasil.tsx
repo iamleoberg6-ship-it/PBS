@@ -1,4 +1,4 @@
-import { BR_REGIONS, NATIONAL_SOURCES, isFederal, nationalIndex, type BrRegion, type GameState } from '../engine';
+import { BR_REGIONS, NATIONAL_SOURCES, brRegionPop, isFederal, nationalIndex, type BrRegion, type GameState } from '../engine';
 
 const num = (n: number) => n.toLocaleString('pt-BR');
 const mi = (n: number) => `${(n / 1_000_000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mi`;
@@ -58,7 +58,7 @@ export function Brasil({ s }: { s: GameState }) {
                 return (
                   <tr key={r}>
                     <td><b>{reg.name}</b></td>
-                    <td className="mono">{mi(reg.population)}</td>
+                    <td className="mono" title="Censo 2022 projetado com a taxa 2010–2022">{mi(brRegionPop(s, r))}</td>
                     <td className="mono">{mi(reg.electorate)}</td>
                     <td className="mono">{reg.unemployment.toFixed(1)}%</td>
                     <td className="mono">R$ {num(reg.income)}</td>
@@ -82,7 +82,7 @@ export function Brasil({ s }: { s: GameState }) {
       <div className="card" style={{ marginTop: 16 }}>
         <h3>Fontes e regras</h3>
         <p className="small"><span className="tag real">regra real</span> {NATIONAL_SOURCES.rules}</p>
-        <p className="small"><span className="tag real">dado real</span> {NATIONAL_SOURCES.population}</p>
+        <p className="small"><span className="tag real">dado real</span> {NATIONAL_SOURCES.population} A população é projetada para o ano do jogo com a taxa de cada UF entre os Censos 2010 e 2022.</p>
         <p className="small"><span className="tag real">dado real</span> {NATIONAL_SOURCES.electorate}</p>
         <p className="small"><span className="tag real">dado real</span> {NATIONAL_SOURCES.unemployment}</p>
         <p className="small"><span className="tag real">dado real</span> {NATIONAL_SOURCES.income}</p>

@@ -53,3 +53,4 @@ export * from './game/scenes';
 export * from './game/speeches';
 export * from './data/maps';
 export * from './game/legislativo';
+export * from './game/demografia';

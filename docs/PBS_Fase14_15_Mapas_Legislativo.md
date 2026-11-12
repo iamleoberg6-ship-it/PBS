@@ -1,6 +1,6 @@
 # PBS — Fases 14 e 15: salvar sem medo, mapas e mandatos acima da Prefeitura
 
-**Status:** implementado · 192 testes passando · balanceamento OK · build OK · conferido no navegador (desktop e celular)
+**Status:** implementado · 195 testes passando · balanceamento OK · build OK · conferido no navegador (desktop e celular)
 
 ## 0. Salvar sem medo e correções
 - **Voltar no tempo:** a cada mês avançado o jogo guarda uma cópia da partida no IndexedDB do navegador.
@@ -97,3 +97,28 @@ Já tinha a parte mais completa (ministérios, medidas, MPs, sanção e veto, ec
 - Comissões e liderança para vereador na Câmara Municipal (já existe uma estrutura parecida da Fase 2).
 - Orçamento estadual jogável (LOA do estado), como o da Prefeitura.
 - Indicadores estaduais com dado real por região (DataSUS e SSP-SP por município).
+
+## 3. Números que andam com o tempo (Fase 16)
+Os indicadores sociais (Fase 9) já mudavam todo mês, com tendência real e efeito das políticas do jogador e dos governos da IA. Agora os números dos mapas também andam.
+
+- **População (DERIVADA):**
+  - o Censo 2022 (referência em 1º/08/2022) é projetado com a taxa geométrica anual de cada área entre os Censos 2010 e 2022 (IBGE, soma dos municípios);
+  - exemplos de taxa: capital +0,15% ao ano, estado de SP +0,62%, Brasil +0,52%, Roraima +2,93%, região de Campinas +0,98%;
+  - as subprefeituras usam a taxa da capital;
+  - vale para mapas, fichas, densidade e a página "Brasil por regiões".
+- **IDHM estimado:**
+  - parte do IDHM municipal oficial de 2010 (Atlas Brasil) e soma só as mudanças **simuladas desde o início da partida**;
+  - o jogo não inventa a trajetória de 2010 a 2027, porque não há IDHM municipal oficial depois de 2010;
+  - **Renda:** fórmula oficial do PNUD, ΔR = ln(renda agora / renda base) / ln(4.033,33 / 8), usando a renda média da grande região simulada. No estado de SP a renda não é simulada por região; usa-se a desocupação estadual (PARÂMETRO: 10% a mais de desocupação ≈ −0,003);
+  - **Longevidade e educação** (PARÂMETRO): 10% menos mortalidade infantil ≈ +0,004 em L; 10% mais Ideb ≈ +0,010 em E;
+  - **Investimento:** o do governador por região (registrado em `flags.invRG_<região>`, permanece depois do mandato) e as verbas federais por grande região somam até +0,02 no componente mais fraco, proporcional ao valor por habitante (PARÂMETRO);
+  - **Cálculo final:** IDHM = raiz cúbica do produto dos três componentes (fórmula do PNUD).
+- **Na ficha de cada área:**
+  - o valor estimado do ano;
+  - o valor original (Censo 2022 ou IDHM 2010);
+  - a variação de cada componente.
+- **Regras explicadas:** "Como os números andam com o tempo", no rodapé do mapa.
+- **Arquivos:**
+  - `src/engine/game/demografia.ts`: funções puras, sem novo estado no save;
+  - taxas em `src/engine/data/maps.ts`;
+  - testes em `demografia.test.ts`.
