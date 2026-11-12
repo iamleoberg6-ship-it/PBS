@@ -198,7 +198,7 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
         {page === 'eleicoes' && <Eleicoes s={s} />}
         {page === 'estado' && <EstadoUniao s={s} />}
         {page === 'gerais' && <EleicoesGerais s={s} />}
-        {page === 'mandato' && <MeuMandato s={s} act={act} voteFloor={(id, c) => setS(setFloorVote(s, id, c))} />}
+        {page === 'mandato' && <MeuMandato s={s} act={act} voteFloor={(id, c) => setS(setFloorVote(s, id, c))} apply={(f) => setS(f(s))} />}
         {page === 'imagem' && <Imagem s={s} act={act} />}
         {page === 'conquistas' && <Conquistas s={s} />}
         {page === 'campanha' && <Campanha s={s} act={act} />}

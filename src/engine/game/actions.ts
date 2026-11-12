@@ -28,13 +28,14 @@ import { NETWORKS, produceContent } from './social';
 import { ideologicalDistance, partyIdeology } from '../data/ideology';
 import { isMunYear, nextElection } from './cycle';
 import { cityAlignment } from './general';
-import { AMENDMENT_BUDGET, STATE_AREAS, UPPER_THEMES, amendmentYearTotals, healthShareRequired, amendmentScheme, claimBancada, claimCommission, requestIndication, voteWithGov, yearKindTotal, articulateGov, isLegislatorUpper, oversight, seekCommittee, startStateProgram, transferToCity, upperAmendment, upperBill, visitBase } from './upper';
+import { AMENDMENT_BUDGET, STATE_AREAS, UPPER_THEMES, amendmentYearTotals, healthShareRequired, amendmentScheme, claimBancada, claimCommission, requestIndication, voteWithGov, yearKindTotal, articulateGov, isLegislatorUpper, oversight, startStateProgram, transferToCity, upperAmendment, upperBill, visitBase } from './upper';
 import { RESPONSE_LABEL, lapseCampaignPromises, makePromise, promiseCapacity, respondCrisis, workOnPromise } from './livingworld';
 import { computeEnding } from './endings';
 import { BR_REGIONS, brName, isFederal, nationalAgenda } from './national';
 import { MINISTRIES, PRES_AGENDA, leaveMinistry, ministerCommon, ministryAction, ministryById, playerIsPresident, playerIsVice, playerMinistry, presAppoint, presEmendas, presFiscal, presInternational, presMeasure, presSetStyle, presSpeech, viceAction } from './federal';
 import { TASK_LABEL, assignTask, fireMember, hireMember, hireRelative, proposeRachadinha, regularizeGhost, stopRachadinha, teamOffice, themeOptionsForTeam, type TeamTask } from './team';
 import { resignForCandidacy } from './careers';
+import { CPI_TOPICS, collectCpi, disputeChair, disputeLeadership, govInvestRegion, govRegionOptions, isChair, isLeader, legState } from './legislativo';
 import type { AttributeKey, Bill, CrisisResponse, GameState } from './types';
 
 export type ActionCategory = 'Vida e carreira' | 'Assessoria' | 'Partido' | 'Pré-candidatura' | 'Campanha' | 'Mandato de vereador' | 'Prefeitura' | 'Secretaria' | 'Mandato estadual/federal' | 'Governo do Estado' | 'Imagem e compromissos' | 'Gabinete' | 'Presidência' | 'Ministério' | 'Vice-Presidência' | 'Vida pessoal';
@@ -1267,10 +1268,42 @@ export const ACTIONS: ActionDef[] = [
     apply: (s, rng) => articulateGov(s, rng),
   },
   {
-    id: 'up_comissao', fatigue: false, label: 'Disputar cargo em comissão', category: 'Mandato estadual/federal', cost: 1,
-    description: 'Presidência ou relatoria dá peso aos seus projetos.',
-    availability: (s) => (isLegislatorUpper(s.player.mandate?.office) ? (s.player.mandate!.upper?.committeeRole ? 'hidden' : null) : 'hidden'),
-    apply: (s, rng) => seekCommittee(s, rng),
+    id: 'up_comissao', fatigue: false, label: 'Disputar a presidência da comissão', category: 'Mandato estadual/federal', cost: 1,
+    description: 'Presidência por acordo de líderes, respeitando a proporcionalidade dos partidos. Dá poder de pauta, mais relatorias e força aos seus projetos do tema. Uma tentativa por ano.',
+    availability: (s) => {
+      if (!isLegislatorUpper(s.player.mandate?.office)) return 'hidden';
+      const l = legState(s);
+      if (!l?.committee) return 'Escolha primeiro a sua comissão na página do mandato.';
+      if (isChair(s)) return 'hidden';
+      if (l.lastChairTry && Math.floor((l.lastChairTry - 1) / 12) === s.month.year) return 'Você já tentou este ano.';
+      return null;
+    },
+    apply: (s, rng) => disputeChair(s, rng),
+  },
+  {
+    id: 'leg_lideranca', fatigue: false, label: 'Disputar a liderança da bancada', category: 'Mandato estadual/federal', cost: 1,
+    description: 'O líder orienta os votos do partido no plenário e negocia a pauta. Mais fácil em bancada pequena; exige influência e confiança da direção. Uma tentativa por ano.',
+    availability: (s) => {
+      if (!isLegislatorUpper(s.player.mandate?.office)) return 'hidden';
+      if (!s.player.partyId) return 'Sem partido.';
+      if (isLeader(s)) return 'hidden';
+      const l = legState(s);
+      if (l?.lastLeaderTry && Math.floor((l.lastLeaderTry - 1) / 12) === s.month.year) return 'Você já tentou este ano.';
+      return null;
+    },
+    apply: (s, rng) => disputeLeadership(s, rng),
+  },
+  {
+    id: 'leg_cpi', label: 'Colher assinaturas para uma CPI', category: 'Mandato estadual/federal', cost: 1,
+    description: 'CPI exige 1/3 da casa (CF art. 58 §3º), fato determinado e prazo certo. Na oposição é mais fácil. Instalada, dá exposição e desgasta o governo.',
+    availability: (s) => {
+      if (!isLegislatorUpper(s.player.mandate?.office)) return 'hidden';
+      const c = legState(s)?.cpi;
+      if (c && (c.status === 'instalada' || c.status === 'relatorio')) return 'Sua CPI já está em andamento.';
+      return null;
+    },
+    paramLabel: 'Tema', params: (s) => { const c = legState(s)?.cpi; return c && c.status === 'coletando' ? CPI_TOPICS.filter((x) => x.value === c.topic) : CPI_TOPICS; },
+    apply: (s, rng, param) => collectCpi(s, rng, param ?? 'contratos'),
   },
   {
     id: 'up_fiscalizar', label: 'Fiscalizar o Executivo', category: 'Mandato estadual/federal', cost: 1,
@@ -1292,6 +1325,13 @@ export const ACTIONS: ActionDef[] = [
     paramLabel: 'Área',
     params: (s) => STATE_AREAS.filter((a) => !inMandate(s, 'secretario_estadual') || a.id === s.player.mandate?.portfolio).map((a) => ({ value: a.id, label: a.label })),
     apply: (s, rng, param) => startStateProgram(s, rng, param!),
+  },
+  {
+    id: 'gov_regiao', label: 'Investir numa região do estado', category: 'Governo do Estado', cost: 1,
+    description: 'R$ 500 mi para a região escolhida, focados no ponto mais fraco do IDHM local. Sobe a aprovação na região (mais em região pequena; retorno cai onde já se investiu). Veja o mapa em Política e país › Indicadores.',
+    availability: (s) => (inMandate(s, 'governador') ? null : 'hidden'),
+    paramLabel: 'Região (IBGE)', params: () => govRegionOptions(),
+    apply: (s, rng, param) => govInvestRegion(s, rng, param!),
   },
   {
     id: 'gov_alesp', label: 'Negociar base na Alesp', category: 'Governo do Estado', cost: 1,

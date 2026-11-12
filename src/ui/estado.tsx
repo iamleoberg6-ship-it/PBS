@@ -8,6 +8,7 @@ import {
 import { num, partyColor, pct } from './format';
 import { ActionCard, Checks, Polls } from './pages';
 import { Votacoes } from './votacoes';
+import { LegislativoPanel, RegioesEstadoPanel } from './legislativo';
 
 type Act = (id: string, param?: string) => void;
 const acr = (id: string) => partyById(id)?.acronym ?? id;
@@ -245,7 +246,7 @@ const HOUSE_OF: Record<string, { title: string; key: 'alespSeats' | 'camaraSeats
 };
 
 /** Página do mandato estadual/federal: painel, casa legislativa, ações do cargo e registro. */
-export function MeuMandato({ s, act, voteFloor }: { s: GameState; act: Act; voteFloor: (id: string, c: VoteChoice | null) => void }) {
+export function MeuMandato({ s, act, voteFloor, apply }: { s: GameState; act: Act; voteFloor: (id: string, c: VoteChoice | null) => void; apply: (f: (s: GameState) => GameState) => void }) {
   const m = s.player.mandate;
   if (!m?.upper) return <div className="card"><p>Você não exerce mandato estadual ou federal.</p></div>;
   const h = HOUSE_OF[m.office];
@@ -254,6 +255,8 @@ export function MeuMandato({ s, act, voteFloor }: { s: GameState; act: Act; vote
   return (
     <>
       <div className="page-head"><div><h2>{UPPER_LABEL[m.office]}</h2><p>Mandato {m.since.slice(0, 4)}–{m.until.slice(0, 4)} · agenda do cargo: {s.officePoints ?? 0} de {officePointsFor(s)} compromissos</p></div></div>
+      <LegislativoPanel s={s} apply={apply} />
+      <RegioesEstadoPanel s={s} />
       <Votacoes s={s} voteBill={() => undefined} voteFloor={voteFloor} />
       <UpperPanel s={s} />
       {(m.office === 'deputado_federal' || m.office === 'senador') && s.national && (

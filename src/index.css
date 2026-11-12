@@ -494,3 +494,11 @@ details[open] > summary::marker { content: '▾ '; }
 .card-title { flex-wrap: wrap; }
 @media (max-width: 900px) { .map-svg { max-height: 420px; } .map-metrics .btn-sm { font-size: 12px; } }
 .shell > *, .main, .map-grid > * { min-width: 0; }
+
+/* ---------- Fase 15: legislativo ---------- */
+.committee-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 6px; margin-top: 8px; }
+.committee-grid .btn { text-align: left; font-weight: 500; }
+.relatoria { border: 3px solid var(--edge); background: #fff; padding: 10px 12px; margin-top: 8px; box-shadow: var(--px-sm); }
+.relatoria p { margin: 6px 0; }
+.cpi { margin-top: 12px; border: 3px dashed var(--red); padding: 10px 12px; background: var(--red-soft); }
+.cpi h4 { margin: 0; }

@@ -36,6 +36,7 @@ import { FEDERAL_LABEL, ministryById, aiPresidentTakesOffice, buildCoalition, fe
 import { nationalMonthlyStep } from './national';
 import { UPPER_LABEL, UPPER_SALARIES, schemeInvestigation, upperMonthlyStep } from './upper';
 import { generateFloorVotes, resolveFloorVotes } from './pauta';
+import { governorRegionsStep, legislativoMonthlyStep } from './legislativo';
 import { councillorWindowSwitches, crisisMonthlyStep, lapseCampaignPromises, promisesMonthlyStep } from './livingworld';
 import { checkAchievements, computeEnding } from './endings';
 import { endMandate, rememberVotes, startExecMandate, isMunicipalMandate, mandateExpired, newMandate, startUpperMandate, vacateCouncilSeat } from './careers';
@@ -138,6 +139,8 @@ function advanceMonthInner(state: GameState): GameState {
   }
   mark('Campanha territorial e trabalho de assessoria');
   for (const n of upperMonthlyStep(s, rng)) log(s, 'mandato', n);
+  for (const n of legislativoMonthlyStep(s, rng)) log(s, 'mandato', n);
+  governorRegionsStep(s);
   mark('Mandato estadual/federal: emendas, projetos e relação com o governo');
   for (const n of schemeInvestigation(s, rng)) log(s, 'mandato', n);
   mark('Investigação de esquema com emendas');

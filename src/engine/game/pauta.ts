@@ -15,10 +15,10 @@ import type { FloorVote, GameState, VoteChoice } from './types';
 
 const clamp = (v: number, a = 0, b = 100) => Math.max(a, Math.min(b, v));
 
-interface Template { title: string; summary: string; theme: string; slant: number; support: number; salience: number; byGov: boolean; pec?: boolean; houses: ('alesp' | 'camara' | 'senado')[] }
+export interface Template { title: string; summary: string; theme: string; slant: number; support: number; salience: number; byGov: boolean; pec?: boolean; houses: ('alesp' | 'camara' | 'senado')[] }
 
 // slant: −1 progressista/estatal … +1 conservador/mercado · support: −1..+1 apoio do público (aproximação de jogo)
-const TEMPLATES: Template[] = [
+export const TEMPLATES: Template[] = [
   { title: 'Concessão de linhas de trens metropolitanos à iniciativa privada', summary: 'Projeto do Executivo autoriza conceder operação e manutenção por 30 anos.', theme: 'mobilidade', slant: 0.6, support: -0.1, salience: 60, byGov: true, houses: ['alesp'] },
   { title: 'Reajuste do piso dos professores da rede estadual', summary: 'Eleva o piso salarial do magistério estadual acima da inflação.', theme: 'educacao', slant: -0.4, support: 0.6, salience: 55, byGov: false, houses: ['alesp'] },
   { title: 'Câmeras corporais obrigatórias nas polícias estaduais', summary: 'Torna obrigatório o uso e define regras de guarda das gravações.', theme: 'seguranca', slant: -0.3, support: 0.3, salience: 65, byGov: false, houses: ['alesp'] },
@@ -47,7 +47,7 @@ const TEMPLATES: Template[] = [
   { title: 'Piso nacional da enfermagem: fonte de custeio', summary: 'Define de onde sai o dinheiro para pagar o piso.', theme: 'saude', slant: -0.3, support: 0.7, salience: 55, byGov: false, houses: ['camara', 'senado'] },
 ];
 
-const HOUSE: Record<string, { key: 'alesp' | 'camara' | 'senado'; label: string; seats: number }> = {
+export const HOUSE: Record<string, { key: 'alesp' | 'camara' | 'senado'; label: string; seats: number }> = {
   deputado_estadual: { key: 'alesp', label: 'Alesp', seats: 94 },
   deputado_federal: { key: 'camara', label: 'Câmara dos Deputados', seats: 513 },
   senador: { key: 'senado', label: 'Senado', seats: 81 },
@@ -115,6 +115,8 @@ function tally(s: GameState, office: string, v: FloorVote, rng: RngState) {
       if (c === 'S') yes++; else if (c === 'N') no++; else abst++;
     }
   }
+  // Fase 15: substitutivo negociado pelo relator (jogador) desloca parte da casa para o Sim (PROPOSTA).
+  if (v.boost) { const shift = Math.round(h.seats * Math.abs(v.boost)); if (v.boost > 0) { const k = Math.min(shift, no); no -= k; yes += k; } else { const k = Math.min(shift, yes); yes -= k; no += k; } }
   const total = h.seats;
   const needed = v.pec ? Math.ceil(total * 0.6) : null;
   const outcome: 'aprovado' | 'rejeitado' = needed ? (yes >= needed ? 'aprovado' : 'rejeitado') : yes > no ? 'aprovado' : 'rejeitado';
@@ -147,6 +149,9 @@ export function resolveFloorVotes(s: GameState, rng: RngState): string[] {
   for (const v of s.floorVotes) {
     if (v.result) continue;
     if (!m || !HOUSE[m.office] || HOUSE[m.office].key !== v.house) { v.result = { yes: 0, no: 0, abst: 0, outcome: 'rejeitado', rule: 'sessão sem você (mandato encerrado)' }; continue; }
+    // Fase 15: o líder define a orientação da própria bancada.
+    const ld = m.upper?.leg?.leaderUntil; const leader = !!ld && ld > s.month.year * 12 + s.month.month;
+    if (leader && v.playerVote) v.partyOrientation = v.playerVote;
     const auto = !v.playerVote;
     const mine: VoteChoice = v.playerVote ?? v.partyOrientation;
     v.playerVote = mine;
@@ -177,6 +182,11 @@ export function resolveFloorVotes(s: GameState, rng: RngState): string[] {
     } else if (v.salience > 55) { m.approval = clamp(m.approval - 0.4); fx.push('abstenção em tema importante foi criticada'); }
     const reg = nationalVoteEffects(s, v.title, mine, v.publicSupport, v.salience, rc.outcome === 'aprovado');
     if (reg) fx.push(reg);
+    if (v.relatorPlayer) {
+      const won = (rc.outcome === 'aprovado') === (v.parecer !== 'contrario');
+      s.player.recognition = clamp(s.player.recognition + (won ? 2 : 0.5));
+      fx.push(won ? 'seu parecer de relator(a) prevaleceu no plenário' : 'o plenário contrariou seu parecer');
+    }
     v.effects = fx.join('; ') || 'sem repercussão relevante';
     notes.push(`${HOUSE[m.office].label} ${rc.outcome === 'aprovado' ? 'aprovou' : 'rejeitou'} "${v.title}" (${rc.yes} sim, ${rc.no} não). Seu voto: ${mine === 'S' ? 'SIM' : mine === 'N' ? 'NÃO' : 'abstenção'}${auto ? ' (você não votou: seguiu a orientação da bancada)' : ''} — ${v.effects}.`);
     if (v.salience >= 60) pushNews(s, rng, { section: 'Brasil', headline: `${HOUSE[m.office].label} ${rc.outcome === 'aprovado' ? 'aprova' : 'rejeita'}: ${v.title.toLowerCase()} (simulação)`, lead: `Placar: ${rc.yes} a ${rc.no}. ${s.character.name} votou ${mine === 'S' ? 'a favor' : mine === 'N' ? 'contra' : 'pela abstenção'}.`, aboutPlayer: true, tone: 'neutro', outlets: ['canal24', 'diariopaulistano'] });

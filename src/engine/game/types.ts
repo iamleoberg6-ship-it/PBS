@@ -199,6 +199,11 @@ export interface UpperMandate {
   programs?: { id: string; label: string; monthsLeft: number; area: string }[];
   /** Ponto de agenda gasto em Brasília/capital no mês (deputado federal/senador) — ausência da base. */
   awayFromBase: number;
+  /** Fase 15: trabalho legislativo (comissão, relatoria, liderança, CPI). */
+  leg?: import('./legislativo').LegState;
+  /** Fase 15: governador — investimento acumulado (R$ mi) e aprovação por região intermediária do estado. */
+  regionInvest?: Record<string, number>;
+  regionApproval?: Record<string, number>;
 }
 
 export interface PlayerState {
@@ -722,6 +727,10 @@ export interface FloorVote {
   playerVote: VoteChoice | null;
   result: { yes: number; no: number; abst: number; outcome: 'aprovado' | 'rejeitado'; rule: string } | null;
   effects: string | null;
+  /** Fase 15: o jogador foi relator na comissão; parecer dado e reforço de votos do substitutivo negociado. */
+  relatorPlayer?: boolean;
+  parecer?: 'favoravel' | 'substitutivo' | 'contrario';
+  boost?: number;
 }
 
 export interface Achievement {

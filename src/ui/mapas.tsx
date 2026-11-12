@@ -123,17 +123,22 @@ function CityMap({ s }: { s: GameState }) {
 
 // ---------------------------------------------------------------------------------------------
 function StateMap({ s }: { s: GameState }) {
+  const gov = s.player.mandate?.office === 'governador' ? s.player.mandate.upper : null;
   const METRICS: Metric[] = [
     { id: 'idhm', label: 'IDHM', unit: 'índice 0–1', better: 'up', tag: 'DERIVADA', source: 'Atlas do Desenvolvimento Humano (PNUD/IPEA/FJP), IDHM 2010 dos municípios, ponderado pela população de 2022', decimals: 3 },
     { id: 'idhm_e', label: 'IDHM Educação', unit: 'índice', better: 'up', tag: 'DERIVADA', source: 'Atlas Brasil 2010, ponderado', decimals: 3 },
     { id: 'idhm_l', label: 'IDHM Longevidade', unit: 'índice', better: 'up', tag: 'DERIVADA', source: 'Atlas Brasil 2010, ponderado', decimals: 3 },
     { id: 'idhm_r', label: 'IDHM Renda', unit: 'índice', better: 'up', tag: 'DERIVADA', source: 'Atlas Brasil 2010, ponderado', decimals: 3 },
     { id: 'pop', label: 'População', unit: 'habitantes', better: null, tag: 'DADO REAL', source: 'IBGE, Censo 2022 (soma dos municípios)', decimals: 0 },
+    ...(gov ? [
+      { id: 'inv', label: 'Investido pelo seu governo', unit: 'R$ mi', better: null, tag: 'DO JOGO' as const, source: 'ações "Investir numa região do estado"', decimals: 0 },
+      { id: 'aprov', label: 'Sua aprovação', unit: '0–100', better: 'up' as const, tag: 'DO JOGO' as const, source: 'aprovação do governo por região (simulação)', decimals: 0 },
+    ] : []),
   ];
-  const [m, setM] = useState('idhm');
+  const [m, setM] = useState(gov ? 'aprov' : 'idhm');
   const metric = METRICS.find((x) => x.id === m)!;
   const [sel, setSel] = useState<string | null>(null);
-  const values = Object.fromEntries(MAP_STATE.shapes.map((sh) => [sh.id, (STATE_REGION_STATS[sh.id] as unknown as Record<string, number>)?.[m] ?? null]));
+  const values = Object.fromEntries(MAP_STATE.shapes.map((sh) => [sh.id, m === 'inv' ? (gov?.regionInvest?.[sh.id] ?? 0) : m === 'aprov' ? (gov?.regionApproval?.[sh.id] ?? s.player.mandate?.approval ?? null) : (STATE_REGION_STATS[sh.id] as unknown as Record<string, number>)?.[m] ?? null]));
   const st = sel ? STATE_REGION_STATS[sel] : null;
   const name = sel ? MAP_STATE.shapes.find((x) => x.id === sel)?.name : '';
   const total = Object.values(STATE_REGION_STATS).reduce((a, x) => a + x.pop, 0);
@@ -158,6 +163,7 @@ function StateMap({ s }: { s: GameState }) {
               <dt>Educação</dt><dd>{fmt(st.idhm_e, 3)}</dd>
               <dt>Longevidade</dt><dd>{fmt(st.idhm_l, 3)}</dd>
               <dt>Renda</dt><dd>{fmt(st.idhm_r, 3)}</dd>
+              {gov && <><dt>Investido pelo seu governo</dt><dd>R$ {fmt(gov.regionInvest?.[sel!] ?? 0, 0)} mi</dd><dt>Sua aprovação</dt><dd>{fmt(gov.regionApproval?.[sel!] ?? s.player.mandate?.approval, 0)}</dd></>}
             </dl>
             {STATE_IND.length > 0 && <>
               <h4 style={{ marginTop: 12 }}>Indicadores do estado (média estadual, simulação)</h4>

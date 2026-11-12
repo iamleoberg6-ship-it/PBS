@@ -15,6 +15,7 @@ import { partyById } from '../data/parties';
 import { addGoodwill } from './campaign';
 import { partyAlignment } from './general';
 import type { GameState, Mandate, UpperMandate } from './types';
+import { UPPER_COMMITTEES } from './legislativo';
 
 const clamp = (v: number, a = 0, b = 100) => Math.max(a, Math.min(b, v));
 
@@ -314,7 +315,11 @@ export function upperMonthlyStep(s: GameState, rng: RngState): string[] {
     if (b.status !== 'tramitando') continue;
     b.monthsLeft -= 1;
     if (b.monthsLeft > 0) continue;
-    const chance = clamp(12 + u.relationGov * 0.25 + s.character.attributes.articulation * 0.2 + (u.committeeRole ? 12 : 0) + upperAlignment(s) * 10, 5, 75) / 100;
+    // Fase 15: projeto do tema da sua comissão anda mais; presidindo a comissão, ainda mais (PROPOSTA).
+    const lg = u.leg; const hk = m.office === 'deputado_estadual' ? 'alesp' : m.office === 'deputado_federal' ? 'camara' : 'senado';
+    const cdef = lg?.committee ? UPPER_COMMITTEES[hk].find((c) => c.id === lg.committee) : null;
+    const themeFit = cdef?.themes.includes(b.theme) ? (lg?.chairUntil && lg.chairUntil > s.month.year * 12 + s.month.month ? 18 : 8) : 0;
+    const chance = clamp(12 + u.relationGov * 0.25 + s.character.attributes.articulation * 0.2 + (u.committeeRole ? 12 : 0) + themeFit + upperAlignment(s) * 10, 5, 80) / 100;
     if (next(rng) < chance) {
       b.status = 'aprovado';
       m.approval = clamp(m.approval + 2);
