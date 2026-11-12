@@ -477,3 +477,20 @@ details[open] > summary::marker { content: '▾ '; }
 .speech-tag { margin-top: 10px; font-size: 12px; color: #9aa1cf; }
 .speech-done { animation: rise .35s both; display: flex; flex-direction: column; gap: 6px; background: #1b1f3b; border: 3px solid var(--gold); padding: 14px 16px; box-shadow: 4px 4px 0 #000; max-width: 640px; }
 .speech-done b { color: var(--gold); font-size: 17px; }
+
+/* ---------- Fase 14: mapas ---------- */
+.map-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr); gap: 18px; align-items: start; }
+.map-metrics { margin-bottom: 10px; }
+.map-wrap { position: relative; }
+.map-svg { width: 100%; height: auto; max-height: 560px; display: block; background: #eae2cc; border: 3px solid var(--edge); box-shadow: var(--px-sm); }
+.map-area { cursor: pointer; transition: opacity .1s; stroke-linejoin: round; }
+.map-area:hover { opacity: .78; }
+.map-area:focus { outline: none; opacity: .7; }
+.map-hover { font-size: 13px; margin-top: 6px; min-height: 18px; color: var(--ink-2); }
+.map-legend { display: flex; align-items: center; gap: 8px; font-size: 12px; margin: 6px 0; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+.map-legend i { display: inline-block; width: 140px; height: 10px; border: 2px solid var(--edge); }
+.map-panel h3 { margin-top: 4px; }
+@media (max-width: 900px) { .map-grid { grid-template-columns: 1fr; } }
+.card-title { flex-wrap: wrap; }
+@media (max-width: 900px) { .map-svg { max-height: 420px; } .map-metrics .btn-sm { font-size: 12px; } }
+.shell > *, .main, .map-grid > * { min-width: 0; }

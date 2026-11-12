@@ -23,6 +23,7 @@ import { exportSave, isDesktop, mirrorToFile } from './desktop';
 import { Conquistas, EleicoesGerais, EstadoUniao, Imagem, MeuMandato } from './estado';
 import { SceneQueue, Apuracao, soundOn, setSoundOn } from './cenas';
 import { saveSnapshot, markExported, monthsSinceExport } from './snapshots';
+import { Mapas } from './mapas';
 
 const PAGE_IDS = ['gabinete', 'mandato', 'personagem', 'meupartido', 'partidos', 'redes', 'noticias', 'campanha', 'eleicoes', 'gerais', 'estado', 'imagem', 'gabparl', 'governo', 'camara', 'secretaria', 'cidade', 'conquistas', 'historico', 'regras', 'equipe', 'brasil', 'federal', 'pessoal', 'indicadores'] as const;
 type PageId = (typeof PAGE_IDS)[number];
@@ -204,7 +205,7 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
         {page === 'gabparl' && <GabineteParlamentar s={s} act={act} />}
         {page === 'equipe' && <Equipe s={s} act={act} />}
         {page === 'pessoal' && <VidaPessoal s={s} act={act} />}
-        {page === 'indicadores' && <><Indicadores s={s} /><div style={{ marginTop: 28 }}><Brasil s={s} /></div></>}
+        {page === 'indicadores' && <><Mapas s={s} /><Indicadores s={s} /><div style={{ marginTop: 28 }}><Brasil s={s} /></div></>}
         {page === 'federal' && <GovernoFederal s={s} act={act} decide={(id, d) => setS(decideSanction(s, id, d))} />}
         {page === 'cidade' && (
           <div className="pill-row subnav" role="group" aria-label="São Paulo">
