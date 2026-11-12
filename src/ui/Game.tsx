@@ -2,7 +2,7 @@ import { Component, useEffect, useState, type ReactNode } from 'react';
 import {
   GAMEPLAY, TEAM_LIMITS, decideSanction, setFloorVote, officePointsFor, nextElection, munCycle, genCycle, monthIndex, advanceMonth, setPlayerVote, openDraft, adjustDraft, changeParty, setSocialFocus, currentPhaseLabel, eventById, monthLabel, performAction, resolveEvent, saveLocal, serialize,
   type GameState,
-  detectScenes, pastApuracoes, type Scene, type ApuracaoRef,
+  detectScenes, pastApuracoes, giveSpeech, type Scene, type ApuracaoRef,
 } from '../engine';
 import { brl } from './format';
 import { Cidade, Eleicoes, Gabinete, Historico, Partidos, Personagem, Regras } from './pages';
@@ -234,7 +234,7 @@ export function Game({ initial, onExit }: { initial: GameState; onExit: () => vo
         </div>
       )}
 
-      {scenes.length > 0 && <SceneQueue s={s} scenes={scenes} onDone={() => setScenes([])} />}
+      {scenes.length > 0 && <SceneQueue s={s} scenes={scenes} onDone={() => setScenes([])} onSpeech={(ref, outcome, id) => setS(giveSpeech(s, ref, outcome, id))} />}
       {replay && <div className="scene-overlay"><Apuracao s={s} refe={replay} onClose={() => setReplay(null)} /></div>}
 
       {exporting && (

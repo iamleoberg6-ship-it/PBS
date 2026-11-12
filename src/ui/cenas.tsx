@@ -3,7 +3,7 @@
  * Arte em pixel desenhada em código (SVG com shape-rendering crispEdges), sons gerados por WebAudio.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { apuracaoData, partyById, type ApuracaoRef, type GameState, type Scene, type SceneTone } from '../engine';
+import { apuracaoData, partyById, speechOptions, speechGiven, canGiveSpeech, effectText, type ApuracaoRef, type GameState, type Scene, type SceneTone } from '../engine';
 import { REGIONS } from '../engine/data/regions';
 import { partyColor } from './format';
 
@@ -186,18 +186,20 @@ function useCount(key: string) {
   return { t, finish: () => setT(1), speed, setSpeed };
 }
 
-export function Apuracao({ s, refe, onClose }: { s: GameState; refe: ApuracaoRef; onClose: () => void }) {
+export function Apuracao({ s, refe, onClose, onSpeech }: { s: GameState; refe: ApuracaoRef; onClose: () => void; onSpeech?: (id: string) => void }) {
   const data = useMemo(() => apuracaoData(s, refe), [s, refe]);
   const key = `${refe.level}-${refe.year}-${refe.round}-${refe.office}`;
   const { t, finish, speed, setSpeed } = useCount(key);
   const lastStep = useRef(-1);
   const done = t >= 1;
+  const given = speechGiven(s, refe);
+  const mustSpeak = !!onSpeech && canGiveSpeech(s, refe);
   const p = 1 - Math.pow(1 - t, 1.7); // seções totalizadas
   // ordem ilustrativa de chegada das regiões
   const order = useMemo(() => [...REGIONS].map((r) => r.id).sort((a, b) => hash(a + key) - hash(b + key)), [key]);
   useEffect(() => { const step = Math.floor(p * 20); if (step !== lastStep.current) { lastStep.current = step; if (!done) sfx.tick(); } }, [p, done]);
   useEffect(() => { if (done && data) (data.outcome === 'eleito' ? sfx.vitoria : data.outcome === 'segundo_turno' ? sfx.tenso : sfx.derrota)(); }, [done]);
-  useEffect(() => { const h = (e: KeyboardEvent) => { if (e.key === 'Escape' || e.key === 'Enter') { if (done) onClose(); else finish(); } }; window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h); }, [done]);
+  useEffect(() => { const h = (e: KeyboardEvent) => { if (e.key === 'Escape' || e.key === 'Enter') { if (done) { if (!mustSpeak) onClose(); } else finish(); } }; window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h); }, [done, mustSpeak]);
   if (!data) return null;
 
   const R = order.length;
@@ -262,13 +264,33 @@ export function Apuracao({ s, refe, onClose }: { s: GameState; refe: ApuracaoRef
         <div className={`apu-stamp stamp-${data.outcome}`}>
           <div className="stamp">{stamp}</div>
           <p>{data.outcomeText}</p>
+          {mustSpeak && (
+            <div className="speech">
+              <h3>Seu discurso</h3>
+              <p className="speech-lede">Os microfones estão ligados. O que você diz?</p>
+              <div className="speech-grid">
+                {speechOptions(data.outcome).map((o) => (
+                  <button key={o.id} className="speech-card" onClick={() => onSpeech!(o.id)}>
+                    <b>{o.label}</b><q>{o.quote.replace(/^"|"$/g, '')}</q><span className="speech-sum">{o.summary}</span><span className="speech-fx">{effectText(o.effect)}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="speech-tag"><span className="tag proposta">MECÂNICA DO JOGO</span> Efeitos de imagem e de partido propostos pelo jogo; não envolvem regra legal.</div>
+            </div>
+          )}
+          {given && (
+            <div className="speech speech-done">
+              <div className="scene-kicker">Seu discurso</div>
+              <b>{given.label}</b><q>{given.quote.replace(/^"|"$/g, '')}</q><span className="speech-fx">{effectText(given.effect)}</span>
+            </div>
+          )}
           {data.outcome === 'eleito' && <div className="confetti" aria-hidden>{Array.from({ length: 40 }, (_, i) => <i key={i} style={{ left: `${(i * 37) % 100}%`, animationDelay: `${(i % 10) * 0.12}s`, background: ['#ffc61a', '#10a04e', '#2a78dc', '#e43b44', '#ff6f9f'][i % 5] }} />)}</div>}
         </div>
       )}
       <div className="apu-actions">
         {!done && <button className="btn" onClick={() => setSpeed(speed === 1 ? 3 : 1)}>{speed === 1 ? 'Acelerar ×3' : 'Velocidade normal'}</button>}
         {!done && <button className="btn" onClick={finish}>Pular para o resultado</button>}
-        {done && <button className="btn btn-gold" onClick={onClose} autoFocus>Continuar →</button>}
+        {done && !mustSpeak && <button className="btn btn-gold" onClick={onClose} autoFocus>Continuar →</button>}
       </div>
       <div className="apu-foot">Números finais calculados pelo jogo (quociente, sobras e maioria absoluta conforme a lei). A ordem em que as urnas chegam na tela é ilustrativa.</div>
     </div>
@@ -278,7 +300,7 @@ export function Apuracao({ s, refe, onClose }: { s: GameState; refe: ApuracaoRef
 // ---------------------------------------------------------------------------------------------
 // Fila de cenas
 // ---------------------------------------------------------------------------------------------
-export function SceneQueue({ s, scenes, onDone }: { s: GameState; scenes: Scene[]; onDone: () => void }) {
+export function SceneQueue({ s, scenes, onDone, onSpeech }: { s: GameState; scenes: Scene[]; onDone: () => void; onSpeech?: (ref: ApuracaoRef, outcome: 'eleito' | 'nao_eleito' | 'segundo_turno', id: string) => void }) {
   const [i, setI] = useState(0);
   useEffect(() => setI(0), [scenes]);
   const sc = scenes[i];
@@ -286,7 +308,7 @@ export function SceneQueue({ s, scenes, onDone }: { s: GameState; scenes: Scene[
   const next = () => (i + 1 < scenes.length ? setI(i + 1) : onDone());
   return (
     <div className="scene-overlay">
-      {sc.kind === 'apuracao' && sc.apuracao ? <Apuracao key={sc.id} s={s} refe={sc.apuracao} onClose={next} /> : <SceneCard key={sc.id} sc={sc} s={s} onNext={next} last={i + 1 === scenes.length} />}
+      {sc.kind === 'apuracao' && sc.apuracao ? <Apuracao key={sc.id} s={s} refe={sc.apuracao} onClose={next} onSpeech={onSpeech ? (id) => { const d = apuracaoData(s, sc.apuracao!); if (d) onSpeech(sc.apuracao!, d.outcome, id); } : undefined} /> : <SceneCard key={sc.id} sc={sc} s={s} onNext={next} last={i + 1 === scenes.length} />}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 # PBS — Fase 13: noite da apuração e cenas
 
-**Status:** implementado · 185 testes passando · build OK · conferido no navegador numa partida real (eleição de 2028 → apuração → posse em janeiro de 2029)
+**Status:** implementado · 187 testes passando · build OK · conferido no navegador numa partida real (eleição de 2028 → apuração → posse em janeiro de 2029)
 
 ## Objetivo
 Os grandes momentos da carreira passavam como uma linha de texto. Agora viram telas próprias.
@@ -50,6 +50,23 @@ Cada cena tem cenário em pixel art desenhado em código (SVG) e texto curto.
 - **Personagem:** a figura principal segue o gênero do personagem.
 - **Ordem:** várias cenas no mesmo mês aparecem em sequência, e a apuração vem antes da posse.
 
+## 2b. Discurso na noite da apuração
+Ao fim da contagem, quando a eleição é do mês corrente, o jogador escolhe o discurso antes de continuar.
+- O "Continuar" só aparece depois da escolha.
+- **Um discurso por eleição e turno.** Ao rever apurações antigas, aparece o discurso feito, mas não dá para refazê-lo.
+- **Efeitos:** valem na hora e aparecem no cartão. O discurso vai para o histórico e, se não for o silêncio, vira manchete na aba Notícias.
+
+| Resultado | Opções (efeitos) |
+|---|---|
+| Eleito(a) | Falar para todos (+popularidade, +credibilidade, −militância) · Festa com a militância (+militância, +mobilização, +base, −popularidade) · Prometer entregas (+base, +reconhecimento) · Provocar adversários (+base, −popularidade, −credibilidade, +exposição) |
+| Não eleito(a) | Reconhecer e parabenizar (+credibilidade, +popularidade, +direção) · Voltar mais forte (+base, +militância) · Culpar o sistema sem provas (+base, −credibilidade, −popularidade, −direção, +exposição) · Sair sem falar (−1 reconhecimento) |
+| 2º turno | Chamar os derrotados (+força da campanha, −militância) · Virada na rua (+campanha, +base, +mobilização) · Polarizar (+campanha, +base, −popularidade, +exposição) |
+
+- **Classificação:** MECÂNICA DO JOGO (PROPOSTA). Nenhum efeito é regra legal; a tela diz isso.
+- **Exposição:** a "exposição" sobe pelo indicador de calor da vida pessoal, que aumenta o risco de ameaças.
+- **2º turno:** a "força da campanha" soma pontos de campanha, que pesam no resultado.
+- **Arquivos:** `src/engine/game/speeches.ts` (`speechOptions`, `giveSpeech`, `canGiveSpeech`, `speechGiven`, `effectText`); a escolha fica na tela de apuração, em `cenas.tsx`.
+
 ## 3. Som
 - Efeitos curtos gerados no navegador (WebAudio), sem arquivos de áudio: vitória, derrota, suspense de 2º turno, momentos alegres e tique da contagem.
 - Botão "Som: ligado/desligado" no rodapé do menu; a escolha fica guardada no navegador.
@@ -68,5 +85,4 @@ Cada cena tem cenário em pixel art desenhado em código (SVG) e texto curto.
 
 ## Ideias para depois
 - Ilustração própria para cada cargo nas posses estaduais e federais (Alesp e Senado separados).
-- Discurso de vitória ou derrota escolhido pelo jogador, com efeito em imagem e base.
 - Retratos em pixel art para personagens fictícios.

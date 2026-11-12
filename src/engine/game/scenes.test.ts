@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createGame, advanceMonth, availableActions, performAction, resolveEvent, fatigueMultiplier, detectScenes, apuracaoData, pastApuracoes, type GameState, type Scene } from '../index';
+import { createGame, advanceMonth, availableActions, performAction, resolveEvent, fatigueMultiplier, detectScenes, apuracaoData, pastApuracoes, giveSpeech, speechGiven, canGiveSpeech, type GameState, type Scene } from '../index';
 
 const PREFS = ['pleitear', 'atividade_partidaria', 'mobilizar_filiados', 'rede_contatos', 'montar_equipe', 'plano_campanha', 'arrecadar', 'corpo_a_corpo', 'comunicacao', 'comicio', 'lideranca_local', 'pre_campanha', 'comunidade', 'redes'];
 function step(s: GameState) {
@@ -46,5 +46,31 @@ describe('Fase 13 — cenas', () => {
     expect(detectScenes(a, c).map((x) => x.kind)).toContain('nomeacao');
     expect(detectScenes(c, d).map((x) => x.kind)).toContain('promocao');
     expect(detectScenes(a, structuredClone(a))).toEqual([]);
+  });
+});
+
+describe('Fase 13b — discurso na noite da apuração', () => {
+  it('aplica efeitos, registra, e não deixa repetir nem discursar fora do ano', () => {
+    const s = mk(); s.month = { year: 2028, month: 10 };
+    const ref = { level: 'municipal' as const, year: 2028, round: 1 as const, office: 'vereador' };
+    expect(canGiveSpeech(s, ref)).toBe(true);
+    const cred0 = s.player.credibility ?? 50, pop0 = s.character.attributes.popularity;
+    const a = giveSpeech(s, ref, 'nao_eleito', 'parabenizar');
+    expect(a.player.credibility).toBe(Math.min(100, cred0 + 5));
+    expect(a.character.attributes.popularity).toBeGreaterThan(pop0);
+    expect(speechGiven(a, ref)?.id).toBe('parabenizar');
+    expect(a.log[a.log.length - 1].text).toContain('Discurso');
+    expect(a.news.length).toBe(s.news.length + 1);
+    expect(giveSpeech(a, ref, 'nao_eleito', 'sistema')).toBe(a); // não repete
+    const later = structuredClone(s); later.month = { year: 2030, month: 1 };
+    expect(canGiveSpeech(later, ref)).toBe(false);
+    const quiet = giveSpeech(s, ref, 'nao_eleito', 'silencio');
+    expect(quiet.news.length).toBe(s.news.length);
+  });
+  it('no 2º turno o discurso fortalece a campanha', () => {
+    const s = mk(); s.month = { year: 2028, month: 10 };
+    s.player.candidacy = { office: 'prefeito', campaignPoints: 10 } as never;
+    const ref = { level: 'municipal' as const, year: 2028, round: 1 as const, office: 'prefeito' };
+    expect(giveSpeech(s, ref, 'segundo_turno', 'ampliar').player.candidacy!.campaignPoints).toBe(18);
   });
 });

@@ -461,3 +461,19 @@ details[open] > summary::marker { content: '▾ '; }
   .scene-body { font-size: 15px; }
 }
 @media (prefers-reduced-motion: reduce) { .confetti { display: none; } }
+
+/* ---------- Fase 13b: discurso na noite da apuração ---------- */
+.speech { margin: 22px auto 0; max-width: 980px; text-align: left; animation: rise .5s .7s both; }
+.speech h3 { color: #fff; font-size: 20px; margin: 0; }
+.speech-lede { color: #b3b8e0; margin: 4px 0 12px; }
+.speech-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+.speech-card { text-align: left; background: #1b1f3b; color: #eef0ff; border: 3px solid #fff6e3; box-shadow: 4px 4px 0 #000; padding: 12px; cursor: pointer; display: flex; flex-direction: column; gap: 7px; font: inherit; transition: transform .05s, background .1s; }
+.speech-card:hover { background: #262b52; border-color: var(--gold); }
+.speech-card:active { transform: translate(3px, 3px); box-shadow: none; }
+.speech-card b { font-size: 16px; color: var(--gold); }
+.speech q, .speech-card q { font-style: italic; color: #fff; font-size: 14px; quotes: '“' '”'; }
+.speech-sum { font-size: 13px; color: #b3b8e0; }
+.speech-fx { font-size: 12.5px; color: var(--cyan); font-variant-numeric: tabular-nums; }
+.speech-tag { margin-top: 10px; font-size: 12px; color: #9aa1cf; }
+.speech-done { animation: rise .35s both; display: flex; flex-direction: column; gap: 6px; background: #1b1f3b; border: 3px solid var(--gold); padding: 14px 16px; box-shadow: 4px 4px 0 #000; max-width: 640px; }
+.speech-done b { color: var(--gold); font-size: 17px; }
